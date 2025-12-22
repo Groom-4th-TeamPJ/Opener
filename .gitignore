@@ -1,0 +1,39 @@
+# 환경 변수 파일 (절대 커밋 금지!)
+.env
+.env.local
+.env.*.local
+
+# 각 서비스별 환경 파일
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
+
+# Docker volumes
+postgres_data/
+redis_data/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# util
+.claude
+.idea
+
+# Node / pnpm
+frontend/.pnpm-store/
+frontend/node_modules/
+dist/
+# Backend 빌드 결과
+backend/build/

@@ -1,0 +1,113 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: db-dev
+    environment:
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=dev
+      - POSTGRES_PASSWORD=dev123
+      - TZ=Asia/Seoul
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+    networks:
+      - dev-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U dev" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: redis-dev
+    environment:
+      - TZ=Asia/Seoul
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data_dev:/data
+    networks:
+      - dev-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend (Spring Boot)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend-dev
+    env_file:
+      - ./backend/.env.dev
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - DB_URL=jdbc:postgresql://db:5432/postgres
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - TZ=Asia/Seoul
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - dev-network
+    restart: unless-stopped
+
+  # Frontend (Development with Hot Reload)
+  frontend:
+    image: node:22-alpine
+    container_name: frontend-dev
+    working_dir: /app
+    env_file:
+      - ./frontend/.env.dev
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "3000:3000"
+    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install && pnpm dev"
+    depends_on:
+      - backend
+    networks:
+      - dev-network
+    restart: unless-stopped
+
+  # Nginx Reverse Proxy (Optional for dev)
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-dev
+    environment:
+      - TZ=Asia/Seoul
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - dev-network
+    restart: unless-stopped
+
+networks:
+  dev-network:
+    driver: bridge
+
+volumes:
+  postgres_data_dev:
+  redis_data_dev:

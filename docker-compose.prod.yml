@@ -1,0 +1,106 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: db-prod
+    environment:
+      - POSTGRES_DB=proddb
+      - POSTGRES_USER=produser
+      - POSTGRES_PASSWORD=produser123
+      - TZ=Asia/Seoul
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+    networks:
+      - prod-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U produser" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: redis-prod
+    environment:
+      - TZ=Asia/Seoul
+    command: redis-server --requirepass change_this_redis_password
+    volumes:
+      - redis_data_prod:/data
+    networks:
+      - prod-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "--raw", "incr", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+  # Backend (Spring Boot)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend-prod
+    env_file:
+      - ./backend/.env.prod
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - DB_URL=jdbc:postgresql://db:5432/proddb
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - TZ=Asia/Seoul
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - prod-network
+    restart: always
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=/api
+    container_name: frontend-prod
+    env_file:
+      - ./frontend/.env.prod
+    depends_on:
+      - backend
+    networks:
+      - prod-network
+    restart: always
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-prod
+    environment:
+      - TZ=Asia/Seoul
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - prod-network
+    restart: always
+
+networks:
+  prod-network:
+    driver: bridge
+
+volumes:
+  postgres_data_prod:
+  redis_data_prod:

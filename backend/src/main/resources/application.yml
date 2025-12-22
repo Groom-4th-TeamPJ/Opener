@@ -1,0 +1,30 @@
+spring:
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev} # 환경변수 참조, 기본값 dev
+
+  application:
+    name: backend # 애플리케이션 이름
+
+  # JPA 공통 설정
+  jpa:
+    open-in-view: false # OSIV 비활성화 (성능 최적화)
+    properties:
+      hibernate:
+        format_sql: true # SQL 포맷팅
+        highlight_sql: true # SQL 하이라이트
+
+  # Actuator 설정
+  management:
+    endpoints:
+      web:
+        exposure:
+          include: health,info,metrics,prometheus
+    endpoint:
+      health:
+        show-details: when-authorized
+
+  # 로깅 설정
+  logging:
+    level:
+      root: INFO
+      spring.backend: DEBUG # 프로젝트 패키지 로그 레벨

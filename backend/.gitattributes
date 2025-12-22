@@ -1,0 +1,27 @@
+# Line ending normalization
+* text=auto
+
+# Gradle files
+*.gradle text eol=lf
+/gradlew text eol=lf
+*.bat text eol=crlf
+
+# YAML files
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Java files
+*.java text eol=lf
+
+# Properties files
+*.properties text eol=lf
+
+# SQL files
+*.sql text eol=lf
+
+# Markdown files
+*.md text eol=lf
+
+# Binary files
+*.jar binary
+*.class binary

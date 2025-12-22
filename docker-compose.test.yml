@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: db-test
+    environment:
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=dev
+      - POSTGRES_PASSWORD=dev123
+      - TZ=Asia/Seoul
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_test:/var/lib/postgresql/data
+    networks:
+      - test-network
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: redis-test
+    environment:
+      - TZ=Asia/Seoul
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data_test:/data
+    networks:
+      - test-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Frontend (Development with Hot Reload)
+  frontend:
+    image: node:22-alpine
+    container_name: frontend-test
+    working_dir: /app
+    env_file:
+      - ./frontend/.env.dev
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "3000:3000"
+    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install && pnpm dev"
+    networks:
+      - test-network
+    restart: unless-stopped
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-test
+    environment:
+      - TZ=Asia/Seoul
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.test.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+    networks:
+      - test-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+networks:
+  test-network:
+    driver: bridge
+
+volumes:
+  postgres_data_test:
+  redis_data_test:

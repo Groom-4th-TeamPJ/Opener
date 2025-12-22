@@ -1,0 +1,58 @@
+*.md
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### VS Code ###
+.vscode/
+
+### Environment ###
+.env
+.env.dev
+.env.prod
+.env.local
+.env.*.local
+!.env.example
+
+### Logs ###
+logs/
+*.log
+/var/log/
+
+### Database ###
+*.db
+*.sqlite
+
+### Application specific ###
+application-local.yml
+application-secret.yml

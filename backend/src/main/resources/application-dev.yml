@@ -1,0 +1,65 @@
+spring:
+  # PostgreSQL 데이터베이스 설정
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/postgres}
+    username: ${DB_USERNAME:dev}
+    password: ${DB_PASSWORD:dev123}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 10
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  # JPA/Hibernate 설정
+  jpa:
+    hibernate:
+      ddl-auto: validate # create, create-drop, update, validate, none
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  # Flyway 마이그레이션 설정
+  flyway:
+    enabled: true
+    baseline-on-migrate: true # 기존 DB에 Flyway 적용 시 필요
+    locations: classpath:db/migration
+    validate-on-migrate: true
+
+  # Redis 설정
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: # Redis 비밀번호 (필요시 설정)
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+
+  # Security 개발 설정 (필요시 커스터마이징)
+  security:
+    user:
+      name: admin # 기본 사용자 이름
+      password: admin # 기본 비밀번호 (개발용)
+
+  # Swagger/OpenAPI 설정
+  springdoc:
+    swagger-ui:
+      path: /swagger-ui.html
+      tags-sorter: alpha
+      operations-sorter: alpha
+    api-docs:
+      path: /api-docs
+
+  # 개발 환경 로깅
+  logging:
+    level:
+      org.hibernate.SQL: DEBUG
+      org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+      org.springframework.security: DEBUG
+      org.flywaydb: DEBUG
