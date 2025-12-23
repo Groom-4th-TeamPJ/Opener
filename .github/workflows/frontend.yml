@@ -1,40 +1,72 @@
-name: Frontend CI                                          # 1. 워크플로우 이름 (Actions 탭에 표시)
+name: Frontend CI & Template Enforcer
 
-on:                                                        # 2. 트리거
-  pull_request:                                            # PR 생성 / 업데이트 시 실행
+on:
+  pull_request:
+    branches:
+      - frontend
     paths:
-      - "frontend/**"                                      # frontend 변경 시에만 실행
+      - 'frontend/**'
+      - '.github/workflows/frontend-ci.yml'
 
-jobs:                                                      # 3. 작업 정의
-  frontend:                                                # job ID
-    runs-on: ubuntu-latest                                 # 실행 환경 (가상 Ubuntu 서버)
+permissions:
+  pull-requests: write
+  contents: read
 
+jobs:
+  # Job 1: PR 본문 업데이트 (안정적인 GitHub Script 방식)
+  apply-template:
+    runs-on: ubuntu-latest
+    if: github.event.action == 'opened'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: frontend
+
+      - name: Read Template and Update PR
+        uses: actions/github-script@v7
+        with:
+          # 여기서 secrets.GITHUB_TOKEN은 GitHub이 자동 생성하므로 따로 설정 안 해도 됩니다.
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            // frontend 브랜치의 템플릿 경로를 읽습니다.
+            const template = fs.readFileSync('.github/PULL_REQUEST_TEMPLATE.md', 'utf8');
+
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              body: template
+            });
+
+  # Job 2: CI 검사
+  frontend-ci:
+    runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: frontend                        # 모든 run 명령은 frontend 기준
-
-    steps:                                                 # 4. 실행 단계들
-      - name: Checkout code                                # 코드 내려받기
+        working-directory: frontend
+    steps:
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup pnpm                                   # pnpm 설치
+      - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10
 
-      - name: Setup Node.js                                # Node.js 설치
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: pnpm                                      # pnpm 캐시 사용
+          node-version: 22
+          cache: 'pnpm'
+          cache-dependency-path: 'frontend/pnpm-lock.yaml'
 
-    
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-      - name: Install dependencies                         # 의존성 설치
-        run: pnpm install
-
-      - name: Run Lint                                     # 린트 검사
+      - name: Run Lint
         run: pnpm lint
 
-      - name: Build check                                  # 빌드 확인
+      - name: Build check
         run: pnpm build
