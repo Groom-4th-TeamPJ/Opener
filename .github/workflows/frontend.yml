@@ -1,0 +1,40 @@
+name: Frontend CI                                          # 1. 워크플로우 이름 (Actions 탭에 표시)
+
+on:                                                        # 2. 트리거
+  pull_request:                                            # PR 생성 / 업데이트 시 실행
+    paths:
+      - "frontend/**"                                      # frontend 변경 시에만 실행
+
+jobs:                                                      # 3. 작업 정의
+  frontend:                                                # job ID
+    runs-on: ubuntu-latest                                 # 실행 환경 (가상 Ubuntu 서버)
+
+    defaults:
+      run:
+        working-directory: frontend                        # 모든 run 명령은 frontend 기준
+
+    steps:                                                 # 4. 실행 단계들
+      - name: Checkout code                                # 코드 내려받기
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm                                   # pnpm 설치
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js                                # Node.js 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm                                      # pnpm 캐시 사용
+
+    
+
+      - name: Install dependencies                         # 의존성 설치
+        run: pnpm install
+
+      - name: Run Lint                                     # 린트 검사
+        run: pnpm lint
+
+      - name: Build check                                  # 빌드 확인
+        run: pnpm build
