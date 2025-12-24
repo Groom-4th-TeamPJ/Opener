@@ -31,7 +31,7 @@ jobs:
           script: |
             const fs = require('fs');
             // frontend 브랜치의 템플릿 경로를 읽습니다.
-            const template = fs.readFileSync('.github/PULL_REQUEST_TEMPLATE.md', 'utf8');
+            const template = fs.readFileSync('.github/pull_request_template.md', 'utf8');
 
             await github.rest.pulls.update({
               owner: context.repo.owner,
