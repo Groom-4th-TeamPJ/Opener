@@ -1,4 +1,4 @@
-package spring.backend.domain.user.entity;
+package spring.backend.domain.user.model.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -8,9 +8,16 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import java.util.UUID;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import spring.backend.domain.user.model.enums.Role;
+import spring.backend.shared.entity.BaseEntity;
 
 @Entity
-public class Users {
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class User extends BaseEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.UUID)
@@ -22,4 +29,11 @@ public class Users {
   @Column(nullable = false)
   @Enumerated(EnumType.STRING)
   private Role role = Role.USER;
+
+  public static User createUser(String name, Role role) {
+    User user = new User();
+    user.name = name;
+    user.role = role;
+    return user;
+  }
 }
