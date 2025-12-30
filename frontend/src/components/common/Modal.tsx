@@ -103,7 +103,7 @@ export function Modal({
           ref={modalRef}
           className={cn(
             'relative w-full max-h-[90vh] overflow-auto pointer-events-auto',
-            'bg-background rounded-2xl border border-border shadow-lg',
+            'bg-background rounded-xl shadow-lg',
             sizeClasses[size],
             className
           )}
@@ -138,7 +138,7 @@ export function ModalHeader({
       {closable && onClose && (
         <button
           onClick={onClose}
-          className="ml-4 p-1 rounded-lg hover:bg-muted transition-colors cursor-pointer"
+          className="ml-4 p-1 rounded-lg hover:bg-foreground/5 transition-colors cursor-pointer"
           aria-label="닫기"
         >
           <X className="size-4" />

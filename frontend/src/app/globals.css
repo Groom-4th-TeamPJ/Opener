@@ -5,18 +5,44 @@
   --foreground: #171717;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+@theme {
+  --color-background: #ffffff;
+  --color-foreground: #171717;
+
+  /* =========================
+   * Primary (Teal)
+   * ========================= */
+  --color-primary-600: #00b3ab; /* P */
+
+  /* =========================
+   * Secondary (Purple)
+   * ========================= */
+  --color-secondary-600: #987ee4; /* P */
+
+  /* =========================
+   * Semantic — Danger
+   * ========================= */
+  --color-danger-600: #f64c4c; /* P */
+
+  /* =========================
+   * Semantic — Warning
+   * ========================= */
+  --color-warning-600: #ffad0d; /* P */
+
+  /* =========================
+   * Semantic — Success
+   * ========================= */
+  --color-success-600: #47b881; /* P */
+
+  /* =========================
+   * Semantic — Info
+   * ========================= */
+  --color-info-600: #3b82f6; /* P */
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
 }
 
 body {
