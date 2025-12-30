@@ -13,12 +13,16 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+//  private final JwtUtil jwtUtil;
+
   @Override
   protected void doFilterInternal(
           HttpServletRequest request,
           HttpServletResponse response,
           FilterChain filterChain
   ) throws ServletException, IOException {
-
+    // TODO: JWT 인증 로직 구현 예정
+    // 현재는 모든 요청을 통과시킴
+    filterChain.doFilter(request, response);
   }
 }

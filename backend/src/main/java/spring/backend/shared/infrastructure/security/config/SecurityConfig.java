@@ -25,8 +25,11 @@ public class SecurityConfig {
             // 엔드포인트 권한 설정
             .authorizeHttpRequests(auth -> auth
 
+                    // 공통응답 테스트용
+                    .requestMatchers("/api/test").permitAll()
+
                     // Auth 관련 엔드포인트 (회원가입, 로그인, 토큰 갱신) - 인증 불필요
-                    .requestMatchers("/v1/auth/**").permitAll()
+                    .requestMatchers("/auth/**").permitAll()
 
                     // Swagger UI (application-dev.yml에서만 동작)
                     .requestMatchers(
