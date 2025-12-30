@@ -1,0 +1,106 @@
+package spring.backend.shared.response;
+
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import spring.backend.shared.response.codes.ErrorCode;
+import spring.backend.shared.response.exception.BusinessException;
+import spring.backend.shared.response.format.ApiResponseFormat;
+import spring.backend.shared.response.format.ErrorDetailFormat;
+
+@Slf4j
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+  /**
+   * BusinessException 처리 (비즈니스 로직 예외)
+   */
+  @ExceptionHandler(BusinessException.class)
+  public ResponseEntity<ApiResponseFormat<Void>> handleBusinessException(BusinessException e) {
+    log.error("BusinessException occurred: {}", e.getMessage(), e);
+
+    ErrorCode errorCode = e.getErrorCode();
+
+    // 단일 error 객체 생성
+    ErrorDetailFormat error = new ErrorDetailFormat(
+        null,
+        null,
+        e.getMessage(),
+        errorCode.getCode()
+    );
+
+    ApiResponseFormat<Void> response = ApiResponseFormat.error(
+        errorCode.getStatus(),
+        errorCode.getMessage(),
+        error
+    );
+
+    return ResponseEntity
+        .status(errorCode.getStatus())
+        .body(response);
+  }
+
+  /**
+   * 입력값 검증 실패 예외 처리 (Validation)
+   */
+  @ExceptionHandler(MethodArgumentNotValidException.class)
+  public ResponseEntity<ApiResponseFormat<Void>> handleValidationException(MethodArgumentNotValidException e) {
+    log.error("Validation error occurred: {}", e.getMessage());
+
+    // 첫 번째 검증 실패 필드 정보만 추출
+    ErrorDetailFormat error;
+    if (!e.getBindingResult().getFieldErrors().isEmpty()) {
+      var fieldError = e.getBindingResult().getFieldErrors().get(0);
+      error = new ErrorDetailFormat(
+          fieldError.getField(),
+          fieldError.getRejectedValue(),
+          fieldError.getDefaultMessage(),
+          "C_001"  // 클라이언트 입력 에러 코드
+      );
+    } else {
+      error = new ErrorDetailFormat(
+          null,
+          null,
+          e.getMessage(),
+          "C_001"
+      );
+    }
+
+    ApiResponseFormat<Void> response = ApiResponseFormat.error(
+        400,
+        "입력값이 올바르지 않습니다",
+        error
+    );
+
+    return ResponseEntity
+        .status(400)
+        .body(response);
+  }
+
+  /**
+   * 모든 예외의 기본 처리
+   */
+  @ExceptionHandler(Exception.class)
+  public ResponseEntity<ApiResponseFormat<Void>> handleException(Exception e) {
+    log.error("Unexpected error occurred: {}", e.getMessage(), e);
+
+    ErrorDetailFormat error = new ErrorDetailFormat(
+        null,
+        null,
+        e.getMessage(),
+        "S_001"  // 서버 에러 코드
+    );
+
+    ApiResponseFormat<Void> response = ApiResponseFormat.error(
+        500,
+        "서버 내부 오류가 발생했습니다",
+        error
+    );
+
+    return ResponseEntity
+        .status(500)
+        .body(response);
+  }
+}
