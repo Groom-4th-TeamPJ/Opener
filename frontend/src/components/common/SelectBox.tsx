@@ -120,7 +120,6 @@ export default function SelectBox({
               'max-h-60 overflow-auto',
               'py-1'
             )}
-            style={{ width: triggerRef.current?.offsetWidth }}
           >
             {options.map((option) => (
               <button
