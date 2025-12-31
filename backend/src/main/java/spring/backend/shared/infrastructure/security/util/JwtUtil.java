@@ -22,7 +22,7 @@ public class JwtUtil {
   private final long refreshTokenExpiration;
 
   public JwtUtil(
-          @Value("${jwt.secret}") String secret,
+          @Value("${jwt.secret}") String secretKey,
           @Value("${jwt.access-token-expiration}") long accessTokenExpiration,
           @Value("${jwt.refresh-token-expiration}") long refreshTokenExpiration
   ) {
@@ -70,15 +70,11 @@ public class JwtUtil {
 
   // 토큰 유효성 검증
   public Claims validateToken(String token) {
-    try {
-      return Jwts.parser()
-              .verifyWith(secretKey)
-              .build()
-              .parseSignedClaims(token)
-              .getPayload();
-    } catch (Exception e) {
-      throw new RuntimeException("Invalid JWT token");
-    }
+    return Jwts.parser()
+            .verifyWith(secretKey)
+            .build()
+            .parseSignedClaims(token)
+            .getPayload();
   }
 
   public String extractTokenFormRequest(HttpServletRequest request) {
