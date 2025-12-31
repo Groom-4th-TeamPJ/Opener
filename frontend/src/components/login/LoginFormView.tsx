@@ -2,7 +2,7 @@ import Input from '@/components/common/Input'
 import Button from '@/components/common/Button'
 import Image from 'next/image'
 import { FieldErrors, UseFormRegister } from 'react-hook-form'
-import { LoginFormValues } from './LoginForm'
+import { LoginFormValues } from '@/components/login/LoginForm'
 
 interface LoginFormViewProps {
   register: UseFormRegister<LoginFormValues>

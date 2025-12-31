@@ -1,7 +1,7 @@
 'use client'
 
 import { useForm } from 'react-hook-form'
-import LoginFormView from './LoginFormView'
+import LoginFormView from '@/components/login/LoginFormView'
 
 export type LoginFormValues = {
   email: string
@@ -30,6 +30,7 @@ export default function LoginForm() {
       // TODO: 추후 API 연동
     } catch {
       resetField('password')
+      setError('root', { message: ERROR_MSG })
     }
   }
 
