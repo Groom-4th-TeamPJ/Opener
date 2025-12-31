@@ -2,8 +2,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import Button from './Button'
-import { useRouter } from 'next/navigation'
-import { usePathname } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 
 export default function Header() {
   const menu = [
