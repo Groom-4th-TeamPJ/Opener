@@ -24,14 +24,17 @@ export default function LoginForm() {
     clearErrors()
     if (!form.email || !form.password) {
       setError('root', { message: ERROR_MSG })
+      return
     }
-    resetField('password')
-    // TODO: 추후 API 연동
+    try {
+      // TODO: 추후 API 연동
+    } catch {
+      resetField('password')
+    }
   }
 
   const handleOAuth = () => {
     // TODO: OAuth 처리
-    console.log('Kakao OAuth')
   }
 
   return (
