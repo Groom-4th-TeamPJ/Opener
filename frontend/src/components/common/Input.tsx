@@ -30,13 +30,13 @@ export default function Input({
         id={inputId}
         name={name}
         className={cn(
-          'w-full px-4 py-2 rounded-2xl',
-          'bg-background border border-input',
+          'w-full px-4 py-2 rounded-xl',
+          'bg-background border border-foreground/20',
           'text-foreground text-base',
-          'placeholder:text-muted-foreground',
+          'placeholder:text-foreground/40 placeholder:text-sm',
           'transition-all duration-200',
-          'focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary',
-          error && 'border-destructive focus:ring-destructive/50 focus:border-destructive',
+          'focus:outline-none focus:border-primary-600',
+          error && 'border-danger-600 focus:border-danger-600',
           className
         )}
         aria-invalid={!!error}
@@ -45,13 +45,13 @@ export default function Input({
       />
 
       {error && (
-        <p id={`${inputId}-error`} className="text-sm text-destructive" role="alert">
+        <p id={`${inputId}-error`} className="text-sm text-danger-600" role="alert">
           {error}
         </p>
       )}
 
       {!error && helperText && (
-        <p id={`${inputId}-helper`} className="text-sm text-muted-foreground">
+        <p id={`${inputId}-helper`} className="text-sm text-foreground/60">
           {helperText}
         </p>
       )}

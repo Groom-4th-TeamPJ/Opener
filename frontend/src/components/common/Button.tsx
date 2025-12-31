@@ -28,13 +28,13 @@ export default function Button({
     <button
       type={type}
       className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-xl font-medium cursor-pointer',
+        'inline-flex items-center justify-center gap-2 rounded-xl font-semibold cursor-pointer',
         'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         'disabled:pointer-events-none disabled:opacity-50',
         'relative',
 
-        variant === 'default' && 'bg-primary text-primary-foreground hover:bg-primary/80',
-        variant === 'ghost' && 'text-foreground hover:bg-muted',
+        variant === 'default' && 'bg-primary-600 text-background hover:opacity-90',
+        variant === 'ghost' && 'text-foreground hover:bg-foreground/5',
 
         size === 'sm' && 'h-8 px-3 text-sm',
         size === 'md' && 'h-10 px-4',
