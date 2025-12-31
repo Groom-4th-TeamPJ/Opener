@@ -45,13 +45,13 @@ export default function Input({
       />
 
       {error && (
-        <p id={`${inputId}-error`} className="text-sm text-danger-600" role="alert">
+        <p id={`${inputId}-error`} className="text-xs text-danger-600" role="alert">
           {error}
         </p>
       )}
 
       {!error && helperText && (
-        <p id={`${inputId}-helper`} className="text-sm text-foreground/60">
+        <p id={`${inputId}-helper`} className="text-xs text-foreground/60">
           {helperText}
         </p>
       )}
