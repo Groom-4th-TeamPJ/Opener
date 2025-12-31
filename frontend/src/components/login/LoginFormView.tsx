@@ -22,8 +22,21 @@ export default function LoginFormView({
   return (
     // TODO: 스타일 적용
     <form onSubmit={onSubmit} className="w-full flex flex-col gap-2">
-      <Input id="email" type="email" label="이메일" autoComplete="email" {...register('email')} />
-      <Input id="password" type="password" label="비밀번호" {...register('password')} />
+      <Input
+        id="email"
+        type="email"
+        label="이메일"
+        autoComplete="email"
+        placeholder="example@email.com"
+        {...register('email')}
+      />
+      <Input
+        id="password"
+        type="password"
+        label="비밀번호"
+        placeholder="••••••••"
+        {...register('password')}
+      />
       {/* 폼 상단 에러 */}
       {errors.root?.message ? (
         <p role="alert" className="text-xs text-red-600 whitespace-pre-line">
