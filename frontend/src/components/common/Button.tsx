@@ -28,7 +28,7 @@ export default function Button({
     <button
       type={type}
       className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-xl font-semibold cursor-pointer',
+        'inline-flex items-center justify-center gap-2 rounded-xl cursor-pointer',
         'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         'disabled:pointer-events-none disabled:opacity-50',
         'relative',
@@ -58,7 +58,7 @@ export default function Button({
           )}
         />
       )}
-      <span className={cn(isLoading && 'invisible')}>
+      <span className={cn('flex items-center gap-2', isLoading && 'invisible')}>
         {leftIcon && <span className="shrink-0">{leftIcon}</span>}
         {children}
         {rightIcon && <span className="shrink-0">{rightIcon}</span>}

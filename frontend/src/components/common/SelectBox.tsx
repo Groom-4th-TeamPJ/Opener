@@ -18,6 +18,7 @@ interface SelectBoxProps extends Omit<ComponentPropsWithRef<'div'>, 'onChange'> 
   value?: string
   onChange?: (value: string) => void
   disabled?: boolean
+  triggerClassName?: string
 }
 
 export default function SelectBox({
@@ -29,6 +30,7 @@ export default function SelectBox({
   value,
   onChange,
   disabled = false,
+  triggerClassName,
   className,
   ...props
 }: SelectBoxProps) {
@@ -99,7 +101,8 @@ export default function SelectBox({
             'flex items-center justify-between gap-2',
             error && 'border-danger-600 focus:border-danger-600',
             disabled && 'opacity-50 cursor-not-allowed',
-            !disabled && 'cursor-pointer hover:border-foreground/30'
+            !disabled && 'cursor-pointer hover:border-foreground/30',
+            triggerClassName
           )}
         >
           <span className={cn(!selectedOption && 'text-foreground/20 text-sm')}>{displayText}</span>
@@ -118,7 +121,7 @@ export default function SelectBox({
               'absolute z-50 mt-1 w-full',
               'bg-background border border-foreground/20 rounded-xl shadow-lg',
               'max-h-60 overflow-auto',
-              'py-1'
+              'p-1'
             )}
           >
             {options.map((option) => (
@@ -128,11 +131,10 @@ export default function SelectBox({
                 type="button"
                 onClick={() => handleSelect(option.value)}
                 className={cn(
-                  'w-full px-4 py-2 text-left text-sm',
+                  'w-full px-4 py-2 text-left text-sm rounded-lg',
                   'transition-colors duration-150',
                   'flex items-center justify-between',
                   'hover:bg-foreground/5',
-                  option.value === value && 'bg-primary-600/5 font-medium',
                   option.value !== value && 'text-foreground'
                 )}
               >
