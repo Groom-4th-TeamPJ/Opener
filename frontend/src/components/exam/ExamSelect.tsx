@@ -5,31 +5,42 @@ import { ArrowRight } from 'lucide-react'
 import Button from '@/components/common/Button'
 import SelectBox from '@/components/common/SelectBox'
 
-const subjects = [
-  { id: 'calculus', name: '미적분' },
-  { id: 'probability', name: '확률과 통계' },
-  { id: 'geometry', name: '기하' },
+const categories = [
+  { id: 'CALC', name: '미적분' },
+  { id: 'PROB', name: '확률과 통계' },
+  { id: 'GEO', name: '기하' },
 ]
 
 const examTypes = [
-  { id: 'june', name: '6월 모평' },
-  { id: 'september', name: '9월 모평' },
-  { id: 'suneung', name: '수능' },
+  { id: 'M06', name: '6모' },
+  { id: 'M09', name: '9모' },
+  { id: 'CSAT', name: '수능' },
 ]
 
-const yearOptions = Array.from({ length: 5 }, (_, i) => ({
+const yearOptions = Array.from({ length: 4 }, (_, i) => ({
   value: String(2025 - i),
   label: String(2025 - i),
 }))
 
 export default function ExamSelect() {
-  const [selectedSubject, setSelectedSubject] = useState<string>('')
+  const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [selectedYear, setSelectedYear] = useState<string>(yearOptions[0].value)
   const [selectedExamType, setSelectedExamType] = useState<string>('')
 
-  const canStart = selectedSubject && selectedYear && selectedExamType
+  const canStart = selectedCategory && selectedYear && selectedExamType
 
-  // TODO: 문제 풀이 시작 기능 구현
+  const handleStartExam = () => {
+    if (!canStart) return
+
+    const params = {
+      year: Number(selectedYear),
+      category: selectedCategory,
+      examType: selectedExamType,
+    }
+
+    // TODO: GET /api/exam?year={year}&category={category}&examType={examType}
+    // TODO: Authorization: Bearer {accessToken} 헤더 추가
+  }
 
   return (
     <>
@@ -48,19 +59,19 @@ export default function ExamSelect() {
           <div>
             <h3 className="text-center font-semibold text-foreground/70 mb-6">선택 영역</h3>
             <div className="space-y-3">
-              {subjects.map((subject) => (
+              {categories.map((category) => (
                 <Button
-                  key={subject.id}
+                  key={category.id}
                   variant="ghost"
                   widthFull
                   className={
-                    selectedSubject === subject.id
+                    selectedCategory === category.id
                       ? 'h-16 bg-primary-600/10 border border-primary-600 hover:bg-primary-600/10'
                       : 'h-16 bg-background border border-foreground/20'
                   }
-                  onClick={() => setSelectedSubject(subject.id)}
+                  onClick={() => setSelectedCategory(category.id)}
                 >
-                  {subject.name}
+                  {category.name}
                 </Button>
               ))}
             </div>
@@ -107,6 +118,7 @@ export default function ExamSelect() {
           variant="default"
           size="lg"
           disabled={!canStart}
+          onClick={handleStartExam}
           rightIcon={<ArrowRight className="w-5 h-5 -mr-2" />}
           className="font-semibold"
         >
