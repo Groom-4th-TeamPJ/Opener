@@ -1,6 +1,6 @@
 package spring.backend.domain.auth.dto.response;
 
-public record SignupResponse(
+public record TokenResponse(
         String accessToken,
         String refreshToken
 ) {
