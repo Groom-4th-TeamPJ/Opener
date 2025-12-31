@@ -3,14 +3,16 @@ import Link from 'next/link'
 import Image from 'next/image'
 import Button from './Button'
 import { useRouter, usePathname } from 'next/navigation'
+import { X } from 'lucide-react'
+
+const MENU = [
+  { label: '대시보드', href: '/' },
+  { label: '문제풀이', href: '/exam' },
+  { label: '스크랩북', href: '/scrapbook' },
+  { label: '마이페이지', href: '/mypage' },
+]
 
 export default function Header() {
-  const menu = [
-    { label: '대시보드', href: '/' },
-    { label: '문제풀이', href: '/exam' },
-    { label: '스크랩북', href: '/scrapbook' },
-    { label: '마이페이지', href: '/mypage' },
-  ]
   const router = useRouter()
   const pathName = usePathname()
 
@@ -30,11 +32,12 @@ export default function Header() {
               height={50}
               alt="오프너 로고"
               className="shrink-0 h-8 w-auto"
-              priority
+              fetchPriority="high"
+              loading="eager"
             />
           </Link>
           <nav className="flex gap-8">
-            {menu.map((menuItem) => {
+            {MENU.map((menuItem) => {
               const isActive = pathName === menuItem.href
               return (
                 <Link
@@ -56,24 +59,10 @@ export default function Header() {
             width={48}
             height={48}
             className="shrink-0 h-5 w-auto"
+            fetchPriority="auto"
           />
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="lucide lucide-x-icon lucide-x"
-          >
-            <path d="M18 6 6 18" />
-            <path d="m6 6 12 12" />
-          </svg>
-
-          <span className="font-bold">{/* 캔 개수 */}30</span>
+          <X />
+          <span className="font-bold">{/* 캔 개수 */}10</span>
           <Button size="sm" className="bg-primary-600" onClick={handleLogout}>
             로그아웃
           </Button>
