@@ -43,10 +43,15 @@ dependencies {
     // API Documentation
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0'
 
+    // Security
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.3'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.3'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.3'
+
     // Monitoring
     runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
     implementation 'net.ttddyy.observation:datasource-micrometer-spring-boot:2.0.1'
-    
+
     // Development Tools
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
