@@ -17,9 +17,10 @@ const examTypes = [
   { id: 'CSAT', name: '수능' },
 ]
 
+const currentYear = new Date().getFullYear() - 1
 const yearOptions = Array.from({ length: 4 }, (_, i) => ({
-  value: String(2025 - i),
-  label: String(2025 - i),
+  value: String(currentYear - i),
+  label: String(currentYear - i),
 }))
 
 export default function ExamSelect() {
