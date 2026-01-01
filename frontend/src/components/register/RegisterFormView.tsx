@@ -1,12 +1,14 @@
 import Input from '@/components/common/Input'
 import Button from '@/components/common/Button'
-import { FieldErrors, UseFormRegister } from 'react-hook-form'
+import { FieldErrors, UseFormRegister, UseFormWatch } from 'react-hook-form'
 import { RegisterFormValues, Term } from '@/components/register/RegisterForm'
-import TermsAgreementSection from './TermsAgreementSection'
+import TermsAgreementSection from '@/components/register/TermsAgreementSection'
 import { Dispatch, SetStateAction } from 'react'
+import PasswordInput from './PasswordInput'
 
 interface LoginFormViewProps {
   register: UseFormRegister<RegisterFormValues>
+  watch: UseFormWatch<RegisterFormValues>
   onSubmit: () => void
   errors: FieldErrors<RegisterFormValues>
   terms: Term
@@ -19,6 +21,7 @@ interface LoginFormViewProps {
 
 export default function RegisterFormView({
   register,
+  watch,
   onSubmit,
   errors,
   terms,
@@ -50,15 +53,7 @@ export default function RegisterFormView({
         error={errors.email?.message}
         {...register('email')}
       />
-      <Input
-        id="password"
-        type="password"
-        label="비밀번호"
-        placeholder="•••••••••"
-        helperText="영문, 숫자, 특수문자 (~!@#$%^&*) 조합 8~20 자리"
-        error={errors.password?.message}
-        {...register('password')}
-      />
+      <PasswordInput register={register} watch={watch} error={errors.password?.message} />
       <TermsAgreementSection
         agreed={agreed}
         terms={terms}

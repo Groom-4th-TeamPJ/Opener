@@ -30,6 +30,7 @@ export default function LoginForm() {
     handleSubmit,
     formState: { errors, isSubmitting },
     clearErrors,
+    watch,
     reset,
   } = useForm({
     defaultValues: { name: '', email: '', password: '' },
@@ -61,6 +62,7 @@ export default function LoginForm() {
   return (
     <RegisterFormView
       register={register}
+      watch={watch}
       onSubmit={handleSubmit(onSubmit)}
       errors={errors}
       terms={terms}
