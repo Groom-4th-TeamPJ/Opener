@@ -2,9 +2,8 @@
 
 import cn from '@/utils/cn'
 import { ChevronDown } from 'lucide-react'
-import { useMemo, useState } from 'react'
-
-type TermKey = 'tos' | 'privacy' | 'age'
+import { Dispatch, SetStateAction, useState } from 'react'
+import { Term, TermKey } from '@/components/register/RegisterForm'
 
 const REQUIRED_TERMS: { key: TermKey; label: string; content?: string }[] = [
   {
@@ -44,23 +43,26 @@ const REQUIRED_TERMS: { key: TermKey; label: string; content?: string }[] = [
   },
 ]
 
-export default function TermsAgreementSection() {
-  const [terms, setTerms] = useState<Record<TermKey, boolean>>({
-    tos: false,
-    privacy: false,
-    age: false,
-  })
-  const [error, setError] = useState<string | null>(null)
+interface TermsAgreementSectionProps {
+  agreed: boolean
+  terms: Term
+  setTerms: Dispatch<SetStateAction<Term>>
+  termError: string | null
+  setTermError: Dispatch<SetStateAction<string | null>>
+}
 
+export default function TermsAgreementSection({
+  agreed,
+  terms,
+  setTerms,
+  termError,
+  setTermError,
+}: TermsAgreementSectionProps) {
   const [openKey, setOpenKey] = useState<TermKey | null>(null)
-
-  const allChecked = useMemo(() => REQUIRED_TERMS.every((t) => terms[t.key]), [terms])
-
-  const canSubmit = allChecked
 
   const toggleAll = (checked: boolean) => {
     setTerms({ tos: checked, privacy: checked, age: checked })
-    if (checked) setError(null)
+    if (checked) setTermError(null)
   }
 
   const toggleOne = (key: TermKey, checked: boolean) => {
@@ -69,25 +71,25 @@ export default function TermsAgreementSection() {
       return next
     })
     if (checked) {
-      // 부분적으로라도 개선되면 에러는 지우되, 제출 시 다시 검증해도 됨
-      setError(null)
+      setTermError(null)
     }
   }
 
   return (
-    <section className="space-y-2">
+    <section className="space-y-2 my-4">
       {/* 전체 동의 + details */}
-      <details className="group rounded-lg bg-background border border-foreground/20 p-3 my-4">
+      <details
+        className={cn(
+          'group/root rounded-lg bg-background border border-foreground/20 p-3',
+          termError ? 'border-red-600' : ''
+        )}
+      >
         <summary className="flex items-center justify-between gap-3 cursor-pointer select-none">
           <label
             className="flex items-center gap-2 cursor-pointer"
             onClick={(e) => e.stopPropagation()} // summary 토글 방지(체크만)
           >
-            <input
-              type="checkbox"
-              checked={allChecked}
-              onChange={(e) => toggleAll(e.target.checked)}
-            />
+            <input type="checkbox" checked={agreed} onChange={(e) => toggleAll(e.target.checked)} />
             <span className="text-sm font-medium">[필수] 약관 전체 동의</span>
           </label>
 
@@ -95,42 +97,31 @@ export default function TermsAgreementSection() {
             className={`
               h-4 w-4 text-muted-foreground
               transition-transform duration-200
-              group-open:rotate-180
+              group-open/root:rotate-180
             `}
           />
         </summary>
 
         <div className="mt-3 space-y-2 bg-background border-t border-foreground/20 pt-3">
-          <TermItem
-            termKey="tos"
-            openKey={openKey}
-            setOpenKey={setOpenKey}
-            checked={terms.tos}
-            onChange={(v) => toggleOne('tos', v)}
-            label="서비스 이용약관 동의"
-            content={REQUIRED_TERMS[0].content ?? ''}
-          />
-
-          <TermItem
-            termKey="privacy"
-            openKey={openKey}
-            setOpenKey={setOpenKey}
-            checked={terms.privacy}
-            onChange={(v) => toggleOne('privacy', v)}
-            label="개인정보 처리방침 동의"
-            content={REQUIRED_TERMS[1].content ?? ''}
-          />
-
-          <TermItem
-            termKey="age"
-            openKey={openKey}
-            setOpenKey={setOpenKey}
-            checked={terms.age}
-            onChange={(v) => toggleOne('age', v)}
-            label="만 14세 이상입니다"
-          />
+          {Object.entries(terms).map(([key, checked], idx) => (
+            <TermItem
+              key={key}
+              termKey={key as TermKey}
+              openKey={openKey}
+              setOpenKey={setOpenKey}
+              checked={checked}
+              onChange={(v) => toggleOne(key as TermKey, v)}
+              label={REQUIRED_TERMS[idx].label}
+              content={REQUIRED_TERMS[idx].content ?? ''}
+            />
+          ))}
         </div>
       </details>
+      {termError && (
+        <p id="term-error" className="text-xs text-danger-600" role="alert">
+          {termError}
+        </p>
+      )}
     </section>
   )
 }
@@ -180,7 +171,6 @@ function TermItem({
           </span>
         </label>
 
-        {/* chevron */}
         {content && (
           <ChevronDown
             className="
