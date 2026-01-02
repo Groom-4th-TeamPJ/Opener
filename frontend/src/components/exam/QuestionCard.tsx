@@ -3,6 +3,7 @@ import Button from '@/components/common/Button'
 import Input from '@/components/common/Input'
 import { Card, CardContent } from '@/components/common/Card'
 import type { Question } from '@/types/exam'
+import { getChoiceStyle } from '@/utils/exam-styles'
 
 interface QuestionCardProps {
   question: Question
@@ -19,21 +20,6 @@ export default function QuestionCard({
   isCorrect,
   onChoiceSelect,
 }: QuestionCardProps) {
-  const getChoiceStyle = (index: number) => {
-    if (!submitted) {
-      return selectedChoice === index
-        ? 'border-primary-600 bg-primary-600/10'
-        : 'border-foreground/20 hover:border-primary-600/30 hover:bg-foreground/5'
-    }
-
-    if (index === question.answer) {
-      return 'border-green-600 bg-green-600/10 text-green-700'
-    }
-    if (index === selectedChoice && !isCorrect) {
-      return 'border-red-600 bg-red-600/10 text-red-700'
-    }
-    return 'border-foreground/20 opacity-50'
-  }
 
   return (
     <Card className="overflow-hidden rounded-2xl">
@@ -62,7 +48,13 @@ export default function QuestionCard({
                   disabled={submitted}
                   className={cn(
                     'px-4 py-2.5 rounded-lg border-2 transition-all text-left text-sm font-medium justify-start',
-                    getChoiceStyle(index),
+                    getChoiceStyle({
+                      index,
+                      selectedChoice,
+                      submitted,
+                      correctAnswer: question.answer,
+                      isCorrect,
+                    }),
                     !submitted && 'cursor-pointer hover:shadow-md'
                   )}
                 >
