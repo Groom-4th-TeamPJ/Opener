@@ -18,4 +18,8 @@ public class CredentialRepositoryImpl implements CredentialRepository {
     return jpaCredentialRepository.findByEmail(email);
   }
 
+  @Override
+  public boolean existsByEmail(String email) {
+    return jpaCredentialRepository.existsByEmail(email);
+  }
 }

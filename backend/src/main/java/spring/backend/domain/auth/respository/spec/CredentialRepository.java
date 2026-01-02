@@ -7,4 +7,5 @@ public interface CredentialRepository {
 
   Optional<Credentials> findUserCredentialByEmail(String email);
 
+  boolean existsByEmail(String email);
 }
