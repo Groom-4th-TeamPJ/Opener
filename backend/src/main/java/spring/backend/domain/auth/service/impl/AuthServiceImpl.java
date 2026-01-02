@@ -6,7 +6,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import spring.backend.domain.auth.dto.request.FormSignupRequest;
 import spring.backend.domain.auth.dto.request.OAuthSignupRequest;
-import spring.backend.domain.auth.dto.response.TokenResponse;
+import spring.backend.domain.auth.dto.response.AuthTokens;
 import spring.backend.domain.auth.model.entity.Credentials;
 import spring.backend.domain.auth.respository.jpa.JpaCredentialRepository;
 import spring.backend.domain.auth.respository.spec.CredentialRepository;
@@ -26,7 +26,7 @@ public class AuthServiceImpl implements AuthService {
 
 
   @Override
-  public TokenResponse formSignup(FormSignupRequest req) {
+  public AuthTokens formSignup(FormSignupRequest req) {
 
     // 이메일 중복 확인
     if (credentialRepository.existsByEmail(req.email())) {
@@ -55,12 +55,12 @@ public class AuthServiceImpl implements AuthService {
             newCredential.getUser().getName());
     String refreshToken = jwtUtil.generateRefreshToken(newCredential.getUser().getId());
 
-    return new TokenResponse(accessToken, refreshToken);
+    return new AuthTokens(accessToken, refreshToken);
 
   }
 
   @Override
-  public TokenResponse oauthSignup(OAuthSignupRequest req) {
+  public AuthTokens oauthSignup(OAuthSignupRequest req) {
     return null;
   }
 
@@ -70,7 +70,7 @@ public class AuthServiceImpl implements AuthService {
   }
 
   @Override
-  public TokenResponse refreshToken(String refreshToken) {
+  public AuthTokens refreshToken(String refreshToken) {
     return null;
   }
 }
