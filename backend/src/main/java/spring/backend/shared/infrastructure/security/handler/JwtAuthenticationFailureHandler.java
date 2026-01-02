@@ -4,13 +4,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.stereotype.Component;
+import spring.backend.shared.response.codes.ErrorCode;
+import spring.backend.shared.response.format.ApiResponseFormat;
+import spring.backend.shared.response.format.ErrorDetailFormat;
 
 @Component
 @RequiredArgsConstructor
@@ -25,16 +26,28 @@ public class JwtAuthenticationFailureHandler implements AuthenticationFailureHan
           AuthenticationException exception
   ) throws IOException {
 
-    // 에러 응답 생성
-    Map<String, Object> errorResponse = new HashMap<>();
-    errorResponse.put("success", false);
-    errorResponse.put("message", "Authentication failed: " + exception.getMessage());
-    errorResponse.put("error", exception.getClass().getSimpleName());
+    // ErrorCode 사용
+    ErrorCode errorCode = ErrorCode.INVALID_CREDENTIALS;
+
+    // ErrorDetailFormat 생성
+    ErrorDetailFormat errorDetail = new ErrorDetailFormat(
+        null,
+        null,
+        exception.getMessage(),
+        errorCode.getCode()
+    );
+
+    // 공통 응답 포맷으로 래핑
+    ApiResponseFormat<Void> apiResponse = ApiResponseFormat.error(
+        errorCode.getStatus(),
+        errorCode.getMessage(),
+        errorDetail
+    );
 
     // JSON 응답 반환
-    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+    response.setStatus(errorCode.getStatus());
     response.setContentType(MediaType.APPLICATION_JSON_VALUE);
     response.setCharacterEncoding("UTF-8");
-    objectMapper.writeValue(response.getWriter(), errorResponse);
+    objectMapper.writeValue(response.getWriter(), apiResponse);
   }
 }

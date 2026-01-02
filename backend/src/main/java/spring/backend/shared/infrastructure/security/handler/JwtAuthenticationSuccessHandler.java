@@ -17,6 +17,8 @@ import spring.backend.domain.auth.respository.jpa.JpaCredentialRepository;
 import spring.backend.domain.auth.respository.spec.CredentialRepository;
 import spring.backend.domain.user.model.entity.User;
 import spring.backend.shared.infrastructure.security.util.JwtUtil;
+import spring.backend.shared.response.codes.SuccessCode;
+import spring.backend.shared.response.format.ApiResponseFormat;
 
 
 @Component
@@ -53,10 +55,17 @@ public class JwtAuthenticationSuccessHandler implements AuthenticationSuccessHan
     // TokenResponse 생성
     TokenResponse tokenResponse = new TokenResponse(accessToken, refreshToken);
 
+    // 공통 응답 포맷으로 래핑
+    ApiResponseFormat<TokenResponse> apiResponse = ApiResponseFormat.success(
+        SuccessCode.OK.getCode(),
+        SuccessCode.OK.getMessage(),
+        tokenResponse
+    );
+
     // JSON 응답 반환
     response.setStatus(HttpServletResponse.SC_OK);
     response.setContentType(MediaType.APPLICATION_JSON_VALUE);
     response.setCharacterEncoding("UTF-8");
-    objectMapper.writeValue(response.getWriter(), tokenResponse);
+    objectMapper.writeValue(response.getWriter(), apiResponse);
   }
 }
