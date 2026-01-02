@@ -8,7 +8,8 @@ export type LoginFormValues = {
   password: string
 }
 
-const ERROR_MSG = '아이디 또는 비밀번호가 잘못되었습니다.\n아이디와 비밀번호를 정확히 입력해주세요.'
+const ERROR_MSG: string =
+  '아이디 또는 비밀번호가 잘못되었습니다.\n아이디와 비밀번호를 정확히 입력해주세요.'
 
 export default function LoginForm() {
   const {
@@ -18,7 +19,7 @@ export default function LoginForm() {
     clearErrors,
     setError,
     resetField,
-  } = useForm({ defaultValues: { email: '', password: '' } })
+  } = useForm<LoginFormValues>({ defaultValues: { email: '', password: '' } })
 
   const onSubmit = async (form: LoginFormValues) => {
     clearErrors()
