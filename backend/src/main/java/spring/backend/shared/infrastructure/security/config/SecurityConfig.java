@@ -1,9 +1,12 @@
 package spring.backend.shared.infrastructure.security.config;
 
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -12,35 +15,47 @@ import spring.backend.shared.infrastructure.security.filter.JwtAuthenticationFil
 
 @Configuration
 @RequiredArgsConstructor
+@EnableWebSecurity
 public class SecurityConfig {
 
   private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
   @Bean
-  public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+  public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+
     http
-            // csrf 비활성화(JWT 사용)
             .csrf(csrf -> csrf.disable())
+            .cors(Customizer.withDefaults())
 
-            // 엔드포인트 권한 설정
             .authorizeHttpRequests(auth -> auth
-
-                    // Auth 관련 엔드포인트 (회원가입, 로그인, 토큰 갱신) - 인증 불필요
-                    .requestMatchers("/v1/auth/**").permitAll()
-
-                    // Swagger UI (application-dev.yml에서만 동작)
                     .requestMatchers(
-                            "/swagger-ui/**",
-                            "/swagger-ui.html",
-                            "/v3/api-docs/**"
+                            "/api/form-login",
+                            "/api/oauth-login/**",
+                            "/api/oauth2/**"
                     ).permitAll()
-
-                    // 나머지 모든 요청 - 인증 필요
-                    .anyRequest().permitAll()
+                    .anyRequest().authenticated()
             )
 
-            // JWT 인증 필터를 UsernamePasswordAuthenticationFilter 이전에 추가
-            // JWT 토큰 여부에 따라 로그인 프로세스 실행 여부 분기됨
+            // Form Login
+            .formLogin(form -> form
+                    .loginProcessingUrl("/api/form-login")
+            )
+
+//            // OAuth Login
+//            .oauth2Login(oauth -> oauth
+//                    .userInfoEndpoint(userInfo ->
+//                            userInfo.userService(oAuth2UserService())
+//                    )
+//            )
+
+            // REST API용
+            .exceptionHandling(ex -> ex
+                    .authenticationEntryPoint((req, res, e) ->
+                            res.setStatus(HttpServletResponse.SC_UNAUTHORIZED)
+                    )
+            )
+
+            // JWT 필터추가(form 인증 이전 추가)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
     return http.build();
