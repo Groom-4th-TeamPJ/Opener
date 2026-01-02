@@ -11,7 +11,7 @@ export const mockExamData: ExamResponse = {
       questionId: 31,
       order: 1,
       category: { code: 'CALC', name: '미적분' },
-      difficulty: 'EASY',
+      level: 'EASY',
       point: 2,
       type: 'MCQ',
       passages: [
@@ -35,7 +35,7 @@ export const mockExamData: ExamResponse = {
       questionId: 32,
       order: 2,
       category: { code: 'GEO', name: '기하' },
-      difficulty: 'MEDIUM',
+      level: 'MEDIUM',
       point: 3,
       type: 'FRQ',
       passages: [
@@ -53,7 +53,7 @@ export const mockExamData: ExamResponse = {
       questionId: 33,
       order: 3,
       category: { code: 'PROB', name: '확률과 통계' },
-      difficulty: 'HARD',
+      level: 'HARD',
       point: 3,
       type: 'MCQ',
       passages: [

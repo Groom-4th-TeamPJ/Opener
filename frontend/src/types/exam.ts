@@ -15,11 +15,13 @@ export interface Option {
   text: string
 }
 
+export type Level = 'EASY' | 'MEDIUM' | 'HARD'
+
 export interface Question {
   questionId: number
   order: number
   category: CodeName
-  difficulty: 'EASY' | 'MEDIUM' | 'HARD'
+  level: Level
   point: number
   type: 'MCQ' | 'FRQ'
   passages: Passage[]
