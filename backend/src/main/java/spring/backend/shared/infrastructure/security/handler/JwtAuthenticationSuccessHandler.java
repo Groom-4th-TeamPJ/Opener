@@ -4,8 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.time.Duration;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -52,15 +54,27 @@ public class JwtAuthenticationSuccessHandler implements AuthenticationSuccessHan
     String accessToken = jwtUtil.generateAccessToken(user.getId(), user.getRole(), user.getName());
     String refreshToken = jwtUtil.generateRefreshToken(user.getId());
 
-    // TokenResponse 생성
-    TokenResponse tokenResponse = new TokenResponse(accessToken, refreshToken);
+    // TokenResponse 생성(AccessToken만 반환)
+    TokenResponse tokenResponse = new TokenResponse(accessToken);
+
+    // Refresh Token을 HttpOnly Cookie에 담기
+    ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", refreshToken)
+            .httpOnly(true)
+            .secure(true)          // HTTPS 환경에서만
+            .sameSite("Strict")    // or Lax
+            .path("/auth/refresh") // 재발급 API에만 전송
+            .maxAge(Duration.ofDays(14)) // 만료시간 설정
+            .build();
 
     // 공통 응답 포맷으로 래핑
     ApiResponseFormat<TokenResponse> apiResponse = ApiResponseFormat.success(
-        SuccessCode.OK.getCode(),
-        SuccessCode.OK.getMessage(),
-        tokenResponse
+            SuccessCode.OK.getCode(),
+            SuccessCode.OK.getMessage(),
+            tokenResponse
     );
+
+    // Refresh Token 쿠키를 응답 헤더에 추가
+    response.addHeader("Set-Cookie", refreshCookie.toString());
 
     // JSON 응답 반환
     response.setStatus(HttpServletResponse.SC_OK);
