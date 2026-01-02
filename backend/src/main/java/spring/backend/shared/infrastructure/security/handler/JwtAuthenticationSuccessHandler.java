@@ -13,9 +13,11 @@ import org.springframework.security.web.authentication.AuthenticationSuccessHand
 import org.springframework.stereotype.Component;
 import spring.backend.domain.auth.dto.response.TokenResponse;
 import spring.backend.domain.auth.model.entity.Credentials;
+import spring.backend.domain.auth.respository.jpa.JpaCredentialRepository;
 import spring.backend.domain.auth.respository.spec.CredentialRepository;
 import spring.backend.domain.user.model.entity.User;
 import spring.backend.shared.infrastructure.security.util.JwtUtil;
+
 
 @Component
 @RequiredArgsConstructor
@@ -24,6 +26,7 @@ public class JwtAuthenticationSuccessHandler implements AuthenticationSuccessHan
   private final JwtUtil jwtUtil;
   private final CredentialRepository credentialRepository;
   private final ObjectMapper objectMapper;
+  private final JpaCredentialRepository jpaCredentialRepository;
 
   @Override
   public void onAuthenticationSuccess(

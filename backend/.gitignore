@@ -42,7 +42,6 @@ out/
 .env.prod
 .env.local
 .env.*.local
-!.env.example
 
 ### Logs ###
 logs/
@@ -56,3 +55,6 @@ logs/
 ### Application specific ###
 application-local.yml
 application-secret.yml
+
+.claude
+*.md
