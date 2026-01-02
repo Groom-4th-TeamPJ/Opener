@@ -13,7 +13,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
-import spring.backend.domain.auth.dto.response.TokenResponse;
+import spring.backend.domain.auth.dto.response.AccessToken;
 import spring.backend.domain.auth.model.entity.Credentials;
 import spring.backend.domain.auth.respository.jpa.JpaCredentialRepository;
 import spring.backend.domain.auth.respository.spec.CredentialRepository;
@@ -55,19 +55,19 @@ public class JwtAuthenticationSuccessHandler implements AuthenticationSuccessHan
     String refreshToken = jwtUtil.generateRefreshToken(user.getId());
 
     // TokenResponse 생성(AccessToken만 반환)
-    TokenResponse tokenResponse = new TokenResponse(accessToken);
+    AccessToken tokenResponse = new AccessToken(accessToken);
 
     // Refresh Token을 HttpOnly Cookie에 담기
     ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", refreshToken)
             .httpOnly(true)
-            .secure(true)          // HTTPS 환경에서만
-            .sameSite("Strict")    // or Lax
-            .path("/auth/refresh") // 재발급 API에만 전송
+            .secure(false)         // 로컬 개발용 (프로덕션에서는 true)
+            .sameSite("Lax")       // Strict보다 완화된 정책
+            .path("/api/auth/refresh")     // /api/auth 하위 모든 엔드포인트에서 사용 가능
             .maxAge(Duration.ofDays(14)) // 만료시간 설정
             .build();
 
     // 공통 응답 포맷으로 래핑
-    ApiResponseFormat<TokenResponse> apiResponse = ApiResponseFormat.success(
+    ApiResponseFormat<AccessToken> apiResponse = ApiResponseFormat.success(
             SuccessCode.OK.getCode(),
             SuccessCode.OK.getMessage(),
             tokenResponse
