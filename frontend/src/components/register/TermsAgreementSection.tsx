@@ -7,7 +7,7 @@ import { Term, TermKey } from '@/components/register/RegisterForm'
 
 const REQUIRED_TERMS: { key: TermKey; label: string; content?: string }[] = [
   {
-    key: 'tos',
+    key: 'service',
     label: '서비스 이용약관 동의',
     content: `서비스 이용약관 (필수)
   포함 내용
@@ -61,7 +61,7 @@ export default function TermsAgreementSection({
   const [openKey, setOpenKey] = useState<TermKey | null>(null)
 
   const toggleAll = (checked: boolean) => {
-    setTerms({ tos: checked, privacy: checked, age: checked })
+    setTerms({ service: checked, privacy: checked, age: checked })
     if (checked) setTermError(null)
   }
 
