@@ -12,6 +12,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
 import java.sql.Timestamp;
+import java.time.LocalDateTime;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -50,6 +51,15 @@ public class Credentials extends BaseEntity {
 
   @Column
   private Timestamp lastLoginAt;
+
+  @Column
+  private Integer failedLoginAttempts = 0;
+
+  @Column
+  private LocalDateTime lastFailedLoginAt;
+
+  @Column
+  private LocalDateTime LockedUntil;
 
   public static Credentials createFormCredentials(
           User user,

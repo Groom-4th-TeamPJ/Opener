@@ -37,7 +37,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
       // 토큰 여부 확인 및 토큰 인증 진행
       if (token != null) {
 
-        // 토큰 인증
+        // 토큰 인증 - payload 가져오기
         Claims claims = jwtUtil.validateToken(token);
 
         AuthUser userInfo = jwtUtil.getUserInfoFromToken(claims);
