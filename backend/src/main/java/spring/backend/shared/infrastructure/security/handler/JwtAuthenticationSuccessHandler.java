@@ -13,8 +13,8 @@ import org.springframework.security.web.authentication.AuthenticationSuccessHand
 import org.springframework.stereotype.Component;
 import spring.backend.domain.auth.dto.response.TokenResponse;
 import spring.backend.domain.auth.model.entity.Credentials;
+import spring.backend.domain.auth.respository.spec.CredentialRepository;
 import spring.backend.domain.user.model.entity.User;
-import spring.backend.domain.user.repository.spec.UserCredentialRepository;
 import spring.backend.shared.infrastructure.security.util.JwtUtil;
 
 @Component
@@ -22,7 +22,7 @@ import spring.backend.shared.infrastructure.security.util.JwtUtil;
 public class JwtAuthenticationSuccessHandler implements AuthenticationSuccessHandler {
 
   private final JwtUtil jwtUtil;
-  private final UserCredentialRepository userCredentialRepository;
+  private final CredentialRepository credentialRepository;
   private final ObjectMapper objectMapper;
 
   @Override
@@ -37,7 +37,7 @@ public class JwtAuthenticationSuccessHandler implements AuthenticationSuccessHan
     String email = userDetails.getUsername();
 
     // email로 Credentials 및 User 정보 조회
-    Credentials credentials = userCredentialRepository
+    Credentials credentials = credentialRepository
             .findUserCredentialByEmail(email)
             .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
 

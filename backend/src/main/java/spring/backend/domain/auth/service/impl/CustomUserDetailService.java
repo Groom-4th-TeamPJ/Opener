@@ -6,18 +6,18 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import spring.backend.domain.auth.model.entity.Credentials;
-import spring.backend.domain.user.repository.spec.UserCredentialRepository;
+import spring.backend.domain.auth.respository.spec.CredentialRepository;
 
 @Service
 @RequiredArgsConstructor
 public class CustomUserDetailService implements UserDetailsService {
 
-  private final UserCredentialRepository userCredentialRepository;
+  private final CredentialRepository credentialRepository;
 
   @Override
   public UserDetails loadUserByUsername(String email) {
 
-    Credentials credential = userCredentialRepository
+    Credentials credential = credentialRepository
             .findUserCredentialByEmail(email)
             .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
 

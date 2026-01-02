@@ -1,9 +1,9 @@
-package spring.backend.domain.user.repository.spec;
+package spring.backend.domain.auth.respository.spec;
 
 import java.util.Optional;
 import spring.backend.domain.auth.model.entity.Credentials;
 
-public interface UserCredentialRepository {
+public interface CredentialRepository {
 
   Optional<Credentials> findUserCredentialByEmail(String email);
 
