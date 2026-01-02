@@ -10,7 +10,7 @@ export function Card({ className, children, ...props }: CardProps) {
   return (
     <div
       className={cn(
-        'relative rounded-xl bg-background text-foreground border border-foreground/10',
+        'relative rounded-xl bg-background text-text-primary border border-foreground/10',
         className
       )}
       {...props}
@@ -39,7 +39,7 @@ export function CardHeader({
 }: CardHeaderProps) {
   return (
     <div
-      className={cn('flex items-center justify-between p-6 text-foreground', className)}
+      className={cn('flex items-center justify-between p-6 text-text-primary', className)}
       {...props}
     >
       {left && <div className="mr-4">{left}</div>}
@@ -70,7 +70,7 @@ interface CardContentProps extends ComponentPropsWithRef<'div'> {
 
 export function CardContent({ className, children, ...props }: CardContentProps) {
   return (
-    <div className={cn('p-6 text-foreground', className)} {...props}>
+    <div className={cn('p-6 text-text-primary', className)} {...props}>
       {children}
     </div>
   )
@@ -82,7 +82,7 @@ interface CardFooterProps extends ComponentPropsWithRef<'div'> {
 
 export function CardFooter({ className, children, ...props }: CardFooterProps) {
   return (
-    <div className={cn('flex items-center p-6 text-foreground', className)} {...props}>
+    <div className={cn('flex items-center p-6 text-text-primary', className)} {...props}>
       {children}
     </div>
   )
