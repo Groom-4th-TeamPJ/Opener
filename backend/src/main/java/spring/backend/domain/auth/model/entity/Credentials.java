@@ -52,13 +52,12 @@ public class Credentials extends BaseEntity {
 
   public static Credentials createFormCredentials(
           User user,
-          Provider provider,
           String email,
           String password
   ) {
     Credentials credentials = new Credentials();
     credentials.user = user;
-    credentials.provider = provider;
+    credentials.provider = Provider.FORM;
     credentials.email = email;
     credentials.password = password;
     return credentials;

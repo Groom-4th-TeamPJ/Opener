@@ -30,6 +30,10 @@ public class User extends BaseEntity {
   @Enumerated(EnumType.STRING)
   private Role role = Role.USER;
 
+  public static User createUser(String name) {
+    return createUser(name, Role.USER);
+  }
+
   public static User createUser(String name, Role role) {
     User user = new User();
     user.name = name;
