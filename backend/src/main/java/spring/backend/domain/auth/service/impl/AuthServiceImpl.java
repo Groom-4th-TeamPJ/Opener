@@ -1,17 +1,21 @@
 package spring.backend.domain.auth.service.impl;
 
+import io.jsonwebtoken.Claims;
 import jakarta.transaction.Transactional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import spring.backend.domain.auth.dto.request.FormSignupRequest;
 import spring.backend.domain.auth.dto.request.OAuthSignupRequest;
+import spring.backend.domain.auth.dto.response.AccessToken;
 import spring.backend.domain.auth.dto.response.AuthTokens;
 import spring.backend.domain.auth.model.entity.Credentials;
 import spring.backend.domain.auth.respository.jpa.JpaCredentialRepository;
 import spring.backend.domain.auth.respository.spec.CredentialRepository;
 import spring.backend.domain.auth.service.spec.AuthService;
 import spring.backend.domain.user.model.entity.User;
+import spring.backend.domain.user.repository.spec.UserRepository;
 import spring.backend.shared.infrastructure.security.util.JwtUtil;
 
 @Service
@@ -23,6 +27,7 @@ public class AuthServiceImpl implements AuthService {
   private final PasswordEncoder passwordEncoder;
   private final JwtUtil jwtUtil;
   private final JpaCredentialRepository jpaCredentialRepository;
+  private final UserRepository userRepository;
 
 
   @Override
@@ -70,7 +75,19 @@ public class AuthServiceImpl implements AuthService {
   }
 
   @Override
-  public AuthTokens refreshToken(String refreshToken) {
-    return null;
+  public AccessToken tokenRefresh(String refreshToken) {
+
+    // refresh 검증
+    Claims claims = jwtUtil.validateToken(refreshToken);
+
+    UUID userId = UUID.fromString(claims.getSubject());
+
+    // user 조회
+    User user = userRepository.findUserById(userId);
+
+    // 조회 데이터 기반 access 재생성
+    String newAccessToken = jwtUtil.generateAccessToken(user.getId(), user.getRole(), user.getName());
+
+    return new AccessToken(newAccessToken);
   }
 }
