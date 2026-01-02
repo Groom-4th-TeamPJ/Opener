@@ -44,10 +44,7 @@ public class SecurityConfig {
 
             .authorizeHttpRequests(auth -> auth
                     .requestMatchers(
-                            "/api/form-login",
-                            "/api/form-signup",
-                            "/api/oauth-login/**",
-                            "/api/oauth2/**"
+                            "/api/auth/**"
                     ).permitAll()
                     .anyRequest().authenticated()
             )
@@ -86,7 +83,7 @@ public class SecurityConfig {
             new JsonUsernamePasswordAuthenticationFilter(authenticationManager, objectMapper);
 
     // 로그인 처리 URL 설정
-    filter.setFilterProcessesUrl("/api/form-login");
+    filter.setFilterProcessesUrl("/api/auth/form-login");
 
     // 성공/실패 핸들러 설정
     filter.setAuthenticationSuccessHandler(jwtAuthenticationSuccessHandler);
