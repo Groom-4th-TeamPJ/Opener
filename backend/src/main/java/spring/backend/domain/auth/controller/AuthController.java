@@ -5,14 +5,17 @@ import jakarta.validation.Valid;
 import java.time.Duration;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseCookie;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import spring.backend.domain.auth.dto.request.FormSignupRequest;
+import spring.backend.domain.auth.dto.response.AccessToken;
 import spring.backend.domain.auth.dto.response.AuthTokens;
-import spring.backend.domain.auth.dto.response.TokenResponse;
 import spring.backend.domain.auth.service.spec.AuthService;
+import spring.backend.shared.response.codes.ErrorCode;
+import spring.backend.shared.response.exception.BusinessException;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -22,7 +25,7 @@ public class AuthController {
   private final AuthService authService;
 
   @PostMapping("/form-signup")
-  public TokenResponse formSignup(
+  public AccessToken formSignup(
           @Valid @RequestBody FormSignupRequest req,
           HttpServletResponse response) {
 
@@ -32,9 +35,9 @@ public class AuthController {
     // Refresh Token을 HttpOnly Cookie에 담기
     ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", tokens.refreshToken())
             .httpOnly(true)
-            .secure(true)          // HTTPS 환경에서만
-            .sameSite("Strict")    // or Lax
-            .path("/auth/refresh") // 재발급 API에만 전송
+            .secure(false)         // 로컬 개발용 (프로덕션에서는 true)
+            .sameSite("Lax")       // Strict보다 완화된 정책
+            .path("/api/auth/refresh")     // /api/auth 하위 모든 엔드포인트에서 사용 가능
             .maxAge(Duration.ofDays(14)) // 만료시간 설정
             .build();
 
@@ -42,6 +45,17 @@ public class AuthController {
     response.addHeader("Set-Cookie", refreshCookie.toString());
 
     // AccessToken만 body로 반환
-    return new TokenResponse(tokens.accessToken());
+    return new AccessToken(tokens.accessToken());
+  }
+
+  @PostMapping("/refresh")
+  public AccessToken tokenRefresh(
+          @CookieValue(name = "refreshToken", required = false) String refreshToken) {
+
+    if (refreshToken == null || refreshToken.isBlank()) {
+      throw new BusinessException(ErrorCode.REFRESH_TOKEN_NOT_FOUND);
+    }
+
+    return authService.tokenRefresh(refreshToken);
   }
 }
