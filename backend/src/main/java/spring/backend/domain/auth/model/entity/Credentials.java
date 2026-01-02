@@ -1,4 +1,4 @@
-package spring.backend.domain.user.model.entity;
+package spring.backend.domain.auth.model.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -16,7 +16,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import spring.backend.domain.user.model.enums.Provider;
+import spring.backend.domain.auth.model.enums.Provider;
+import spring.backend.domain.user.model.entity.User;
 import spring.backend.shared.entity.BaseEntity;
 
 @Entity
@@ -36,7 +37,7 @@ public class Credentials extends BaseEntity {
   @Column(nullable = false)
   @Enumerated(EnumType.STRING)
   private Provider provider;
-  
+
   @Column(unique = true)
   private String providerId;
 

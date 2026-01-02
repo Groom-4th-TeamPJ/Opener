@@ -3,7 +3,7 @@ package spring.backend.domain.user.repository.impl;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
-import spring.backend.domain.user.model.entity.Credentials;
+import spring.backend.domain.auth.model.entity.Credentials;
 import spring.backend.domain.user.repository.jpa.JpaUserCredentialRepository;
 import spring.backend.domain.user.repository.spec.UserCredentialRepository;
 

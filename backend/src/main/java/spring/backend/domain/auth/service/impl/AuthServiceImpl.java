@@ -4,6 +4,7 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import spring.backend.domain.auth.dto.request.FormSignupRequest;
+import spring.backend.domain.auth.dto.request.OAuthSignupRequest;
 import spring.backend.domain.auth.dto.response.TokenResponse;
 import spring.backend.domain.auth.service.spec.AuthService;
 

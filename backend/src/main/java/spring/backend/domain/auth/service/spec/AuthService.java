@@ -1,6 +1,7 @@
 package spring.backend.domain.auth.service.spec;
 
 import spring.backend.domain.auth.dto.request.FormSignupRequest;
+import spring.backend.domain.auth.dto.request.OAuthSignupRequest;
 import spring.backend.domain.auth.dto.response.TokenResponse;
 
 public interface AuthService {
