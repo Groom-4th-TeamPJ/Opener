@@ -4,6 +4,7 @@ import { Sparkles } from 'lucide-react'
 interface QuestionActionButtonProps {
   submitted: boolean
   selectedChoice: number | null
+  frqAnswer: string
   questionType: 'MCQ' | 'FRQ'
   isAnalysisActive: boolean
   onSubmit: () => void
@@ -13,11 +14,15 @@ interface QuestionActionButtonProps {
 export default function QuestionActionButton({
   submitted,
   selectedChoice,
+  frqAnswer,
   questionType,
   isAnalysisActive,
   onSubmit,
   onShowAnalysis,
 }: QuestionActionButtonProps) {
+  const isDisabled =
+    questionType === 'MCQ' ? selectedChoice === null : frqAnswer.trim() === ''
+
   if (!submitted) {
     return (
       <Button
@@ -26,7 +31,7 @@ export default function QuestionActionButton({
         widthFull
         className="rounded-xl"
         onClick={onSubmit}
-        disabled={selectedChoice === null && questionType === 'MCQ'}
+        disabled={isDisabled}
       >
         제출하기
       </Button>

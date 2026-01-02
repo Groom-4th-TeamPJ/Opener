@@ -8,17 +8,21 @@ import { getChoiceStyle } from '@/utils/exam-styles'
 interface QuestionCardProps {
   question: Question
   selectedChoice: number | null
+  frqAnswer: string
   submitted: boolean
   isCorrect: boolean | null
   onChoiceSelect: (index: number) => void
+  onFrqAnswerChange: (value: string) => void
 }
 
 export default function QuestionCard({
   question,
   selectedChoice,
+  frqAnswer,
   submitted,
   isCorrect,
   onChoiceSelect,
+  onFrqAnswerChange,
 }: QuestionCardProps) {
 
   return (
@@ -77,12 +81,14 @@ export default function QuestionCard({
           </CardContent>
         )}
 
-        {/* FRQ Answer Input - TODO */}
+        {/* FRQ Answer Input */}
         {question.type === 'FRQ' && (
           <CardContent className="p-4">
             <Input
               type="text"
               placeholder="답을 입력하세요"
+              value={frqAnswer}
+              onChange={(e) => onFrqAnswerChange(e.target.value)}
               disabled={submitted}
             />
 

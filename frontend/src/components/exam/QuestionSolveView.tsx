@@ -22,6 +22,7 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
 
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null)
+  const [frqAnswer, setFrqAnswer] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
   const [isAnalysisActive, setIsAnalysisActive] = useState(false)
@@ -61,7 +62,8 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
   }
 
   const handleSubmit = () => {
-    if (selectedChoice === null && currentQuestion.type === 'MCQ') return
+    if (currentQuestion.type === 'MCQ' && selectedChoice === null) return
+    if (currentQuestion.type === 'FRQ' && frqAnswer.trim() === '') return
 
     // 답안 제출 시 스탑워치 정지
     setIsTimerRunning(false)
@@ -69,7 +71,10 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
       clearInterval(timerRef.current)
     }
 
-    const correct = selectedChoice === currentQuestion.answer
+    const correct =
+      currentQuestion.type === 'MCQ'
+        ? selectedChoice === currentQuestion.answer
+        : Number(frqAnswer) === currentQuestion.answer
     setIsCorrect(correct)
     setSubmitted(true)
   }
@@ -81,6 +86,7 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
     } else {
       setCurrentIndex((prev) => prev + 1)
       setSelectedChoice(null)
+      setFrqAnswer('')
       setSubmitted(false)
       setIsCorrect(null)
       setIsAnalysisActive(false)
@@ -148,15 +154,18 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
                 <QuestionCard
                   question={currentQuestion}
                   selectedChoice={selectedChoice}
+                  frqAnswer={frqAnswer}
                   submitted={submitted}
                   isCorrect={isCorrect}
                   onChoiceSelect={handleChoiceSelect}
+                  onFrqAnswerChange={setFrqAnswer}
                 />
 
                 <div className="sticky bottom-0 bg-background -mb-6">
                   <QuestionActionButton
                     submitted={submitted}
                     selectedChoice={selectedChoice}
+                    frqAnswer={frqAnswer}
                     questionType={currentQuestion.type}
                     isAnalysisActive={isAnalysisActive}
                     onSubmit={handleSubmit}
