@@ -8,6 +8,7 @@ import spring.backend.domain.auth.dto.request.FormSignupRequest;
 import spring.backend.domain.auth.dto.request.OAuthSignupRequest;
 import spring.backend.domain.auth.dto.response.TokenResponse;
 import spring.backend.domain.auth.model.entity.Credentials;
+import spring.backend.domain.auth.respository.jpa.JpaCredentialRepository;
 import spring.backend.domain.auth.respository.spec.CredentialRepository;
 import spring.backend.domain.auth.service.spec.AuthService;
 import spring.backend.domain.user.model.entity.User;
@@ -21,6 +22,7 @@ public class AuthServiceImpl implements AuthService {
   private final CredentialRepository credentialRepository;
   private final PasswordEncoder passwordEncoder;
   private final JwtUtil jwtUtil;
+  private final JpaCredentialRepository jpaCredentialRepository;
 
 
   @Override
@@ -32,20 +34,26 @@ public class AuthServiceImpl implements AuthService {
     }
 
     // User 생성
-    User newUser = User.createUser(req.name());
+    User user = User.createUser(req.name());
 
     // Credential 생성
     String encodedPassword = passwordEncoder.encode(req.password());
 
-    Credentials newCredential = Credentials.createFormCredentials(
-            newUser,
+    Credentials credential = Credentials.createFormCredentials(
+            user,
             req.email(),
             encodedPassword
     );
 
+    // 저장
+    Credentials newCredential = jpaCredentialRepository.save(credential);
+
     // 토큰 생성
-    String accessToken = jwtUtil.generateAccessToken(newUser.getId(), newUser.getRole(), newUser.getName());
-    String refreshToken = jwtUtil.generateRefreshToken(newUser.getId());
+    String accessToken = jwtUtil.generateAccessToken(
+            newCredential.getUser().getId(),
+            newCredential.getUser().getRole(),
+            newCredential.getUser().getName());
+    String refreshToken = jwtUtil.generateRefreshToken(newCredential.getUser().getId());
 
     return new TokenResponse(accessToken, refreshToken);
 

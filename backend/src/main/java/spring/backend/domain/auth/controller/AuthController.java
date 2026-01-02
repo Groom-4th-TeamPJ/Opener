@@ -11,7 +11,7 @@ import spring.backend.domain.auth.dto.response.TokenResponse;
 import spring.backend.domain.auth.service.spec.AuthService;
 
 @RestController
-@RequestMapping("/auth")
+@RequestMapping("/api/auth")
 @RequiredArgsConstructor
 public class AuthController {
 

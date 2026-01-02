@@ -5,6 +5,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import spring.backend.domain.auth.model.entity.Credentials;
 import spring.backend.domain.auth.respository.spec.CredentialRepository;
 
@@ -15,6 +16,7 @@ public class CustomUserDetailService implements UserDetailsService {
   private final CredentialRepository credentialRepository;
 
   @Override
+  @Transactional(readOnly = true)
   public UserDetails loadUserByUsername(String email) {
 
     Credentials credential = credentialRepository
