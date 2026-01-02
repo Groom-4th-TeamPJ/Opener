@@ -15,7 +15,7 @@ spring:
   # JPA/Hibernate 설정
   jpa:
     hibernate:
-      ddl-auto: validate # create, create-drop, update, validate, none
+      ddl-auto: update # create, create-drop, update, validate, none
     show-sql: true
     properties:
       hibernate:
@@ -23,7 +23,7 @@ spring:
 
   # Flyway 마이그레이션 설정
   flyway:
-    enabled: true
+    enabled: false # 개발 환경에서는 JPA ddl-auto 사용
     baseline-on-migrate: true # 기존 DB에 Flyway 적용 시 필요
     locations: classpath:db/migration
     validate-on-migrate: true
@@ -56,10 +56,16 @@ spring:
     api-docs:
       path: /api-docs
 
-  # 개발 환경 로깅
-  logging:
-    level:
-      org.hibernate.SQL: DEBUG
-      org.hibernate.type.descriptor.sql.BasicBinder: TRACE
-      org.springframework.security: DEBUG
-      org.flywaydb: DEBUG
+# JWT 설정
+jwt:
+  secret: ${JWT_SECRET:your-very-secure-secret-key-change-this-in-production-min-32-chars}
+  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000} # 1시간
+  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:1209600000} # 14일
+
+# 개발 환경 로깅
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.springframework.security: DEBUG
+    org.flywaydb: DEBUG
