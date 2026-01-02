@@ -6,7 +6,7 @@ import z from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMemo, useState } from 'react'
 
-const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[~!@#$%^&*])[A-Za-z\d~!@#$%^&*]{8,20}$/
+const PASSWORD_REGEX: RegExp = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[~!@#$%^&*])[A-Za-z\d~!@#$%^&*]{8,20}$/
 
 // TODO: 에러 텍스트 상수화 및 파일 분리
 export const registerSchema = z.object({
@@ -47,7 +47,7 @@ export default function LoginForm() {
 
   const [termError, setTermError] = useState<string | null>(null)
 
-  const agreed = useMemo(() => Object.values(terms).every(Boolean), [terms])
+  const agreed: boolean = useMemo(() => Object.values(terms).every(Boolean), [terms])
 
   const onSubmit = async (form: RegisterFormValues) => {
     clearErrors()
@@ -68,7 +68,7 @@ export default function LoginForm() {
 
     setFocus(firstKey, { shouldSelect: true })
 
-    // 커스텀 Input / 모바일 대비 스크롤 보강
+    // 스크롤
     requestAnimationFrame(() => {
       const el = document.querySelector<HTMLElement>(`[name="${String(firstKey)}"]`)
       el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
