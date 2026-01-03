@@ -1,7 +1,7 @@
 import RegisterForm from '@/components/register/RegisterForm'
 import Image from 'next/image'
 
-export default function Login() {
+export default function Register() {
   return (
     <div className="min-h-screen flex flex-col justify-center">
       <main className="min-w-sm flex flex-col gap-4 items-center mx-auto py-4 px-8">
