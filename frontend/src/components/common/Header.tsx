@@ -22,7 +22,7 @@ export default function Header() {
   }
 
   return (
-    <header className="bg-white sticky top-0 z-50 border-b border-gray-300">
+    <header className="bg-background sticky top-0 z-50 border-b border-gray-300">
       <div className=" mx-auto max-w-6xl flex items-center px-4 h-16 justify-between">
         <div className="flex items-center gap-10">
           <Link href="/">
