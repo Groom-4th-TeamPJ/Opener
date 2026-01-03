@@ -47,7 +47,7 @@ public class JsonUsernamePasswordAuthenticationFilter extends UsernamePasswordAu
       return this.getAuthenticationManager().authenticate(authToken);
 
     } catch (IOException e) {
-      throw new RuntimeException("Failed to parse login request", e);
+      throw new RuntimeException("로그인에 실패하였습니다.", e);
     }
   }
 }
