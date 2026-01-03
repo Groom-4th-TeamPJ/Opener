@@ -6,7 +6,8 @@ import Input from '@/components/common/Input'
 import { useState } from 'react'
 import { getPasswordStrength } from '@/utils/get-password-strength'
 import { Eye, EyeOff } from 'lucide-react'
-import { Badge } from '../common/Badge'
+import { Badge } from '@/components/common/Badge'
+import Button from '@/components/common/Button'
 
 interface PasswordInputProps {
   register: UseFormRegister<RegisterFormValues>
@@ -46,7 +47,7 @@ export default function PasswordInput({ register, watch, error }: PasswordInputP
         error={error}
         maxLength={MAX_PASSWORD_LENGTH}
         rightIcon={
-          <div className="absolute flex gap-x-1.5 right-2">
+          <div className="absolute flex items-center gap-x-1.5 right-2">
             {password.length > 0 && (
               <Badge
                 type="outline"
@@ -56,13 +57,15 @@ export default function PasswordInput({ register, watch, error }: PasswordInputP
                 label={PASSWORD_STRENGTH_META[strength].label}
               />
             )}
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               onClick={() => setShowPassword((prev) => !prev)}
-              className="cursor-pointer"
+              className="px-1"
             >
               {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
-            </button>
+            </Button>
           </div>
         }
         {...register('password')}
