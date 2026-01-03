@@ -4,7 +4,6 @@ import Input from '@/components/common/Input'
 import { Card, CardContent } from '@/components/common/Card'
 import type { Question } from '@/types/exam'
 import { getChoiceStyle } from '@/utils/exam-styles'
-import Image from 'next/image'
 
 interface QuestionCardProps {
   question: Question
@@ -30,11 +29,7 @@ export default function QuestionCard({
       <CardContent className="p-8 min-h-50 flex flex-col justify-center border-b border-foreground/10">
         {question.passages.map((passage) => (
           <div key={passage.order} className="mb-2">
-            {passage.type === 'text' ? (
-              <p className="text-lg leading-relaxed">{passage.text}</p>
-            ) : (
-              <Image src={passage.url || ''} alt="문제 이미지" className="w-full" />
-            )}
+            <p className="text-lg leading-relaxed">{passage.text}</p>
           </div>
         ))}
       </CardContent>
