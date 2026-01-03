@@ -85,4 +85,17 @@ public class Credentials extends BaseEntity {
     credentials.providerId = providerId;
     return credentials;
   }
+
+  public void loginStamp() {
+    this.lastLoginAt = Timestamp.valueOf(LocalDateTime.now());
+  }
+
+  // 로그인 실패시 failedLoginAttempts 1 증가
+  public void failedLoginAttempts() {
+    this.failedLoginAttempts++;
+  }
+
+  public void successLogin() {
+    this.lastFailedLoginAt = LocalDateTime.now();
+  }
 }

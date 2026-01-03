@@ -3,6 +3,7 @@ package spring.backend.shared.infrastructure.security.handler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.transaction.Transactional;
 import java.io.IOException;
 import java.time.Duration;
 import lombok.RequiredArgsConstructor;
@@ -15,7 +16,6 @@ import org.springframework.security.web.authentication.AuthenticationSuccessHand
 import org.springframework.stereotype.Component;
 import spring.backend.domain.auth.dto.response.AccessToken;
 import spring.backend.domain.auth.model.entity.Credentials;
-import spring.backend.domain.auth.respository.jpa.JpaCredentialRepository;
 import spring.backend.domain.auth.respository.spec.CredentialRepository;
 import spring.backend.domain.user.model.entity.User;
 import spring.backend.shared.infrastructure.security.util.JwtUtil;
@@ -30,9 +30,9 @@ public class JwtAuthenticationSuccessHandler implements AuthenticationSuccessHan
   private final JwtUtil jwtUtil;
   private final CredentialRepository credentialRepository;
   private final ObjectMapper objectMapper;
-  private final JpaCredentialRepository jpaCredentialRepository;
 
   @Override
+  @Transactional
   public void onAuthenticationSuccess(
           HttpServletRequest request,
           HttpServletResponse response,
@@ -48,6 +48,10 @@ public class JwtAuthenticationSuccessHandler implements AuthenticationSuccessHan
             .findUserCredentialByEmail(email)
             .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
 
+    // 로그인 성공시점 TimeStamp 찍기, Transactional이라 save() 안해도 영속성 컨텍스트가 자동저장
+    credentials.loginStamp();
+
+    // 조회한 credentials로 user 조회
     User user = credentials.getUser();
 
     // JWT 토큰 생성
