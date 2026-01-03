@@ -6,7 +6,7 @@ import Input from '@/components/common/Input'
 import { useState } from 'react'
 import { getPasswordStrength } from '@/utils/get-password-strength'
 import { Eye, EyeOff } from 'lucide-react'
-import cn from '@/utils/cn'
+import { Badge } from '../common/Badge'
 
 interface PasswordInputProps {
   register: UseFormRegister<RegisterFormValues>
@@ -17,20 +17,19 @@ interface PasswordInputProps {
 const PASSWORD_STRENGTH_META = {
   weak: {
     label: '취약',
-    text: 'text-red-600',
-    border: 'border-red-600',
+    variant: 'danger',
   },
   medium: {
     label: '적정',
-    text: 'text-orange-500',
-    border: 'border-orange-500',
+    variant: 'warning',
   },
   strong: {
     label: '강력',
-    text: 'text-green-600',
-    border: 'border-green-600',
+    variant: 'success',
   },
 } as const
+
+const MAX_PASSWORD_LENGTH = 20
 
 export default function PasswordInput({ register, watch, error }: PasswordInputProps) {
   const password = watch('password')
@@ -45,26 +44,29 @@ export default function PasswordInput({ register, watch, error }: PasswordInputP
         placeholder="•••••••••"
         helperText="영문, 숫자, 특수문자 (~!@#$%^&*) 조합 8~20 자리"
         error={error}
+        maxLength={MAX_PASSWORD_LENGTH}
+        rightIcon={
+          <div className="absolute flex gap-x-1.5 right-2">
+            {password.length > 0 && (
+              <Badge
+                type="outline"
+                variant={PASSWORD_STRENGTH_META[strength].variant}
+                size="sm"
+                pill
+                label={PASSWORD_STRENGTH_META[strength].label}
+              />
+            )}
+            <button
+              type="button"
+              onClick={() => setShowPassword((prev) => !prev)}
+              className="cursor-pointer"
+            >
+              {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+            </button>
+          </div>
+        }
         {...register('password')}
       />
-      {password.length > 0 && (
-        <span
-          className={cn(
-            'absolute right-8 top-1/2 -translate-y-1/2 border rounded-xl text-xs mt-0.5 px-2 py-1',
-            PASSWORD_STRENGTH_META[strength].text,
-            PASSWORD_STRENGTH_META[strength].border
-          )}
-        >
-          {PASSWORD_STRENGTH_META[strength].label}
-        </span>
-      )}
-      <button
-        type="button"
-        onClick={() => setShowPassword((prev) => !prev)}
-        className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-foreground/65 pt-1"
-      >
-        {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
-      </button>
     </div>
   )
 }

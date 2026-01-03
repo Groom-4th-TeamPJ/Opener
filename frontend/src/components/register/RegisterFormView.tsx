@@ -19,6 +19,8 @@ interface LoginFormViewProps {
   isSubmitting: boolean
 }
 
+const MAX_NAME_LENGTH = 12
+
 export default function RegisterFormView({
   register,
   watch,
@@ -42,6 +44,7 @@ export default function RegisterFormView({
         placeholder="이름(또는 닉네임)"
         helperText="2~12 자리"
         error={errors.name?.message}
+        maxLength={MAX_NAME_LENGTH}
         {...register('name')}
       />
       <Input
