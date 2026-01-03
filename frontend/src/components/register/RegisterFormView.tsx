@@ -6,7 +6,7 @@ import TermsAgreementSection from '@/components/register/TermsAgreementSection'
 import { Dispatch, SetStateAction } from 'react'
 import PasswordInput from './PasswordInput'
 
-interface LoginFormViewProps {
+interface RegisterFormViewProps {
   register: UseFormRegister<RegisterFormValues>
   watch: UseFormWatch<RegisterFormValues>
   onSubmit: () => void
@@ -32,7 +32,7 @@ export default function RegisterFormView({
   termError,
   setTermError,
   isSubmitting,
-}: LoginFormViewProps) {
+}: RegisterFormViewProps) {
   return (
     // TODO: 스타일 적용
     <form onSubmit={onSubmit} className="w-full flex flex-col gap-2">

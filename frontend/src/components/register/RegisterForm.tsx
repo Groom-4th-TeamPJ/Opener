@@ -25,7 +25,7 @@ export type TermKey = 'service' | 'privacy' | 'age'
 
 export type Term = Record<TermKey, boolean>
 
-export default function LoginForm() {
+export default function RegisterForm() {
   const {
     register,
     handleSubmit,
