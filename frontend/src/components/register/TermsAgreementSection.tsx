@@ -4,6 +4,7 @@ import cn from '@/utils/cn'
 import { ChevronDown } from 'lucide-react'
 import { Dispatch, SetStateAction, useState } from 'react'
 import { Term, TermKey } from '@/components/register/RegisterForm'
+import TermItem from '@/components/register/TermItem'
 
 const REQUIRED_TERMS: { key: TermKey; label: string; content?: string }[] = [
   {
@@ -123,77 +124,5 @@ export default function TermsAgreementSection({
         </p>
       )}
     </section>
-  )
-}
-
-function TermItem({
-  termKey,
-  openKey,
-  setOpenKey,
-  checked,
-  onChange,
-  label,
-  content,
-}: {
-  termKey: TermKey
-  openKey: TermKey | null
-  setOpenKey: (key: TermKey | null) => void
-  checked: boolean
-  onChange: (next: boolean) => void
-  label: string
-  content?: string
-}) {
-  const isOpen = openKey === termKey
-
-  return (
-    <details
-      open={isOpen}
-      className="group/term rounded-lg bg-background border border-foreground/20 p-3"
-      onClick={(e) => {
-        e.preventDefault() // 기본 details 토글 방지
-        setOpenKey(isOpen ? null : termKey)
-      }}
-    >
-      <summary
-        className={cn(
-          'flex items-center justify-between gap-3 select-none',
-          content ? 'cursor-pointer' : ''
-        )}
-      >
-        {/* 체크 영역 */}
-        <label
-          className="flex items-center gap-2 cursor-pointer"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-          <span className="text-sm">
-            {label} <span className="text-red-500">(필수)</span>
-          </span>
-        </label>
-
-        {content && (
-          <ChevronDown
-            className="
-            h-4 w-4 text-muted-foreground
-            transition-transform duration-200
-            group-open/term:rotate-180
-          "
-          />
-        )}
-      </summary>
-
-      {/* 전문 */}
-      {content && (
-        <div
-          className="mt-2 rounded-md bg-muted/30 
-        p-3 text-xs leading-5 
-        text-muted-foreground max-h-44 
-        overflow-auto whitespace-break-spaces
-        "
-        >
-          {content}
-        </div>
-      )}
-    </details>
   )
 }
