@@ -1,4 +1,4 @@
-export type ApiInit = Omit<RequestInit, 'headers' | 'method' | 'body'> & {
+type ApiInit = Omit<RequestInit, 'headers' | 'method' | 'body'> & {
   headers?: Record<string, string>
   token?: string | null
   withCredentials?: boolean
@@ -13,7 +13,7 @@ const DEFAULT_INIT: RequestInit = {
 
 const BASE_URL: string = '/api'
 
-export async function api<B = unknown>(
+export default async function api<B = unknown>(
   path: string,
   options?: {
     method?: RequestMethod
