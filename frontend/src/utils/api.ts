@@ -11,14 +11,17 @@ const DEFAULT_INIT: RequestInit = {
   next: { revalidate: 0 },
 }
 
+const BASE_URL: string = '/api'
+
 export async function api<B = unknown>(
-  input: string,
+  path: string,
   options?: {
     method?: RequestMethod
     body?: B
     init?: ApiInit
   }
 ): Promise<Response> {
+  const url = `${BASE_URL}${path}`
   const init = options?.init
   const method = options?.method ?? (options?.body !== undefined ? 'POST' : 'GET')
 
@@ -28,7 +31,7 @@ export async function api<B = unknown>(
   if (hasBody && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
   if (init?.token) headers.set('Authorization', `Bearer ${init.token}`)
 
-  return fetch(input, {
+  return fetch(url, {
     ...DEFAULT_INIT,
     ...init,
     method,
