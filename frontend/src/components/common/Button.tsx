@@ -2,12 +2,13 @@ import cn from '@/utils/cn'
 import { ComponentPropsWithRef, ReactNode } from 'react'
 
 interface ButtonProps extends ComponentPropsWithRef<'button'> {
-  variant?: 'default' | 'ghost'
+  variant?: 'default' | 'ghost' | 'outline'
   size?: 'sm' | 'md' | 'lg'
   widthFull?: boolean
   isLoading?: boolean
   leftIcon?: ReactNode
   rightIcon?: ReactNode
+  bothIcon?: { left: ReactNode; right: ReactNode }
   children?: ReactNode
 }
 
@@ -18,23 +19,29 @@ export default function Button({
   isLoading = false,
   leftIcon,
   rightIcon,
+  bothIcon,
   children,
   className,
   disabled,
   type = 'button',
   ...props
 }: ButtonProps) {
+  const finalLeftIcon = bothIcon?.left ?? leftIcon
+  const finalRightIcon = bothIcon?.right ?? rightIcon
   return (
     <button
       type={type}
       className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-xl cursor-pointer',
+        'inline-flex items-center justify-center gap-2 rounded-lg cursor-pointer font-bold',
         'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        'disabled:pointer-events-none disabled:opacity-50',
+        'disabled:pointer-events-none disabled:text-neutral-200',
         'relative',
 
-        variant === 'default' && 'bg-primary-600 text-background hover:opacity-90',
-        variant === 'ghost' && 'text-foreground hover:bg-foreground/5',
+        variant === 'default' &&
+          'bg-primary-600 text-background hover:bg-primary-500 active:bg-primary-700 disabled:bg-neutral-50',
+        variant === 'ghost' && 'text-text-primary hover:bg-neutral-50',
+        variant === 'outline' &&
+          'border border-primary-600 text-text-primary hover:border-primary-500 active:border-primary-700 disabled:border-neutral-50',
 
         size === 'sm' && 'h-8 px-3 text-sm',
         size === 'md' && 'h-10 px-4',
@@ -58,10 +65,10 @@ export default function Button({
           )}
         />
       )}
-      <span className={cn('flex items-center gap-2', isLoading && 'invisible')}>
-        {leftIcon && <span className="shrink-0">{leftIcon}</span>}
+      <span className={cn('flex items-center gap-1', isLoading && 'invisible')}>
+        {finalLeftIcon && <span className="shrink-0">{finalLeftIcon}</span>}
         {children}
-        {rightIcon && <span className="shrink-0">{rightIcon}</span>}
+        {finalRightIcon && <span className="shrink-0">{finalRightIcon}</span>}
       </span>
     </button>
   )

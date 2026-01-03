@@ -32,8 +32,8 @@ const COLOR_TOKENS: Record<BadgeVariant, { base: string; pastel: string; fgOnBas
     fgOnBase: 'var(--color-white)',
   },
   secondary: {
-    base: 'var(--color-secondary-600)',
-    pastel: 'var(--color-secondary-100)',
+    base: 'var(--color-neutral-600)',
+    pastel: 'var(--color-neutral-100)',
     fgOnBase: 'var(--color-white)',
   },
   warning: {

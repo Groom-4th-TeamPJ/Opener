@@ -84,7 +84,7 @@ export default function SelectBox({
 
   return (
     <div className={cn('space-y-2', className)} ref={containerRef} {...props}>
-      {label && <label className="block text-sm font-medium text-foreground">{label}</label>}
+      {label && <label className="block text-sm font-medium text-text-primary">{label}</label>}
 
       <div className="relative">
         {/* Trigger Button */}
@@ -95,8 +95,8 @@ export default function SelectBox({
           disabled={disabled}
           className={cn(
             'w-full px-4 py-2 rounded-xl',
-            'bg-background border border-foreground/20',
-            'text-foreground text-sm text-left',
+            'bg-background border border-neutral-200',
+            'text-text-primary text-sm text-left',
             'transition-all duration-200',
             'flex items-center justify-between gap-2',
             error && 'border-danger-600 focus:border-danger-600',
