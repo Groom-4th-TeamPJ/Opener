@@ -87,7 +87,7 @@ export function Modal({
       {/* Backdrop */}
       <div
         style={{ zIndex: zIndex }}
-        className="fixed inset-0 bg-black/80 backdrop-blur-sm"
+        className="fixed inset-0 bg-dimmer backdrop-blur-sm"
         onClick={handleBackdropClick}
       />
 
@@ -134,11 +134,11 @@ export function ModalHeader({
 }: ModalHeaderProps) {
   return (
     <div className={cn('flex items-start justify-between p-6', className)} {...props}>
-      <div className="flex-1 text-foreground">{children}</div>
+      <div className="flex-1 text-text-primary">{children}</div>
       {closable && onClose && (
         <button
           onClick={onClose}
-          className="ml-4 p-1 rounded-lg hover:bg-foreground/5 transition-colors cursor-pointer"
+          className="ml-4 p-1 rounded-lg hover:bg-neutral-50 transition-colors cursor-pointer"
           aria-label="닫기"
         >
           <X className="size-4" />
@@ -155,7 +155,7 @@ interface ModalContentProps extends ComponentPropsWithRef<'div'> {
 
 export function ModalContent({ className, children, ...props }: ModalContentProps) {
   return (
-    <div className={cn('p-6 text-foreground', className)} {...props}>
+    <div className={cn('p-6 text-text-primary', className)} {...props}>
       {children}
     </div>
   )
