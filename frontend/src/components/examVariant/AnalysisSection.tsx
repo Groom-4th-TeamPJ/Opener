@@ -2,6 +2,7 @@ import type { AnalysisProps } from '@/types/exam-variant'
 import { ModalContent } from '../common/Modal'
 
 export default function AnalysisSection({ analysis, isSubmitted, isCorrect }: AnalysisProps) {
+  // 임시로 넣어놓은 조건문
   if (!isSubmitted || isCorrect) return null
 
   if (typeof analysis !== 'string') {
