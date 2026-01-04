@@ -4,6 +4,9 @@ import { useState } from 'react'
 import { ArrowRight } from 'lucide-react'
 import Button from '@/components/common/Button'
 import SelectBox from '@/components/common/SelectBox'
+import QuestionSolve from './QuestionSolveView'
+import { mockExamData } from '@/mocks/exam-data'
+import type { ExamResponse } from '@/types/exam'
 
 const categories = [
   { id: 'CALC', name: '미적분' },
@@ -27,6 +30,7 @@ export default function ExamSelect() {
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [selectedYear, setSelectedYear] = useState<string>(yearOptions[0].value)
   const [selectedExamType, setSelectedExamType] = useState<string>('')
+  const [examData, setExamData] = useState<ExamResponse | null>(null)
 
   const canStart = selectedCategory && selectedYear && selectedExamType
 
@@ -41,6 +45,18 @@ export default function ExamSelect() {
 
     // TODO: GET /api/exam?year={year}&category={category}&examType={examType}
     // TODO: Authorization: Bearer {accessToken} 헤더 추가
+
+    // Mock 데이터 로드
+    setExamData(mockExamData)
+  }
+
+  // 문제 풀이 화면으로 전환
+  if (examData) {
+    return (
+      <div className="fixed inset-0 z-50 bg-background">
+        <QuestionSolve data={examData} onClose={() => setExamData(null)} />
+      </div>
+    )
   }
 
   return (
