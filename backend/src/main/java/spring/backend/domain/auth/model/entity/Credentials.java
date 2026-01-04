@@ -59,7 +59,7 @@ public class Credentials extends BaseEntity {
   private LocalDateTime lastFailedLoginAt;
 
   @Column
-  private LocalDateTime LockedUntil;
+  private LocalDateTime lockedUntil;
 
   public static Credentials createFormCredentials(
           User user,
@@ -86,16 +86,55 @@ public class Credentials extends BaseEntity {
     return credentials;
   }
 
-  public void loginStamp() {
+  // 로그인 성공 처리 - lastLoginAt 업데이트 - 실패 카운트 리셋
+  public void recordLoginSuccess() {
     this.lastLoginAt = Timestamp.valueOf(LocalDateTime.now());
+    this.resetFailedAttempts();
   }
 
-  // 로그인 실패시 failedLoginAttempts 1 증가
-  public void failedLoginAttempts() {
+  // 로그인 실패 처리 - 실패 카운트 증가 - lastFailedLoginAt 업데이트 - 최대 실패 횟수 도달 시 계정 잠금
+  public void recordLoginFailure(int maxAttempts, int lockDurationMinutes) {
     this.failedLoginAttempts++;
+    this.lastFailedLoginAt = LocalDateTime.now();
+
+    // 최대 실패 횟수 도달 시 계정 잠금
+    if (this.failedLoginAttempts >= maxAttempts) {
+      this.lockedUntil = LocalDateTime.now().plusMinutes(lockDurationMinutes);
+    }
   }
 
-  public void successLogin() {
-    this.lastFailedLoginAt = LocalDateTime.now();
+  //계정 잠금 상태 확인 - lockedUntil이 null이면 잠금 안됨 - lockedUntil이 현재 시간보다 이전이면 잠금 자동 해제
+  public boolean isAccountLocked() {
+    if (this.lockedUntil == null) {
+      return false;
+    }
+
+    // 잠금 시간이 지났으면 자동 해제
+    if (LocalDateTime.now().isAfter(this.lockedUntil)) {
+      this.unlockAccount();
+      return false;
+    }
+
+    return true;
+  }
+
+  // 계정 잠금 해제 및 실패 카운트 초기화
+  private void unlockAccount() {
+    this.lockedUntil = null;
+    this.resetFailedAttempts();
+  }
+
+  // 실패 카운트 초기화
+  private void resetFailedAttempts() {
+    this.failedLoginAttempts = 0;
+    this.lastFailedLoginAt = null;
+  }
+
+  // 잠금 해제까지 남은 시간(분) 계산
+  public long getRemainingLockTimeMinutes() {
+    if (this.lockedUntil == null || LocalDateTime.now().isAfter(this.lockedUntil)) {
+      return 0;
+    }
+    return java.time.Duration.between(LocalDateTime.now(), this.lockedUntil).toMinutes();
   }
 }
