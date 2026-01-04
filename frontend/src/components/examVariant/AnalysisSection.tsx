@@ -1,10 +1,6 @@
+import type { AnalysisProps } from '@/types/exam-variant'
 import { ModalContent } from '../common/Modal'
 
-type AnalysisProps = {
-  analysis: unknown
-  isSubmitted: boolean
-  isCorrect: boolean | null
-}
 export default function AnalysisSection({ analysis, isSubmitted, isCorrect }: AnalysisProps) {
   if (!isSubmitted || isCorrect) return null
 

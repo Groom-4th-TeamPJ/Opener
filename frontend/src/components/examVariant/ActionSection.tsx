@@ -1,11 +1,6 @@
+import type { ActionSectionProps } from '@/types/exam-variant'
 import Button from '../common/Button'
 
-type ActionSectionProps = {
-  isSubmitted: boolean
-  selected: number | null
-  onSubmit: () => void
-  onBack: () => void
-}
 export default function ActionSection({
   isSubmitted,
   selected,

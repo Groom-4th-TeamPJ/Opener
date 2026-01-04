@@ -1,10 +1,7 @@
 import { Timer } from 'lucide-react'
 import { ModalContent, ModalHeader } from '../common/Modal'
+import type { QuestionSectionProps } from '@/types/exam-variant'
 
-type QuestionSectionProps = {
-  passage: string
-  onClose: () => void
-}
 export default function QuestionSection({ passage, onClose }: QuestionSectionProps) {
   return (
     <div>
@@ -13,7 +10,7 @@ export default function QuestionSection({ passage, onClose }: QuestionSectionPro
           <h2 className="font-bold text-lg">변형 문제</h2>
           <div className="flex gap-1">
             <Timer width={24} height={24} className="stroke-Neutral-600" />
-            <span>{/* 스탑워치 */}</span>
+            <span>{/* 스탑워치 구현 예정*/}</span>
           </div>
         </div>
       </ModalHeader>

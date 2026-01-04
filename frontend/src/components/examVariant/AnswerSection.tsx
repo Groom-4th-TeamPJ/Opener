@@ -1,14 +1,7 @@
 import { Check, CircleStop, X } from 'lucide-react'
-import type { Option } from './ExamVariant'
 import cn from '@/utils/cn'
+import type { AnswerSectionProps } from '@/types/exam-variant'
 
-type AnswerSectionProps = {
-  options: Option[]
-  answer: number
-  selected: number | null
-  isSubmitted: boolean
-  onSelect: (order: number) => void
-}
 export default function AnswerSection({
   options,
   answer,
@@ -33,7 +26,6 @@ export default function AnswerSection({
             key={option.order}
             className={cn(
               'flex items-center p-3 border rounded-lg border-neutral-200',
-              !isSubmitted && isChecked && ' border-neutral-200',
               isSubmitted && isChecked && 'border-primary-600',
               isCorrectChecked && 'border-success-600',
               isWrongChecked && 'border-danger-600'
