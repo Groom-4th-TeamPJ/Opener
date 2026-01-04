@@ -48,8 +48,9 @@ public class JwtAuthenticationSuccessHandler implements AuthenticationSuccessHan
             .findUserCredentialByEmail(email)
             .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
 
-    // 로그인 성공시점 TimeStamp 찍기, Transactional이라 save() 안해도 영속성 컨텍스트가 자동저장
-    credentials.loginStamp();
+    // 로그인 성공 처리: lastLoginAt 업데이트 + 실패 카운트 리셋
+    // Transactional이라 save() 안해도 영속성 컨텍스트가 자동저장
+    credentials.recordLoginSuccess();
 
     // 조회한 credentials로 user 조회
     User user = credentials.getUser();
