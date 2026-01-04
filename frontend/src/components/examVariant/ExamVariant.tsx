@@ -12,18 +12,19 @@ import { MOCK_DATA } from '@/mocks/exam-variant-mocks'
 import type { ExamVariantValues } from '@/types/exam-variant'
 
 export default function ExamVariant() {
-  // 데이터 불러오는 상태
-  const [loading, setLoading] = useState(false)
-  //   문제 불러오기
-  const [data, setData] = useState<ExamVariantValues | null>(MOCK_DATA)
+  // 데이터 불러오는 상태 (현재 Mock 데이터를 사용하므로 set 함수 제외)
+  const [loading] = useState(false)
+  //   문제 불러오기 (현재 Mock 데이터를 사용하므로 set 함수 제외)
+  const [data] = useState<ExamVariantValues | null>(MOCK_DATA)
   //   문제 제출하기
   const [isSubmitted, setSubmitted] = useState<boolean>(false)
   //   문제 정답 상태
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
   //   선택지 선택 상태
   const [selected, setIsSelected] = useState<number | null>(null)
+
   const router = useRouter()
-  //모달 닫기 상태
+
   const handleClose = () => {
     router.back()
   }
