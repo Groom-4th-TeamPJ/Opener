@@ -31,17 +31,17 @@ public class JwtAuthenticationFailureHandler implements AuthenticationFailureHan
 
     // ErrorDetailFormat 생성
     ErrorDetailFormat errorDetail = new ErrorDetailFormat(
-        null,
-        null,
-        exception.getMessage(),
-        errorCode.getCode()
+            null,
+            null,
+            exception.getMessage(),
+            errorCode.getCode()
     );
 
     // 공통 응답 포맷으로 래핑
     ApiResponseFormat<Void> apiResponse = ApiResponseFormat.error(
-        errorCode.getStatus(),
-        errorCode.getMessage(),
-        errorDetail
+            errorCode.getStatus(),
+            errorCode.getMessage(),
+            errorDetail
     );
 
     // JSON 응답 반환

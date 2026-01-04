@@ -16,7 +16,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import spring.backend.shared.infrastructure.security.filter.JsonUsernamePasswordAuthenticationFilter;
+import spring.backend.shared.infrastructure.security.filter.FormAuthenticationFilter;
 import spring.backend.shared.infrastructure.security.filter.JwtAuthenticationFilter;
 import spring.backend.shared.infrastructure.security.handler.JwtAuthenticationFailureHandler;
 import spring.backend.shared.infrastructure.security.handler.JwtAuthenticationSuccessHandler;
@@ -61,26 +61,23 @@ public class SecurityConfig {
 
             // JSON 로그인 필터 추가
             .addFilterAt(
-                    jsonUsernamePasswordAuthenticationFilter(authenticationManager),
+                    formAuthenticationFilter(authenticationManager),
                     UsernamePasswordAuthenticationFilter.class
             );
 
     return http.build();
   }
 
-  @Bean
-  public AuthenticationManager authenticationManager(PasswordEncoder passwordEncoder) {
-    DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService);
-    provider.setPasswordEncoder(passwordEncoder);
-    return new ProviderManager(provider);
-  }
+  // ========================================= 필터 빈 선언부
 
+  // form 로그인 필터
   @Bean
-  public JsonUsernamePasswordAuthenticationFilter jsonUsernamePasswordAuthenticationFilter(
+  public FormAuthenticationFilter formAuthenticationFilter(
           AuthenticationManager authenticationManager
   ) {
-    JsonUsernamePasswordAuthenticationFilter filter =
-            new JsonUsernamePasswordAuthenticationFilter(authenticationManager, objectMapper);
+
+    FormAuthenticationFilter filter =
+            new FormAuthenticationFilter(authenticationManager, objectMapper);
 
     // 로그인 처리 URL 설정
     filter.setFilterProcessesUrl("/api/auth/form-login");
@@ -90,6 +87,16 @@ public class SecurityConfig {
     filter.setAuthenticationFailureHandler(jwtAuthenticationFailureHandler);
 
     return filter;
+  }
+
+  // ========================================= 필터 빈 선언부
+
+  // 커스텀 인증기 사용 선언
+  @Bean
+  public AuthenticationManager authenticationManager(PasswordEncoder passwordEncoder) {
+    DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService);
+    provider.setPasswordEncoder(passwordEncoder);
+    return new ProviderManager(provider);
   }
 
   // 비밀번호 암호화를 위한 PasswordEncoder, Bcrypt 사용
