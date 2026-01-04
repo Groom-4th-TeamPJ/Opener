@@ -43,7 +43,7 @@ export default function TermItem({
         >
           <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
           <span className="text-sm">
-            {label} <span className="text-red-500">(필수)</span>
+            {label} <span className="text-danger-600">(필수)</span>
           </span>
         </label>
 
