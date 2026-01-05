@@ -35,7 +35,7 @@ export function InfoTooltip({
         sideOffset={8}
         // 이미지 디자인: 블루 배경 + 흰색 글씨 + 화살표
         className="bg-info-600 text-white border-none shadow-xl py-2.5 w-fit max-w-81"
-        arrowClassName="fill-blue-500"
+        arrowClassName="fill-info-600"
         align="end"
       >
         <div className="text-sm font-medium leading-relaxed break-all whitespace-pre-line">
