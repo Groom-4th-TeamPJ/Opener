@@ -1,5 +1,5 @@
 import { getPasswordStrength } from '@/utils/get-password-strength'
-import { Badge } from '../common/Badge'
+import { Badge } from '@/components/common/Badge'
 
 const PASSWORD_STRENGTH_META = {
   weak: {
