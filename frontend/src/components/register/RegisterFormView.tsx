@@ -3,7 +3,7 @@ import { Control, FieldErrors } from 'react-hook-form'
 import { RegisterFormValues, Term } from '@/components/register/RegisterForm'
 import TermsAgreementSection from '@/components/register/TermsAgreementSection'
 import { Dispatch, SetStateAction } from 'react'
-import AuthInput from '../shared/AuthInput'
+import AuthInput from '@/components/shared/AuthInput'
 import PasswordStrengthBadge from './PasswordStrengthBadge'
 
 interface RegisterFormViewProps {
