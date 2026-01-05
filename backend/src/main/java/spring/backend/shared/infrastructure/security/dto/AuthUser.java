@@ -4,6 +4,7 @@ import java.util.UUID;
 
 public record AuthUser(
         UUID id,
-        String name
+        String name,
+        String jti
 ) {
 }

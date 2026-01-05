@@ -36,10 +36,16 @@ public class JwtUtil {
     Date now = new Date();
     Date expiration = new Date(now.getTime() + accessTokenExpiration);
 
+    String jti = UUID.randomUUID().toString();
+
     return Jwts.builder()
-            .subject(userId.toString())
-            .claim("role", role)
-            .claim("name", name)  // 사용자 이름 추가
+            .claims(Jwts.claims()
+                    .subject(userId.toString())
+                    .id(jti)
+                    .add("role", role)
+                    .add("name", name)
+                    .build()
+            )
             .issuedAt(now)
             .expiration(expiration)
             .signWith(secretKey)
@@ -64,8 +70,9 @@ public class JwtUtil {
     // 타입 직렬화
     UUID userId = UUID.fromString(claims.getSubject());
     String userName = claims.get("name", String.class);
+    String jti = claims.get("jti", String.class);
 
-    return new AuthUser(userId, userName);
+    return new AuthUser(userId, userName, jti);
   }
 
   // 토큰 유효성 검증
