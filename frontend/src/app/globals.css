@@ -112,3 +112,30 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* =========================
+ * Scrollbar Styles
+ * ========================= */
+
+/* Overlay Scrollbar */
+.scrollbar-overlay::-webkit-scrollbar {
+  width: 5px;
+}
+
+.scrollbar-overlay::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-overlay::-webkit-scrollbar-thumb {
+  background: var(--color-neutral-100);
+  border-radius: 4px;
+}
+
+.scrollbar-overlay::-webkit-scrollbar-thumb:hover {
+  background: var(--color-neutral-200);
+}
+
+/* Firefox */
+.scrollbar-overlay {
+  scrollbar-color: var(--color-neutral-100) transparent;
+}
