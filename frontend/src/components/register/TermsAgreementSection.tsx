@@ -5,6 +5,7 @@ import { ChevronDown } from 'lucide-react'
 import { Dispatch, SetStateAction, useState } from 'react'
 import { Term, TermKey } from '@/components/register/RegisterForm'
 import TermItem from '@/components/register/TermItem'
+import CircleCheckbox from './CircleCheckBox'
 
 const REQUIRED_TERMS: { key: TermKey; label: string; content?: string }[] = [
   {
@@ -81,18 +82,16 @@ export default function TermsAgreementSection({
       {/* 전체 동의 + details */}
       <details
         className={cn(
-          'group/root rounded-lg bg-background border border-foreground/20 p-3',
+          'group/root rounded-lg bg-background border border-foreground/20 p-4',
           termError ? 'border-red-600' : ''
         )}
       >
         <summary className="flex items-center justify-between gap-3 cursor-pointer select-none">
-          <label
-            className="flex items-center gap-2 cursor-pointer"
-            onClick={(e) => e.stopPropagation()} // summary 토글 방지(체크만)
-          >
-            <input type="checkbox" checked={agreed} onChange={(e) => toggleAll(e.target.checked)} />
-            <span className="text-sm font-medium">[필수] 약관 전체 동의</span>
-          </label>
+          <CircleCheckbox
+            checked={agreed}
+            onChange={toggleAll}
+            label="필수 및 선택 항목 모두 포함 동의"
+          />
 
           <ChevronDown
             className={`
