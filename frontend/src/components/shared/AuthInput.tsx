@@ -40,18 +40,17 @@ export default function AuthInput<T extends FieldValues>({
     control,
   })
 
-  // 3. "completed" 상태 계산 (focus out + trim 후 비어있지 않음)
-  // CSS 클래스나 추가 UI 처리에 활용 가능
+  // completed 상태 (focus out + trim 후 비어있지 않음)
   const isCompleted = !isFocused && typeof value === 'string' && value.trim() !== ''
 
-  // 5. Reset 로직: 값 초기화 및 포커스 유지
+  // Reset 로직: 값 초기화 및 포커스 유지
   const handleReset = (e: React.MouseEvent) => {
     e.preventDefault() // 버튼 클릭 시 포커스 방해 금지
     onChange('')
     setTimeout(() => inputRef.current?.focus(), 0)
   }
 
-  // 6. Eye 토글 로직: 비밀번호 토글 및 blur 방지
+  // Eye 토글 로직: 비밀번호 토글 및 blur 방지
   const togglePassword = (e: React.MouseEvent) => {
     e.preventDefault() // 버튼 클릭 시 포커스 방해 금지
     setShowPassword((prev) => !prev)
@@ -64,7 +63,7 @@ export default function AuthInput<T extends FieldValues>({
     onBlur()
   }
 
-  // 4. rightIcon 영역 렌더링 로직
+  // rightIcon 영역 렌더링 로직
   const renderRightIcon = () => {
     const isPassword = type === 'password'
     const hasValue = value && String(value).length > 0
@@ -74,7 +73,7 @@ export default function AuthInput<T extends FieldValues>({
         className="absolute flex items-center gap-x-1 right-2"
         onMouseDown={(e) => e.preventDefault()}
       >
-        {/* Password 전용: Badge (항상 표시 가능) */}
+        {/* Password 전용: Badge (항상 표시) */}
         {isPassword && badgeRenderer && badgeRenderer(value || '')}
 
         {/* Focus 상태일 때만 표시되는 제어 버튼들 */}
@@ -127,8 +126,7 @@ export default function AuthInput<T extends FieldValues>({
       maxLength={maxLength}
       rightIcon={renderRightIcon()}
       size="lg"
-      // completed 상태를 className에 주입하여 스타일링 가능
-      className={cn(props.className, isCompleted && 'border-neutral-600')}
+      className={cn(props.className, !error && isCompleted && 'border-neutral-600')}
     />
   )
 }

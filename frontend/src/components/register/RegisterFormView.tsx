@@ -62,6 +62,7 @@ export default function RegisterFormView({
         type="password"
         placeholder="비밀번호를 입력하세요"
         maxLength={MAX_PASSWORD_LENGTH}
+        helperText="영문, 숫자, 특수문자 (~!@#$%^&*) 조합 8~20 자리"
         size="lg"
         badgeRenderer={(value) =>
           value.length > 0 ? <PasswordStrengthBadge value={value} /> : null
