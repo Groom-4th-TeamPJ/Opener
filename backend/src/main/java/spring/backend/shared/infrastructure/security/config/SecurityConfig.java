@@ -18,8 +18,8 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import spring.backend.shared.infrastructure.security.filter.FormAuthenticationFilter;
 import spring.backend.shared.infrastructure.security.filter.JwtAuthenticationFilter;
-import spring.backend.shared.infrastructure.security.handler.JwtAuthenticationFailureHandler;
-import spring.backend.shared.infrastructure.security.handler.JwtAuthenticationSuccessHandler;
+import spring.backend.shared.infrastructure.security.handler.FormAuthenticationFailureHandler;
+import spring.backend.shared.infrastructure.security.handler.FormAuthenticationSuccessHandler;
 
 @Configuration
 @RequiredArgsConstructor
@@ -27,8 +27,8 @@ import spring.backend.shared.infrastructure.security.handler.JwtAuthenticationSu
 public class SecurityConfig {
 
   private final JwtAuthenticationFilter jwtAuthenticationFilter;
-  private final JwtAuthenticationSuccessHandler jwtAuthenticationSuccessHandler;
-  private final JwtAuthenticationFailureHandler jwtAuthenticationFailureHandler;
+  private final FormAuthenticationSuccessHandler formAuthenticationSuccessHandler;
+  private final FormAuthenticationFailureHandler formAuthenticationFailureHandler;
   private final UserDetailsService userDetailsService;
   private final ObjectMapper objectMapper;
 
@@ -83,8 +83,8 @@ public class SecurityConfig {
     filter.setFilterProcessesUrl("/api/auth/form-login");
 
     // 성공/실패 핸들러 설정
-    filter.setAuthenticationSuccessHandler(jwtAuthenticationSuccessHandler);
-    filter.setAuthenticationFailureHandler(jwtAuthenticationFailureHandler);
+    filter.setAuthenticationSuccessHandler(formAuthenticationSuccessHandler);
+    filter.setAuthenticationFailureHandler(formAuthenticationFailureHandler);
 
     return filter;
   }

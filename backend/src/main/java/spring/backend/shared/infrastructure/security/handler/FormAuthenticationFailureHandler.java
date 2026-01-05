@@ -12,7 +12,6 @@ import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.stereotype.Component;
-import spring.backend.domain.auth.model.entity.Credentials;
 import spring.backend.domain.auth.respository.spec.CredentialRepository;
 import spring.backend.shared.infrastructure.security.config.SecurityProperties;
 import spring.backend.shared.response.codes.ErrorCode;
@@ -22,7 +21,7 @@ import spring.backend.shared.response.format.ErrorDetailFormat;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class JwtAuthenticationFailureHandler implements AuthenticationFailureHandler {
+public class FormAuthenticationFailureHandler implements AuthenticationFailureHandler {
 
   private final ObjectMapper objectMapper;
   private final CredentialRepository credentialRepository;

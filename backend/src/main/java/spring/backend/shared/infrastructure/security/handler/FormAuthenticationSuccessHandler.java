@@ -6,7 +6,9 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.transaction.Transactional;
 import java.io.IOException;
 import java.time.Duration;
-import lombok.RequiredArgsConstructor;
+import java.util.concurrent.TimeUnit;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
@@ -24,12 +26,24 @@ import spring.backend.shared.response.format.ApiResponseFormat;
 
 
 @Component
-@RequiredArgsConstructor
-public class JwtAuthenticationSuccessHandler implements AuthenticationSuccessHandler {
+public class FormAuthenticationSuccessHandler implements AuthenticationSuccessHandler {
 
   private final JwtUtil jwtUtil;
   private final CredentialRepository credentialRepository;
   private final ObjectMapper objectMapper;
+  private final StringRedisTemplate redisTemplate;
+
+  public FormAuthenticationSuccessHandler(
+          JwtUtil jwtUtil,
+          CredentialRepository credentialRepository,
+          ObjectMapper objectMapper,
+          @Qualifier("authRedisTemplate") StringRedisTemplate redisTemplate
+  ) {
+    this.jwtUtil = jwtUtil;
+    this.credentialRepository = credentialRepository;
+    this.objectMapper = objectMapper;
+    this.redisTemplate = redisTemplate;
+  }
 
   @Override
   @Transactional
@@ -86,5 +100,9 @@ public class JwtAuthenticationSuccessHandler implements AuthenticationSuccessHan
     response.setContentType(MediaType.APPLICATION_JSON_VALUE);
     response.setCharacterEncoding("UTF-8");
     objectMapper.writeValue(response.getWriter(), apiResponse);
+
+    // Auth Redis에 refresh Token 캐싱
+    String redisKey = "refreshToken:" + user.getId();
+    redisTemplate.opsForValue().set(redisKey, refreshToken, 14, TimeUnit.DAYS);
   }
 }
