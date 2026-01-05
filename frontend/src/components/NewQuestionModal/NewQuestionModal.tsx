@@ -56,7 +56,9 @@ export default function NewQuestionModal() {
             <ModalContent className="flex flex-col gap-4 ">
               <NewQuestionExam passage={data.data.passage} />
               {/* 정오답 표시 배너 */}
-              <ResultBanner isSubmitted={isSubmitted} isCorrect={isCorrect} />
+              {isSubmitted && isCorrect !== null && (
+                <ResultBanner result={isCorrect ? 'correct' : 'wrong'} />
+              )}
             </ModalContent>
 
             {/* 구분선 */}
