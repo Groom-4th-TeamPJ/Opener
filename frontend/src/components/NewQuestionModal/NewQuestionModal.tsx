@@ -5,12 +5,12 @@ import { useRouter } from 'next/navigation'
 import ResultBanner from '@/components/shared/ResultBanner'
 import { MOCK_DATA } from '@/mocks/exam-variant-mocks'
 import type { NewQuestionModalValues } from '@/types/exam-variant'
-import NewQuestionLoading from '@/components/NewQuestionModal/NewQuestionLoading'
-import NewQuestionHeader from '@/components/NewQuestionModal/NewQuestionHeader'
-import NewQuestionAnswer from '@/components/NewQuestionModal/NewQuestionAnswer'
-import NewQuestionAnalysis from '@/components/NewQuestionModal/NewQuestionAnalysis'
-import NewQuestionExam from '@/components/NewQuestionModal/NewQuestionExam'
-import NewQuestionAction from '@/components/NewQuestionModal/NewQuestionAction'
+import NewQuestionLoading from './NewQuestionLoading'
+import NewQuestionHeader from './NewQuestionHeader'
+import NewQuestionAnswer from './NewQuestionAnswer'
+import NewQuestionAnalysis from './NewQuestionAnalysis'
+import NewQuestionAction from './NewQuestionAction'
+import NewQuestionExam from './NewQuestionExam'
 
 export default function NewQuestionModal() {
   // 데이터 불러오는 상태 (현재 Mock 데이터를 사용하므로 set 함수 제외)
