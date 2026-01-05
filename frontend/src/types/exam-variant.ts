@@ -44,3 +44,7 @@ export type ResultFeedbackProps = {
   isSubmitted: boolean
   isCorrect: boolean | null
 }
+
+export type ResultBannerProps = {
+  result: 'correct' | 'wrong'
+}
