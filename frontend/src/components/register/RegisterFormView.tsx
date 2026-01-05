@@ -1,16 +1,15 @@
-import Input from '@/components/common/Input'
 import Button from '@/components/common/Button'
-import { FieldErrors, UseFormRegister, UseFormWatch } from 'react-hook-form'
+import { Control, FieldErrors } from 'react-hook-form'
 import { RegisterFormValues, Term } from '@/components/register/RegisterForm'
 import TermsAgreementSection from '@/components/register/TermsAgreementSection'
 import { Dispatch, SetStateAction } from 'react'
-import PasswordInput from './PasswordInput'
+import AuthInput from '../shared/AuthInput'
+import PasswordStrengthBadge from './PasswordStrengthBadge'
 
 interface RegisterFormViewProps {
-  register: UseFormRegister<RegisterFormValues>
-  watch: UseFormWatch<RegisterFormValues>
-  onSubmit: () => void
+  control: Control<RegisterFormValues>
   errors: FieldErrors<RegisterFormValues>
+  onSubmit: () => void
   terms: Term
   setTerms: Dispatch<SetStateAction<Term>>
   agreed: boolean
@@ -20,12 +19,12 @@ interface RegisterFormViewProps {
 }
 
 const MAX_NAME_LENGTH = 12
+const MAX_PASSWORD_LENGTH = 20
 
 export default function RegisterFormView({
-  register,
-  watch,
-  onSubmit,
+  control,
   errors,
+  onSubmit,
   terms,
   setTerms,
   agreed,
@@ -34,29 +33,40 @@ export default function RegisterFormView({
   isSubmitting,
 }: RegisterFormViewProps) {
   return (
-    // TODO: 스타일 적용
     <form onSubmit={onSubmit} className="w-full flex flex-col gap-2">
-      <Input
-        id="name"
+      <AuthInput
+        name="name"
+        control={control}
+        error={errors.name?.message}
         type="text"
         label="이름"
-        autoComplete="name"
         placeholder="이름(또는 닉네임)"
         helperText="2~12 자리"
-        error={errors.name?.message}
         maxLength={MAX_NAME_LENGTH}
-        {...register('name')}
+        size="lg"
       />
-      <Input
-        id="email"
-        type="email"
-        label="이메일"
-        autoComplete="email"
-        placeholder="user@example.com"
+      <AuthInput
+        name="email"
+        control={control}
         error={errors.email?.message}
-        {...register('email')}
+        label="이메일"
+        type="email"
+        placeholder="이메일을 입력하세요"
+        size="lg"
       />
-      <PasswordInput register={register} watch={watch} error={errors.password?.message} />
+      <AuthInput
+        name="password"
+        control={control}
+        error={errors.password?.message}
+        label="비밀번호"
+        type="password"
+        placeholder="비밀번호를 입력하세요"
+        maxLength={MAX_PASSWORD_LENGTH}
+        size="lg"
+        badgeRenderer={(value) =>
+          value.length > 0 ? <PasswordStrengthBadge value={value} /> : null
+        }
+      />
       <TermsAgreementSection
         agreed={agreed}
         terms={terms}
