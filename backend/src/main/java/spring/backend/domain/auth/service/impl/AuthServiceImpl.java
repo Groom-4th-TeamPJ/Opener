@@ -1,9 +1,12 @@
 package spring.backend.domain.auth.service.impl;
 
 import io.jsonwebtoken.Claims;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.transaction.Transactional;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import spring.backend.domain.auth.dto.request.FormSignupRequest;
@@ -28,6 +31,7 @@ public class AuthServiceImpl implements AuthService {
   private final JwtUtil jwtUtil;
   private final JpaCredentialRepository jpaCredentialRepository;
   private final UserRepository userRepository;
+  private final RedisTemplate redisTemplate;
 
 
   @Override
@@ -70,8 +74,24 @@ public class AuthServiceImpl implements AuthService {
   }
 
   @Override
-  public void logout(String accessToken, String refreshToken) {
+  public void logout(HttpServletRequest req) {
 
+    String bearerToken = jwtUtil.extractTokenFormRequest(req);
+
+    Claims claim = jwtUtil.validateToken(bearerToken);
+
+    long ttl = Math.max(
+            (claim.getExpiration().getTime() - System.currentTimeMillis()) / 1000,
+            0
+    );
+
+    redisTemplate.opsForValue()
+            .set(
+                    "blacklist:access:" + claim.getId(), // ⭐ get("jti") 말고 getId()
+                    "logout",
+                    ttl,
+                    TimeUnit.SECONDS
+            );
   }
 
   @Override

@@ -6,7 +6,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.transaction.Transactional;
 import java.io.IOException;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.AuthenticationException;
@@ -18,7 +17,6 @@ import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.format.ApiResponseFormat;
 import spring.backend.shared.response.format.ErrorDetailFormat;
 
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class FormAuthenticationFailureHandler implements AuthenticationFailureHandler {
@@ -78,10 +76,11 @@ public class FormAuthenticationFailureHandler implements AuthenticationFailureHa
    */
   private void recordLoginFailure(HttpServletRequest request) {
     try {
+
       // Request body에서 email 추출
       String email = request.getParameter("email");
+
       if (email == null || email.isBlank()) {
-        log.warn("Login failure: email not found in request");
         return;
       }
 
@@ -94,17 +93,8 @@ public class FormAuthenticationFailureHandler implements AuthenticationFailureHa
                         securityProperties.getAccountLock().getLockDurationMinutes()
                 );
 
-                // 잠금 여부 로그
-                if (credentials.isAccountLocked()) {
-                  log.warn("Account locked: {} (failed attempts: {})",
-                          email, credentials.getFailedLoginAttempts());
-                } else {
-                  log.info("Login failed: {} (failed attempts: {})",
-                          email, credentials.getFailedLoginAttempts());
-                }
               });
     } catch (Exception e) {
-      log.error("Error recording login failure", e);
     }
   }
 }

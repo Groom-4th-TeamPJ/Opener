@@ -70,9 +70,8 @@ public class JwtUtil {
     // 타입 직렬화
     UUID userId = UUID.fromString(claims.getSubject());
     String userName = claims.get("name", String.class);
-    String jti = claims.get("jti", String.class);
 
-    return new AuthUser(userId, userName, jti);
+    return new AuthUser(userId, userName);
   }
 
   // 토큰 유효성 검증

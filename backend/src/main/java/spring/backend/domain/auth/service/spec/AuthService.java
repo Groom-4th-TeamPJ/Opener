@@ -1,5 +1,6 @@
 package spring.backend.domain.auth.service.spec;
 
+import jakarta.servlet.http.HttpServletRequest;
 import spring.backend.domain.auth.dto.request.FormSignupRequest;
 import spring.backend.domain.auth.dto.request.OAuthSignupRequest;
 import spring.backend.domain.auth.dto.response.AccessToken;
@@ -11,7 +12,7 @@ public interface AuthService {
 
   AuthTokens oauthSignup(OAuthSignupRequest req);
 
-  void logout(String accessToken, String refreshToken);
+  void logout(HttpServletRequest req);
 
   AccessToken tokenRefresh(String refreshToken);
 
