@@ -1,4 +1,4 @@
-package spring.backend.shared.infrastructure.config;
+package spring.backend.shared.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
