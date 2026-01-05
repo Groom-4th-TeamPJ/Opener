@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Info } from 'lucide-react'
+import { Send } from 'lucide-react'
 import cn from '@/utils/cn'
 import type { Question, ChatMessage } from '@/types/exam'
 import Input from '@/components/common/Input'
