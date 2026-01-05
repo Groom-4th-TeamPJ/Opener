@@ -3,7 +3,7 @@ export type Option = {
   text: string
 }
 
-export type ExamVariantValues = {
+export type NewQuestionModalValues = {
   data: {
     questionNewId: number
     category: string
@@ -11,24 +11,24 @@ export type ExamVariantValues = {
     passage: string
     options: Option[]
     answer: number
-    analysis: unknown
+    analysis: string
   }
 }
 
-export type ActionSectionProps = {
+export type NewQuestionActionProps = {
   isSubmitted: boolean
   selected: number | null
   onSubmit: () => void
   onBack: () => void
 }
 
-export type AnalysisProps = {
-  analysis: unknown
+export type NewQuestionAnalysisProps = {
+  analysis: string
   isSubmitted: boolean
   isCorrect: boolean | null
 }
 
-export type AnswerSectionProps = {
+export type NewQuestionAnswerProps = {
   options: Option[]
   answer: number
   selected: number | null
@@ -36,9 +36,8 @@ export type AnswerSectionProps = {
   onSelect: (order: number) => void
 }
 
-export type QuestionSectionProps = {
+export type NewQuestionExamProps = {
   passage: string
-  onClose: () => void
 }
 
 export type ResultFeedbackProps = {

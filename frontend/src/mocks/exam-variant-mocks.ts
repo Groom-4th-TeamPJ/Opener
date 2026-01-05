@@ -1,7 +1,7 @@
-import type { ExamVariantValues } from '@/types/exam-variant'
+import type { NewQuestionModalValues } from '@/types/exam-variant'
 
 //목데이터
-export const MOCK_DATA: ExamVariantValues = {
+export const MOCK_DATA: NewQuestionModalValues = {
   data: {
     questionNewId: 2,
     category: 'GEO',
@@ -31,6 +31,7 @@ export const MOCK_DATA: ExamVariantValues = {
       },
     ],
     answer: 3,
-    analysis: {},
+    analysis:
+      '1+1은 2입니다.1+1은 2입니다.1+1은 2입니다.1+1은 2입니다.1+1은 2입니다.1+1은 2입니다.1+1은 2입니다.1+1은 2입니다.1+1은 2입니다.',
   },
 }
