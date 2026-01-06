@@ -5,13 +5,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.transaction.Transactional;
 import java.io.IOException;
-import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -73,26 +70,7 @@ public class FormAuthenticationSuccessHandler implements AuthenticationSuccessHa
     String accessToken = jwtUtil.generateAccessToken(user.getId(), user.getRole(), user.getName());
     String refreshToken = jwtUtil.generateRefreshToken(user.getId());
 
-    // Access Token HttpOnly에 적재
-    ResponseCookie accessCookie = ResponseCookie.from("accessToken", accessToken)
-            .httpOnly(true)
-            .secure(true)
-            .path("/api/")
-            .sameSite("Lax")
-            .maxAge(Duration.ofMinutes(60)) // 수명 : 1시간
-            .build();
-
-    // Refresh Token HttpOnly에 적재
-    ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", refreshToken)
-            .httpOnly(true)
-            .secure(false)
-            .path("/api/auth/refresh")
-            .sameSite("Lax")
-            .maxAge(Duration.ofDays(7)) // 수명 : 7일
-            .build();
-
-    response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
-    response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
+    jwtUtil.setHttpOnlyToken(response, accessToken, refreshToken);
 
     // 공통 응답 포맷으로 래핑 (data는 null)
     ApiResponseFormat<Void> apiResponse = ApiResponseFormat.success(

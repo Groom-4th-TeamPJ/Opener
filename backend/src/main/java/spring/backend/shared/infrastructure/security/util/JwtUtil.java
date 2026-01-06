@@ -5,11 +5,15 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Date;
 import java.util.UUID;
 import javax.crypto.SecretKey;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
 import spring.backend.domain.user.model.enums.Role;
 import spring.backend.shared.infrastructure.security.dto.AuthUser;
@@ -104,5 +108,29 @@ public class JwtUtil {
     }
 
     return null;
+  }
+
+  public void setHttpOnlyToken(HttpServletResponse response, String accessToken, String refreshToken) {
+
+    // Access Token HttpOnly에 적재
+    ResponseCookie accessCookie = ResponseCookie.from("accessToken", accessToken)
+            .httpOnly(true)
+            .secure(true)
+            .path("/api/")
+            .sameSite("Lax")
+            .maxAge(Duration.ofMinutes(60)) // 수명 : 1시간
+            .build();
+
+    // Refresh Token HttpOnly에 적재
+    ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", refreshToken)
+            .httpOnly(true)
+            .secure(false)
+            .path("/api/auth/refresh")
+            .sameSite("Lax")
+            .maxAge(Duration.ofDays(7)) // 수명 : 7일
+            .build();
+
+    response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
+    response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
   }
 }
