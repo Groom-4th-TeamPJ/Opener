@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
 import spring.backend.domain.exam.model.dto.Option;
-import spring.backend.domain.exam.model.dto.Passage;
 
 import java.util.Collections;
 import java.util.List;
@@ -28,7 +27,7 @@ public class OptionsConverter implements AttributeConverter<List<Option>, String
     public List<Option> convertToEntityAttribute(String s) {
         try {
             return s == null ? Collections.emptyList()
-                    : objectMapper.readValue(s, new TypeReference<List<Passage>>() {});
+                    : objectMapper.readValue(s, new TypeReference<List<Option>>() {});
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
