@@ -100,6 +100,23 @@
    * Overlay — Dimmer
    * ========================= */
   --color-dimmer: rgba(0, 0, 0, 0.36); /* Modal/Overlay 배경 (Black 36%) */
+
+  /* =========================
+   * Animations & Keyframes
+   * ========================= */
+  --animate-pulse-scale: pulse-scale 1.8s ease-in-out infinite;
+
+  @keyframes pulse-scale {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.1);
+      opacity: 0.7;
+    }
+  }
 }
 
 @theme inline {
