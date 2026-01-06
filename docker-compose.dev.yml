@@ -41,7 +41,7 @@ services:
 
   # Backend (Spring Boot)
   backend:
-    image: ${DOCKERHUB_USERNAME}/backend:dev
+    image: ${DOCKERHUB_USERNAME}/opener-backend:latest
     container_name: backend-dev
     environment:
       - SPRING_PROFILES_ACTIVE=dev
@@ -62,7 +62,7 @@ services:
 
   # Frontend (Development with Hot Reload)
   frontend:
-    image: ${DOCKERHUB_USERNAME}/node:22-alpine
+    image: ${DOCKERHUB_USERNAME}/opener-frontend:latest
     container_name: frontend-dev
     working_dir: /app
     environment:
@@ -82,7 +82,7 @@ services:
 
   # Nginx Reverse Proxy (Optional for dev)
   nginx:
-    image: ${DOCKERHUB_USERNAME}/nginx:alpine
+    image: ${DOCKERHUB_USERNAME}/opener-nginx:latest
     container_name: nginx-dev
     environment:
       - TZ=Asia/Seoul
