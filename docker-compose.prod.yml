@@ -15,7 +15,7 @@ services:
     networks:
       - prod-network
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U produser" ]
+      test: [ "CMD-SHELL", "pg_isready -U produser -d proddb" ]
       interval: 10s
       timeout: 5s
       retries: 5
