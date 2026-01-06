@@ -1,7 +1,14 @@
+<<<<<<< HEAD
 import type { ExamVariantValues } from '@/types/exam-variant'
 
 //목데이터
 export const MOCK_DATA: ExamVariantValues = {
+=======
+import type { NewQuestionModalValues } from '@/types/exam-variant'
+
+//목데이터
+export const MOCK_DATA: NewQuestionModalValues = {
+>>>>>>> frontend
   data: {
     questionNewId: 2,
     category: 'GEO',
@@ -31,6 +38,11 @@ export const MOCK_DATA: ExamVariantValues = {
       },
     ],
     answer: 3,
+<<<<<<< HEAD
     analysis: {},
+=======
+    analysis:
+      '1+1은 2입니다.1+1은 2입니다.1+1은 2입니다.1+1은 2입니다.1+1은 2입니다.1+1은 2입니다.1+1은 2입니다.1+1은 2입니다.1+1은 2입니다.',
+>>>>>>> frontend
   },
 }
