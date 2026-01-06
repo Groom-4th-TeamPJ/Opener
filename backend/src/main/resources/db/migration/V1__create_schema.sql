@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS "users" (
     role VARCHAR(50) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,
-    deleted_at TIMESTAMP
+    deleted_at TIMESTAMP,
+    version BIGINT NOT NULL DEFAULT 1
 );
 
 -- Credentials 테이블
@@ -24,6 +25,8 @@ CREATE TABLE IF NOT EXISTS "credentials" (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,
     deleted_at TIMESTAMP,
+    version BIGINT NOT NULL DEFAULT 1,
+
 
     -- 외래키 제약조건
     CONSTRAINT fk_credentials_user FOREIGN KEY (user_id)
@@ -49,7 +52,7 @@ CREATE INDEX IF NOT EXISTS idx_credentials_deleted_at ON "credentials"(deleted_a
 -- Exams 테이블
 CREATE TABLE IF NOT EXISTS "exams" (
     id BIGSERIAL PRIMARY KEY,
-    "year" INT NOT NULL,
+    exam_year INT NOT NULL,
     exam_type TEXT NOT NULL,
     name VARCHAR(500) NOT NULL,
     quantity BIGINT NOT NULL,
@@ -57,17 +60,18 @@ CREATE TABLE IF NOT EXISTS "exams" (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,
     deleted_at TIMESTAMP,
+    version BIGINT NOT NULL DEFAULT 1,
 
     -- 제약조건
-    CONSTRAINT chk_exam_year CHECK ("year" >= 1900 AND "year" <= 2100),
+    CONSTRAINT chk_exam_year CHECK (exam_year >= 1900 AND exam_year <= 2100),
     CONSTRAINT chk_exam_quantity CHECK (quantity > 0),
     CONSTRAINT chk_exam_time_limit CHECK (time_limit > 0),
 
     -- 중복 방지 (같은 년도, 같은 유형의 문제 생성 금지)
-    CONSTRAINT uk_exams_unique UNIQUE ("year", exam_type)
+    CONSTRAINT uk_exams_unique UNIQUE (exam_year, exam_type)
     );
 
-CREATE INDEX IF NOT EXISTS idx_exams_year_type ON "exams"("year", exam_type);
+CREATE INDEX IF NOT EXISTS idx_exams_year_type ON "exams"(exam_year, exam_type);
 CREATE INDEX IF NOT EXISTS idx_exams_deleted_at ON "exams"(deleted_at) WHERE deleted_at IS NULL;
 
 -- Questions 테이블
@@ -75,15 +79,16 @@ CREATE TABLE IF NOT EXISTS "questions" (
     id BIGSERIAL PRIMARY KEY,
     exam_id BIGINT NOT NULL,
     passages JSONB NOT NULL,
-    "order" BIGINT NOT NULL,
+    question_no BIGINT NOT NULL,
     options JSONB,  -- JSON → JSONB로 통일
     answer INT NOT NULL,
     category TEXT NOT NULL,
     point INT NOT NULL,
-    type TEXT NOT NULL,
+    question_type TEXT NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,
     deleted_at TIMESTAMP,
+    version BIGINT NOT NULL DEFAULT 1,
 
     -- 외래키 제약조건
     CONSTRAINT fk_questions_exam FOREIGN KEY (exam_id)
@@ -92,11 +97,11 @@ CREATE TABLE IF NOT EXISTS "questions" (
     -- 제약조건
     CONSTRAINT chk_question_answer CHECK (answer > 0),
     CONSTRAINT chk_question_point CHECK (point > 0),
-    CONSTRAINT chk_question_order CHECK ("order" > 0)
+    CONSTRAINT chk_question_order CHECK (question_no > 0)
     );
 
 CREATE INDEX IF NOT EXISTS idx_questions_exam_id ON "questions"(exam_id);
-CREATE INDEX IF NOT EXISTS idx_questions_exam_order ON "questions"(exam_id, "order");
+CREATE INDEX IF NOT EXISTS idx_questions_exam_order ON "questions"(exam_id, question_no);
 CREATE INDEX IF NOT EXISTS idx_questions_category ON "questions"(category);
 CREATE INDEX IF NOT EXISTS idx_questions_deleted_at ON "questions"(deleted_at) WHERE deleted_at IS NULL;
 
@@ -111,6 +116,7 @@ CREATE TABLE IF NOT EXISTS "user_results" (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,
     deleted_at TIMESTAMP,
+    version BIGINT NOT NULL DEFAULT 1,
 
     -- 외래키 제약조건
     CONSTRAINT fk_user_results_user FOREIGN KEY (user_id)
@@ -136,13 +142,14 @@ CREATE TABLE IF NOT EXISTS "exam_history" (
     user_result_id BIGINT NOT NULL,
     exam_id BIGINT NOT NULL,
     question_id BIGINT NOT NULL,
-    "select" INT NOT NULL,
+    selected INT NOT NULL,
     is_correct BOOLEAN NOT NULL DEFAULT false,
     time_spent BIGINT NOT NULL DEFAULT 0,
     is_opener BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,
     deleted_at TIMESTAMP,
+    version BIGINT NOT NULL DEFAULT 1,
 
     -- 외래키 제약조건
     CONSTRAINT fk_exam_history_user_result FOREIGN KEY (user_result_id)
@@ -170,14 +177,15 @@ CREATE TABLE IF NOT EXISTS "question_new" (
     user_id UUID NOT NULL,
     history_id BIGINT NOT NULL,
     passage TEXT NOT NULL,  -- VARCHAR(500) → TEXT (긴 지문 대비)
-    option JSONB NOT NULL,
+    options JSONB,
     answer BIGINT NOT NULL,
     category TEXT NOT NULL,  -- BIGINT → TEXT (카테고리는 텍스트가 더 적합)
-    type TEXT NOT NULL,
+    question_type TEXT NOT NULL,
     analysis TEXT NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,
     deleted_at TIMESTAMP,
+    version BIGINT NOT NULL DEFAULT 1,
 
     -- 외래키 제약조건
     CONSTRAINT fk_question_new_user FOREIGN KEY (user_id)
@@ -203,6 +211,7 @@ CREATE TABLE IF NOT EXISTS "user_cans" (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,
     deleted_at TIMESTAMP,
+    version BIGINT NOT NULL DEFAULT 1,
 
     -- 외래키 제약조건
     CONSTRAINT fk_user_cans_user FOREIGN KEY (user_id)
@@ -233,6 +242,7 @@ CREATE TABLE IF NOT EXISTS "can_usage_logs" (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,
     deleted_at TIMESTAMP,
+    version BIGINT NOT NULL DEFAULT 1,
 
     -- 외래키 제약조건
     CONSTRAINT fk_can_usage_logs_user FOREIGN KEY (user_id)
