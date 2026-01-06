@@ -1,20 +1,18 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, ComponentPropsWithoutRef } from 'react'
 import { useController, Control, Path, FieldValues } from 'react-hook-form'
 import Input from '@/components/common/Input'
 import { Eye, EyeOff, X } from 'lucide-react'
 import cn from '@/utils/cn'
 import Button from '@/components/common/Button'
 
-interface AuthInputProps<T extends FieldValues> {
+type InputProps = ComponentPropsWithoutRef<typeof Input>
+
+interface AuthInputProps<T extends FieldValues> extends Omit<
+  InputProps,
+  'value' | 'onChange' | 'onBlur'
+> {
   name: Path<T>
   control: Control<T>
-  label?: string
-  placeholder?: string
-  type?: string
-  size?: 'sm' | 'md' | 'lg' | 'xl'
-  helperText?: string
-  className?: string
-  maxLength?: number
   error?: string
   // 비밀번호 강도나 상태를 표시할 badge 렌더러
   badgeRenderer?: (value: string) => React.ReactNode | null
@@ -25,6 +23,7 @@ export default function AuthInput<T extends FieldValues>({
   control,
   type = 'text',
   maxLength,
+  autoComplete,
   error,
   badgeRenderer,
   ...props
@@ -101,7 +100,10 @@ export default function AuthInput<T extends FieldValues>({
                 className="p-1 hover:bg-transparent"
                 tabIndex={-1}
               >
-                <X className="size-4 rounded-full bg-neutral-300 text-white" />
+                <X
+                  className="size-4 rounded-full bg-neutral-200 text-white p-0.5"
+                  strokeWidth={4}
+                />
               </Button>
             )}
           </div>
@@ -124,6 +126,7 @@ export default function AuthInput<T extends FieldValues>({
       onBlur={handleBlur}
       error={error}
       maxLength={maxLength}
+      autoComplete={autoComplete}
       rightIcon={renderRightIcon()}
       size="lg"
       className={cn(props.className, !error && isCompleted && 'border-neutral-600')}

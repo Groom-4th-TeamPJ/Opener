@@ -23,6 +23,7 @@ export default function LoginFormView({
     <form onSubmit={onSubmit} className="w-full flex flex-col gap-2">
       <AuthInput
         name="email"
+        autoComplete="email"
         control={control}
         type="email"
         label="이메일"

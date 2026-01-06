@@ -36,6 +36,7 @@ export default function RegisterFormView({
     <form onSubmit={onSubmit} className="w-full flex flex-col gap-2">
       <AuthInput
         name="name"
+        autoComplete="name"
         control={control}
         error={errors.name?.message}
         type="text"
@@ -47,6 +48,7 @@ export default function RegisterFormView({
       />
       <AuthInput
         name="email"
+        autoComplete="email"
         control={control}
         error={errors.email?.message}
         label="이메일"
