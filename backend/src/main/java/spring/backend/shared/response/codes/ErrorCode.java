@@ -22,6 +22,7 @@ public enum ErrorCode {
   INVALID_OAUTH_PROVIDER(400, "A_012", "지원하지 않는 OAuth 제공자입니다"),
   BLACKLISTED_TOKEN(401, "A_013", "블랙리스트에 등록된 토큰입니다"),
   PASSWORD_MISMATCH(400, "A_014", "현재 비밀번호가 일치하지 않습니다"),
+  ACCOUNT_LOCKED(423, "A_015", "계정이 잠겼습니다"),
 
   // Client/Validation 에러 (C_xxx)
   INVALID_INPUT(400, "C_001", "입력값이 올바르지 않습니다"),

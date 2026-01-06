@@ -17,16 +17,34 @@ services:
     networks:
       - test-network
 
-  # Redis
-  redis:
+  # Redis - Auth / Token
+  redis-auth:
     image: redis:7-alpine
-    container_name: redis-test
+    container_name: redis-auth
     environment:
       - TZ=Asia/Seoul
     ports:
       - "6379:6379"
     volumes:
-      - redis_data_test:/data
+      - redis_auth_data:/data
+    networks:
+      - test-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis - Chat / Realtime
+  redis-chat:
+    image: redis:7-alpine
+    container_name: redis-chat
+    environment:
+      - TZ=Asia/Seoul
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_chat_data:/data
     networks:
       - test-network
     healthcheck:
@@ -79,4 +97,5 @@ networks:
 
 volumes:
   postgres_data_test:
-  redis_data_test:
+  redis_auth_data:
+  redis_chat_data:

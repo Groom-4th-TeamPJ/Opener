@@ -28,3 +28,9 @@ spring:
     level:
       root: INFO
       spring.backend: DEBUG # 프로젝트 패키지 로그 레벨
+
+# 보안 설정
+security:
+  account-lock:
+    max-attempts: 5            # 최대 로그인 실패 허용 횟수
+    lock-duration-minutes: 5   # 계정 잠금 시간(분)

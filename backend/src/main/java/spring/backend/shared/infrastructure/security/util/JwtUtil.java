@@ -36,10 +36,16 @@ public class JwtUtil {
     Date now = new Date();
     Date expiration = new Date(now.getTime() + accessTokenExpiration);
 
+    String jti = UUID.randomUUID().toString();
+
     return Jwts.builder()
-            .subject(userId.toString())
-            .claim("role", role)
-            .claim("name", name)  // 사용자 이름 추가
+            .claims(Jwts.claims()
+                    .subject(userId.toString())
+                    .id(jti)
+                    .add("role", role)
+                    .add("name", name)
+                    .build()
+            )
             .issuedAt(now)
             .expiration(expiration)
             .signWith(secretKey)

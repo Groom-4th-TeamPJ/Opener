@@ -1,17 +1,19 @@
 package spring.backend.domain.auth.service.spec;
 
+import jakarta.servlet.http.HttpServletRequest;
 import spring.backend.domain.auth.dto.request.FormSignupRequest;
 import spring.backend.domain.auth.dto.request.OAuthSignupRequest;
-import spring.backend.domain.auth.dto.response.TokenResponse;
+import spring.backend.domain.auth.dto.response.AccessToken;
+import spring.backend.domain.auth.dto.response.AuthTokens;
 
 public interface AuthService {
 
-  TokenResponse formSignup(FormSignupRequest req);
+  AuthTokens formSignup(FormSignupRequest req);
 
-  TokenResponse oauthSignup(OAuthSignupRequest req);
+  AuthTokens oauthSignup(OAuthSignupRequest req);
 
-  void logout(String accessToken, String refreshToken);
+  void logout(HttpServletRequest req);
 
-  TokenResponse refreshToken(String refreshToken);
+  AccessToken tokenRefresh(String refreshToken);
 
 }

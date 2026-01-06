@@ -1,4 +1,4 @@
-package spring.backend.shared.infrastructure.config;
+package spring.backend.shared.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 
 @Configuration
-public class JacksonConfig {
+public class ObjectMapperConfig {
 
   @Bean
   @Primary

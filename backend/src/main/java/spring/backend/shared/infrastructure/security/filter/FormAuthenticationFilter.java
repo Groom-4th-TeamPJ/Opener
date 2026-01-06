@@ -11,11 +11,11 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import spring.backend.domain.auth.dto.request.FormLoginRequest;
 
-public class JsonUsernamePasswordAuthenticationFilter extends UsernamePasswordAuthenticationFilter {
+public class FormAuthenticationFilter extends UsernamePasswordAuthenticationFilter {
 
   private final ObjectMapper objectMapper;
 
-  public JsonUsernamePasswordAuthenticationFilter(
+  public FormAuthenticationFilter(
           AuthenticationManager authenticationManager,
           ObjectMapper objectMapper
   ) {
@@ -47,7 +47,7 @@ public class JsonUsernamePasswordAuthenticationFilter extends UsernamePasswordAu
       return this.getAuthenticationManager().authenticate(authToken);
 
     } catch (IOException e) {
-      throw new RuntimeException("Failed to parse login request", e);
+      throw new RuntimeException("로그인에 실패하였습니다.", e);
     }
   }
 }

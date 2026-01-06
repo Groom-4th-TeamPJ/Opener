@@ -32,10 +32,12 @@ public class User extends BaseEntity {
   @Enumerated(EnumType.STRING)
   private Role role = Role.USER;
 
+  // 기본 Role 적용
   public static User createUser(String name) {
     return createUser(name, Role.USER);
   }
 
+  // Role 수동 설정
   public static User createUser(String name, Role role) {
     User user = new User();
     user.name = name;
