@@ -26,18 +26,19 @@ public class Question {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // DB 컬럼명이 "order"인 경우
-    @Column(name = "\"order\"")
-    private Integer order;
+    @Column(name = "question_no")
+    private Integer questionNo;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "category")
     private Category category;
 
     @Column(name = "point")
     private Integer point;
 
-    @Column(name = "type")
-    private QuestionType type; // "MCQ" / "FRQ" 등
+    @Enumerated(EnumType.STRING)
+    @Column(name = "question_type")
+    private QuestionType questionType; // "MCQ" / "FRQ" 등
 
     // JSONB 저장 (Postgres 사용 시 columnDefinition = "jsonb")
     @Column(name = "passages", columnDefinition = "jsonb")

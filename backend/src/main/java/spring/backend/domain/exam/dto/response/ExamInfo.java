@@ -12,7 +12,7 @@ import spring.backend.domain.exam.model.enums.ExamType;
 @AllArgsConstructor
 public class ExamInfo {
     private Long examId;
-    private Integer year;
+    private Integer examYear;
     private ExamType examType;
     private Integer quantity;
     private Integer timeLimit;

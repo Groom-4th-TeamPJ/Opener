@@ -22,10 +22,10 @@ public class Exam extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // DB에 "year"로 저장되어 있는 경우를 위해 컬럼명에 따옴표 유지
-    @Column(name = "\"year\"")
-    private Integer year;
+    @Column(name = "exam_year")
+    private Integer examYear;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "exam_type")
     private ExamType examType;
 

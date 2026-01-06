@@ -18,9 +18,9 @@ public class ExamMapper {
 
         ExamInfo info = ExamInfo.builder()
                 .examId(exam.getId())
-                .year(exam.getYear())
+                .examYear(exam.getExamYear())
                 .examType(exam.getExamType())
-                .quantity(exam.getQuantity())
+                .quantity(questions.size())
                 .timeLimit(exam.getTimeLimit())
                 .build();
 
@@ -36,10 +36,10 @@ public class ExamMapper {
     private QuestionResponse toQuestionResponse(Question q) {
         return QuestionResponse.builder()
                 .questionId(q.getId())
-                .order(q.getOrder())
+                .questionNo(q.getQuestionNo())
                 .category(q.getCategory())
                 .point(q.getPoint())
-                .type(q.getType())
+                .questionType(q.getQuestionType())
                 .passages(q.getPassages())
                 .options(q.getOptions())
                 .answer(q.getAnswer())
