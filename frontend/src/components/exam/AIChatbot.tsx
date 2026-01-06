@@ -8,7 +8,7 @@ import Input from '@/components/common/Input'
 import Button from '@/components/common/Button'
 import { formatChatTimestamp } from '@/utils/format'
 import AISparklesIcon from '@/components/icons/AISparklesIcon'
-import { InfoTooltip } from '../common/InfoTooltip'
+import { InfoTooltip } from '@/components/common/InfoTooltip'
 
 interface AIChatPanelProps {
   isActive: boolean
