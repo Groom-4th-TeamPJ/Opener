@@ -63,7 +63,7 @@ spring:
 jwt:
   secret: ${JWT_SECRET:your-very-secure-secret-key-change-this-in-production-min-32-chars}
   access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000} # 1시간
-  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:1209600000} # 14일
+  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000} # 7일
 
 # 개발 환경 로깅
 logging:
