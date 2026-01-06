@@ -13,7 +13,7 @@ export default function ExamResultSummary() {
       {RESULT_MENU.map(({ label, key }) => (
         <div
           key={key}
-          className="flex justify-between items-center border p-4 rounded-lg border-neutral-200 font-bold h-[48px]"
+          className="flex justify-between items-center border p-4 rounded-lg border-neutral-200 font-bold h-12"
         >
           <div>{label}</div>
           <div>{resultData[key]}</div>
