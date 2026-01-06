@@ -70,7 +70,7 @@ public class FormAuthenticationSuccessHandler implements AuthenticationSuccessHa
     String accessToken = jwtUtil.generateAccessToken(user.getId(), user.getRole(), user.getName());
     String refreshToken = jwtUtil.generateRefreshToken(user.getId());
 
-    jwtUtil.setHttpOnlyToken(response, accessToken, refreshToken);
+    jwtUtil.setHttpOnlyAllToken(response, accessToken, refreshToken);
 
     // 공통 응답 포맷으로 래핑 (data는 null)
     ApiResponseFormat<Void> apiResponse = ApiResponseFormat.success(

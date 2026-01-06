@@ -110,7 +110,7 @@ public class JwtUtil {
     return null;
   }
 
-  public void setHttpOnlyToken(HttpServletResponse response, String accessToken, String refreshToken) {
+  public void setHttpOnlyAllToken(HttpServletResponse response, String accessToken, String refreshToken) {
 
     // Access Token HttpOnly에 적재
     ResponseCookie accessCookie = ResponseCookie.from("accessToken", accessToken)
@@ -132,5 +132,19 @@ public class JwtUtil {
 
     response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
     response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
+  }
+
+  public void setHttpOnlyAccessToken(HttpServletResponse response, String accessToken) {
+
+    // Access Token HttpOnly에 적재
+    ResponseCookie accessCookie = ResponseCookie.from("accessToken", accessToken)
+            .httpOnly(true)
+            .secure(true)
+            .path("/api/")
+            .sameSite("Lax")
+            .maxAge(Duration.ofMinutes(60)) // 수명 : 1시간
+            .build();
+
+    response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
   }
 }
