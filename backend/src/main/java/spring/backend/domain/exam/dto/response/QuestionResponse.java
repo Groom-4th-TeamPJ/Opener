@@ -18,10 +18,10 @@ import java.util.List;
 public class QuestionResponse {
 
     private Long questionId;
-    private Integer order;
+    private Integer questionNo;
     private Category category;
     private Integer point;
-    private QuestionType type;
+    private QuestionType questionType;
     private List<Passage> passages;
     private List<Option> options;
     private Integer answer;
