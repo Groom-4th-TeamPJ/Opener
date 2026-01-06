@@ -1,9 +1,6 @@
 package spring.backend.domain.exam.dto.response;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.util.List;
 
@@ -11,6 +8,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@ToString
 public class ExamResponse {
     private ExamInfo exam;
     private List<QuestionResponse> questions;

@@ -11,7 +11,7 @@ public enum ExamType {
     M09("9월 모의고사"),
     CSAT("수학능력시험");
 
-    private String name;
+    private final String name;
 
     ExamType(String name) {
         this.name = name;

@@ -20,7 +20,7 @@ public class ExamMapper {
                 .examId(exam.getId())
                 .examYear(exam.getExamYear())
                 .examType(exam.getExamType())
-                .quantity(questions.size())
+                .quantity(questions == null ? 0 : questions.size())
                 .timeLimit(exam.getTimeLimit())
                 .build();
 

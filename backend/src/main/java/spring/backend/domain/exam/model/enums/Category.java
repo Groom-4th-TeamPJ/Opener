@@ -11,7 +11,7 @@ public enum Category {
     PROB("확률과 통계"),
     CALC("미적분");
 
-    private String name;
+    private final String name;
 
     Category(String name) {
         this.name = name;

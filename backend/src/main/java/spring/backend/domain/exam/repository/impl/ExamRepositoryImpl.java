@@ -45,6 +45,6 @@ public class ExamRepositoryImpl implements ExamRepository {
 
         List<Question> questions = jpaQuestionRepository.findByExamIdAndCategoryInOrderByQuestionNoAsc(exam.getId(), categories);
 
-        return Optional.of(examMapper.toDto(exam, questions == null ? Collections.emptyList() : questions));
+        return Optional.of(examMapper.toDto(exam, questions));
     }
 }

@@ -6,8 +6,8 @@ import lombok.Setter;
 @Getter
 @Setter
 public class Option {
-    Integer order;
-    String content;
+    private Integer order;
+    private String content;
 
     public Option() {}
 }

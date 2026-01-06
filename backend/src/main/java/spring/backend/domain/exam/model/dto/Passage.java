@@ -7,9 +7,9 @@ import spring.backend.domain.exam.model.enums.PassageType;
 @Getter
 @Setter
 public class Passage {
-    Integer order;
-    PassageType type;
-    String content;
+    private Integer order;
+    private PassageType type;
+    private String content;
 
     public Passage() {}
 }

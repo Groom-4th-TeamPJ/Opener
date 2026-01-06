@@ -23,6 +23,7 @@ public class ExamServiceImpl implements ExamService {
     @Override
     public Optional<ExamResponse> findExamWithQuestions(Integer examYear, ExamType examType, Category category) {
 
+        // TODO :: 캔 차감
         return examRepository.findExamWithQuestions(examYear, examType, category);
     }
 }
