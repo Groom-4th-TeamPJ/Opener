@@ -7,5 +7,5 @@ import spring.backend.domain.exam.model.enums.ExamType;
 import java.util.Optional;
 
 public interface JpaExamRepository extends JpaRepository<Exam, Long> {
-    Optional<Exam> findByYearAndExamType(Integer year, ExamType examType);
+    Optional<Exam> findByExamYearAndExamType(Integer examYear, ExamType examType);
 }

@@ -7,5 +7,5 @@ import spring.backend.domain.exam.model.enums.Category;
 import java.util.List;
 
 public interface JpaQuestionRepository extends JpaRepository<Question, Long> {
-    List<Question> findByExamIdAndCategoryOrderByOrderAsc(Long examId, Category category);
+    List<Question> findByExamIdAndCategoryInOrderByQuestionNoAsc(Long examId, List<Category> categories);
 }

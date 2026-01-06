@@ -12,9 +12,7 @@ import spring.backend.domain.exam.repository.jpa.JpaExamRepository;
 import spring.backend.domain.exam.repository.jpa.JpaQuestionRepository;
 import spring.backend.domain.exam.repository.spec.ExamRepository;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 @Repository
 public class ExamRepositoryImpl implements ExamRepository {
@@ -31,14 +29,21 @@ public class ExamRepositoryImpl implements ExamRepository {
 
     @Transactional(readOnly = true)
     @Override
-    public Optional<ExamResponse> findExamWithQuestions(Integer year, ExamType examType, Category category) {
-        Exam exam = jpaExamRepository.findByYearAndExamType(year, examType)
+    public Optional<ExamResponse> findExamWithQuestions(Integer examYear, ExamType examType, Category category) {
+        Exam exam = jpaExamRepository.findByExamYearAndExamType(examYear, examType)
                 .orElseThrow(() ->
-                        new IllegalArgumentException("Exam not found for year: " + year + " and examType: " + examType));
+                        new IllegalArgumentException("Exam not found for year: " + examYear + " and examType: " + examType));
 
         if (exam == null) return Optional.empty();
 
-        List<Question> questions = jpaQuestionRepository.findByExamIdAndCategoryOrderByOrderAsc(exam.getId(), category);
+        List<Category> categories = new ArrayList<>();
+        categories.add(Category.ALG);
+
+        if (Objects.nonNull(category) && category != Category.ALG) {
+            categories.add(category);
+        }
+
+        List<Question> questions = jpaQuestionRepository.findByExamIdAndCategoryInOrderByQuestionNoAsc(exam.getId(), categories);
 
         return Optional.of(examMapper.toDto(exam, questions == null ? Collections.emptyList() : questions));
     }
