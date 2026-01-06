@@ -6,6 +6,7 @@ import z from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMemo, useState } from 'react'
 import useRegister from '@/hooks/auth/use-register'
+import { useRouter } from 'next/navigation'
 
 const PASSWORD_REGEX: RegExp = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[~!@#$%^&*])[A-Za-z\d~!@#$%^&*]{8,20}$/
 
@@ -27,6 +28,7 @@ export type TermKey = 'service' | 'privacy' | 'age'
 export type Term = Record<TermKey, boolean>
 
 export default function RegisterForm() {
+  const router = useRouter()
   const {
     register,
     handleSubmit,
@@ -59,7 +61,9 @@ export default function RegisterForm() {
     }
     try {
       // TODO: 추후 API 연동
-      handleRegister(form)
+      handleRegister(form, {
+        onSuccess: () => router.replace('/'),
+      })
     } catch {
       reset()
     }

@@ -3,6 +3,7 @@
 import { useForm } from 'react-hook-form'
 import LoginFormView from '@/components/login/LoginFormView'
 import useLogin from '@/hooks/auth/use-login'
+import { useRouter } from 'next/navigation'
 
 export type LoginFormValues = {
   email: string
@@ -13,6 +14,7 @@ const ERROR_MSG: string =
   '아이디 또는 비밀번호가 잘못되었습니다.\n아이디와 비밀번호를 정확히 입력해주세요.'
 
 export default function LoginForm() {
+  const router = useRouter()
   const {
     register,
     handleSubmit,
@@ -32,7 +34,9 @@ export default function LoginForm() {
     }
     try {
       // TODO: 추후 API 연동
-      login(form)
+      login(form, {
+        onSuccess: () => router.replace('/'),
+      })
     } catch {
       resetField('password')
       setError('root', { message: ERROR_MSG })
