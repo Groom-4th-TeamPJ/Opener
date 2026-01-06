@@ -39,3 +39,11 @@ export interface ExamResponse {
   exam: Exam
   questions: Question[]
 }
+
+export interface ChatMessage {
+  id: number
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: string
+  highlight?: string
+}
