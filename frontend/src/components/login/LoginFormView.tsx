@@ -2,7 +2,7 @@ import Button from '@/components/common/Button'
 import Image from 'next/image'
 import { Control, FieldErrors } from 'react-hook-form'
 import { LoginFormValues } from '@/components/login/LoginForm'
-import AuthInput from '@/components/shared/AuthInput'
+import AuthInput from '@/components/auth/AuthInput'
 
 interface LoginFormViewProps {
   control: Control<LoginFormValues>

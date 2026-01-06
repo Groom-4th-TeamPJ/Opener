@@ -1,3 +1,5 @@
+'use client'
+
 import React, { useState, useRef, ComponentPropsWithoutRef } from 'react'
 import { useController, Control, Path, FieldValues } from 'react-hook-form'
 import Input from '@/components/common/Input'
