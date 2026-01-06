@@ -5,6 +5,7 @@ import RegisterFormView from '@/components/register/RegisterFormView'
 import z from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMemo, useState } from 'react'
+import useRegister from '@/hooks/auth/use-register'
 
 const PASSWORD_REGEX: RegExp = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[~!@#$%^&*])[A-Za-z\d~!@#$%^&*]{8,20}$/
 
@@ -39,6 +40,8 @@ export default function RegisterForm() {
     resolver: zodResolver(registerSchema),
   })
 
+  const { mutate: handleRegister, isPending } = useRegister()
+
   const [terms, setTerms] = useState<Term>({
     service: false,
     privacy: false,
@@ -56,6 +59,7 @@ export default function RegisterForm() {
     }
     try {
       // TODO: 추후 API 연동
+      handleRegister(form)
     } catch {
       reset()
     }
@@ -86,7 +90,7 @@ export default function RegisterForm() {
       agreed={agreed}
       termError={termError}
       setTermError={setTermError}
-      isSubmitting={isSubmitting}
+      isSubmitting={isSubmitting || isPending}
     />
   )
 }

@@ -2,6 +2,7 @@
 
 import { useForm } from 'react-hook-form'
 import LoginFormView from '@/components/login/LoginFormView'
+import useLogin from '@/hooks/auth/use-login'
 
 export type LoginFormValues = {
   email: string
@@ -21,6 +22,8 @@ export default function LoginForm() {
     resetField,
   } = useForm<LoginFormValues>({ defaultValues: { email: '', password: '' } })
 
+  const { mutate: login, isPending } = useLogin()
+
   const onSubmit = async (form: LoginFormValues) => {
     clearErrors()
     if (!form.email || !form.password) {
@@ -29,6 +32,7 @@ export default function LoginForm() {
     }
     try {
       // TODO: 추후 API 연동
+      login(form)
     } catch {
       resetField('password')
       setError('root', { message: ERROR_MSG })
@@ -44,7 +48,7 @@ export default function LoginForm() {
       register={register}
       onSubmit={handleSubmit(onSubmit)}
       errors={errors}
-      isSubmitting={isSubmitting}
+      isSubmitting={isSubmitting || isPending}
       onOAuthClick={handleOAuth}
     />
   )
