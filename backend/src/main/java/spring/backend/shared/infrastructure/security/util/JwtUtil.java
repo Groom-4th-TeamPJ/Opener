@@ -3,12 +3,12 @@ package spring.backend.shared.infrastructure.security.util;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.UUID;
 import javax.crypto.SecretKey;
-import org.flywaydb.core.internal.util.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import spring.backend.domain.user.model.enums.Role;
@@ -83,11 +83,24 @@ public class JwtUtil {
             .getPayload();
   }
 
-  public String extractTokenFormRequest(HttpServletRequest request) {
-    String bearerToken = request.getHeader("Authorization");
+  public String extractAccessTokenFromRequest(HttpServletRequest request) {
+    return findCookieValue(request.getCookies(), "accessToken");
+  }
 
-    if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
-      return bearerToken.substring(7); // "Bearer " 문자 제거
+  public String extractRefreshTokenFromRequest(HttpServletRequest request) {
+    return findCookieValue(request.getCookies(), "refreshToken");
+  }
+
+  private String findCookieValue(Cookie[] cookies, String cookieName) {
+
+    if (cookies == null) {
+      return null;
+    }
+
+    for (Cookie cookie : cookies) {
+      if (cookieName.equals(cookie.getName())) {
+        return cookie.getValue();
+      }
     }
 
     return null;
