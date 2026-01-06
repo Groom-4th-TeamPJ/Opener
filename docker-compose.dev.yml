@@ -17,7 +17,7 @@ services:
     networks:
       - dev-network
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U dev" ]
+      test: [ "CMD-SHELL", "pg_isready -U dev -d postgres" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -42,12 +42,11 @@ services:
 
   # Backend (Spring Boot)
   backend:
+    image: opener/backend:dev
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: backend-dev
-    env_file:
-      - ./backend/.env.dev
     environment:
       - SPRING_PROFILES_ACTIVE=dev
       - DB_URL=jdbc:postgresql://db:5432/postgres
@@ -70,8 +69,6 @@ services:
     image: node:22-alpine
     container_name: frontend-dev
     working_dir: /app
-    env_file:
-      - ./frontend/.env.dev
     environment:
       - NODE_ENV=development
     volumes:
@@ -95,6 +92,7 @@ services:
       - TZ=Asia/Seoul
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
     depends_on:
