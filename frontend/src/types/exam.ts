@@ -45,4 +45,10 @@ export type ResultData = {
   correctCount: number
   wrongCount: number
   openerCount: number
+export interface ChatMessage {
+  id: number
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: string
+  highlight?: string
 }

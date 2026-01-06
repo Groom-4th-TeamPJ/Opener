@@ -1,6 +1,7 @@
 import { TermKey } from '@/components/register/RegisterForm'
 import cn from '@/utils/cn'
 import { ChevronDown } from 'lucide-react'
+import CircleCheckbox from './CircleCheckBox'
 
 export default function TermItem({
   termKey,
@@ -37,15 +38,15 @@ export default function TermItem({
         )}
       >
         {/* 체크 영역 */}
-        <label
-          className="flex items-center gap-2 cursor-pointer"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-          <span className="text-sm">
-            {label} <span className="text-danger-600">(필수)</span>
-          </span>
-        </label>
+        <CircleCheckbox
+          checked={checked}
+          onChange={onChange}
+          label={
+            <>
+              {label} <span className="text-danger-600">(필수)</span>
+            </>
+          }
+        />
 
         {content && (
           <ChevronDown
