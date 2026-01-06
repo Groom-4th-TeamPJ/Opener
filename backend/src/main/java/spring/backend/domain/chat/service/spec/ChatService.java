@@ -1,0 +1,19 @@
+package spring.backend.domain.chat.service.spec;
+
+import java.util.UUID;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+public interface ChatService {
+
+  // 세션 생성
+  SseEmitter createSession(UUID userId);
+
+  // 세션 소유권 검증
+  void validateSessionOwner(String sessionId, UUID userId);
+
+  // 메시지 처리 (비동기) 1. 사용자 메시지 Redis 저장 2. LLM API 호출 (스트리밍) 3. SSE로 청크 전송 4. 완료된 응답 Redis 저장
+  void processMessageAsync(String sessionId, String content, SseEmitter emitter);
+
+  // 대화 저장 (Redis → PostgreSQL)
+  void saveConversationAsync(String sessionId, UUID userId);
+}
