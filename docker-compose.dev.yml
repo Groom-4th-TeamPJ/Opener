@@ -42,7 +42,7 @@ services:
 
   # Backend (Spring Boot)
   backend:
-    image: opener/backend:dev
+    image: ${DOCKERHUB_USERNAME}/backend:dev
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -66,7 +66,7 @@ services:
 
   # Frontend (Development with Hot Reload)
   frontend:
-    image: node:22-alpine
+    image: ${DOCKERHUB_USERNAME}/node:22-alpine
     container_name: frontend-dev
     working_dir: /app
     environment:
@@ -86,7 +86,7 @@ services:
 
   # Nginx Reverse Proxy (Optional for dev)
   nginx:
-    image: nginx:alpine
+    image: ${DOCKERHUB_USERNAME}/nginx:alpine
     container_name: nginx-dev
     environment:
       - TZ=Asia/Seoul
