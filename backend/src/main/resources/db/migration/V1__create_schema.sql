@@ -61,7 +61,10 @@ CREATE TABLE IF NOT EXISTS "exams" (
     -- 제약조건
     CONSTRAINT chk_exam_year CHECK ("year" >= 1900 AND "year" <= 2100),
     CONSTRAINT chk_exam_quantity CHECK (quantity > 0),
-    CONSTRAINT chk_exam_time_limit CHECK (time_limit > 0)
+    CONSTRAINT chk_exam_time_limit CHECK (time_limit > 0),
+
+    -- 중복 방지 (같은 년도, 같은 유형의 문제 생성 금지)
+    CONSTRAINT uk_exams_unique UNIQUE ("year", exam_type)
     );
 
 CREATE INDEX IF NOT EXISTS idx_exams_year_type ON "exams"("year", exam_type);
@@ -71,10 +74,9 @@ CREATE INDEX IF NOT EXISTS idx_exams_deleted_at ON "exams"(deleted_at) WHERE del
 CREATE TABLE IF NOT EXISTS "questions" (
     id BIGSERIAL PRIMARY KEY,
     exam_id BIGINT NOT NULL,
-    passage_id BIGINT NOT NULL,
     passages JSONB NOT NULL,
     "order" BIGINT NOT NULL,
-    option JSONB NOT NULL,  -- JSON → JSONB로 통일
+    options JSONB,  -- JSON → JSONB로 통일
     answer INT NOT NULL,
     category TEXT NOT NULL,
     point INT NOT NULL,
@@ -94,7 +96,6 @@ CREATE TABLE IF NOT EXISTS "questions" (
     );
 
 CREATE INDEX IF NOT EXISTS idx_questions_exam_id ON "questions"(exam_id);
-CREATE INDEX IF NOT EXISTS idx_questions_passage_id ON "questions"(passage_id);
 CREATE INDEX IF NOT EXISTS idx_questions_exam_order ON "questions"(exam_id, "order");
 CREATE INDEX IF NOT EXISTS idx_questions_category ON "questions"(category);
 CREATE INDEX IF NOT EXISTS idx_questions_deleted_at ON "questions"(deleted_at) WHERE deleted_at IS NULL;
