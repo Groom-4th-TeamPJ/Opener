@@ -1,4 +1,5 @@
-import { ResultData } from '@/types/exam-complete'
+import { ResultData } from '@/types/exam'
+
 export const resultData: ResultData = {
   solveTime: '1:36:12',
   correctCount: 27,

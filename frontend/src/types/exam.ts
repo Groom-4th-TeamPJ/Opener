@@ -39,3 +39,10 @@ export interface ExamResponse {
   exam: Exam
   questions: Question[]
 }
+
+export type ResultData = {
+  solveTime: string
+  correctCount: number
+  wrongCount: number
+  openerCount: number
+}
