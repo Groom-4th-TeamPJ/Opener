@@ -10,6 +10,7 @@ import QuestionHeader from './QuestionHeader'
 import QuestionCard from './QuestionCard'
 import QuestionActionButton from './QuestionActionButton'
 import NavigationButton from './NavigationButton'
+import AIChatbot from './AIChatbot'
 
 interface QuestionSolveProps {
   data: ExamResponse
@@ -139,11 +140,11 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto flex items-center">
-        <div className="container max-w-7xl mx-auto px-4 py-6 w-full">
+      <div className="flex-1 overflow-y-auto flex items-start">
+        <div className="container max-w-7xl mx-auto px-4 md:px-8 py-6 w-full">
           <div className="flex items-start justify-between">
             {/* Center: Question & Chat Panel */}
-            <div className="flex gap-6 items-start flex-1 justify-center">
+            <div className="flex gap-6 items-stretch flex-1 justify-center">
               {/* Left: Question */}
               <div className="w-110 flex flex-col gap-5">
                 <QuestionHeader
@@ -174,10 +175,12 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
                 </div>
               </div>
 
-              {/* Center: AI Chat Panel - TODO */}
-              <div className="w-90 h-155 bg-background border border-foreground/10 rounded-2xl flex items-center justify-center text-foreground/40">
-                <p>ChatPanel (구현 예정)</p>
-              </div>
+              {/* Center: AI Chatbot */}
+              <AIChatbot
+                isActive={isAnalysisActive}
+                question={currentQuestion}
+                isCorrect={isCorrect}
+              />
             </div>
 
             {/* Right: Next Button */}

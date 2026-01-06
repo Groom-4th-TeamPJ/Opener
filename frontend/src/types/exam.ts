@@ -40,6 +40,13 @@ export interface ExamResponse {
   questions: Question[]
 }
 
+export interface ChatMessage {
+  id: number
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: string
+  highlight?: string
+}
 export type ResultData = {
   solveTime: string
   correctCount: number

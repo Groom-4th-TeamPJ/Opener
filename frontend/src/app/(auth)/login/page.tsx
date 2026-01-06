@@ -10,7 +10,7 @@ export default function Login() {
           <Image src={'/image/logo_h56_p.svg'} alt="오프너" fill className="object-contain" />
         </div>
         <LoginForm />
-        <span className="text-sm">
+        <span className="text-xs text-text-tertiary">
           계정이 없으신가요?{' '}
           <Link href={'/register'} className="underline">
             회원가입
