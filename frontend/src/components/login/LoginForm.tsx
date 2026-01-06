@@ -13,7 +13,7 @@ const ERROR_MSG: string =
 
 export default function LoginForm() {
   const {
-    register,
+    control,
     handleSubmit,
     formState: { errors, isSubmitting },
     clearErrors,
@@ -41,7 +41,7 @@ export default function LoginForm() {
 
   return (
     <LoginFormView
-      register={register}
+      control={control}
       onSubmit={handleSubmit(onSubmit)}
       errors={errors}
       isSubmitting={isSubmitting}

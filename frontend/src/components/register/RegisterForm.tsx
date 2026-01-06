@@ -12,7 +12,7 @@ const PASSWORD_REGEX: RegExp = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[~!@#$%^&*])[A-Za-z\
 export const registerSchema = z.object({
   name: z.string().trim().min(2, '2~12 자리로 입력해주세요.').max(12, '2~12 자리로 입력해주세요.'),
 
-  email: z.email('올바른 이메일 형식 아닙니다.'),
+  email: z.email('올바른 이메일 형식이 아닙니다.'),
 
   password: z
     .string()
@@ -27,12 +27,11 @@ export type Term = Record<TermKey, boolean>
 
 export default function RegisterForm() {
   const {
-    register,
+    control,
     handleSubmit,
     setFocus,
     formState: { errors, isSubmitting },
     clearErrors,
-    watch,
     reset,
   } = useForm<RegisterFormValues>({
     defaultValues: { name: '', email: '', password: '' },
@@ -65,7 +64,9 @@ export default function RegisterForm() {
   const onInvalid = (errs: FieldErrors<RegisterFormValues>) => {
     const firstKey = Object.keys(errs)[0] as keyof RegisterFormValues | undefined
     if (!firstKey) return
-
+    if (!agreed) {
+      setTermError('약관에 동의해주세요.')
+    }
     setFocus(firstKey, { shouldSelect: true })
 
     // 스크롤
@@ -77,10 +78,9 @@ export default function RegisterForm() {
 
   return (
     <RegisterFormView
-      register={register}
-      watch={watch}
-      onSubmit={handleSubmit(onSubmit, onInvalid)}
+      control={control}
       errors={errors}
+      onSubmit={handleSubmit(onSubmit, onInvalid)}
       terms={terms}
       setTerms={setTerms}
       agreed={agreed}
