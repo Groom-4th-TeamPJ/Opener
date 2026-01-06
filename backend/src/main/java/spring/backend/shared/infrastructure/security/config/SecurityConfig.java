@@ -44,7 +44,7 @@ public class SecurityConfig {
 
             .authorizeHttpRequests(auth -> auth
                     .requestMatchers(
-                            "/api/auth/**"
+                            "/auth/**"
                     ).permitAll()
                     .anyRequest().authenticated()
             )
@@ -80,7 +80,7 @@ public class SecurityConfig {
             new FormAuthenticationFilter(authenticationManager, objectMapper);
 
     // 로그인 처리 URL 설정
-    filter.setFilterProcessesUrl("/api/auth/form-login");
+    filter.setFilterProcessesUrl("/auth/form-login");
 
     // 성공/실패 핸들러 설정
     filter.setAuthenticationSuccessHandler(formAuthenticationSuccessHandler);

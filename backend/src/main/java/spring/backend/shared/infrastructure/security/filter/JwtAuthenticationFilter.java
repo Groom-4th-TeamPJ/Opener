@@ -32,7 +32,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     try {
       // 토큰 추출
-      String token = jwtUtil.extractTokenFormRequest(request);
+      String token = jwtUtil.extractAccessTokenFromRequest(request);
 
       // 토큰 여부 확인 및 토큰 인증 진행
       // 토큰이 없는 로그인의 경우 doFilter로 다음 필터로 진행

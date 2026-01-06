@@ -29,6 +29,10 @@ spring:
       root: INFO
       spring.backend: DEBUG # 프로젝트 패키지 로그 레벨
 
+server:
+  servlet:
+    context-path: /api
+
 # 보안 설정
 security:
   account-lock:

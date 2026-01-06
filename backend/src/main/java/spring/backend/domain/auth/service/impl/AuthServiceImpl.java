@@ -2,6 +2,7 @@ package spring.backend.domain.auth.service.impl;
 
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.transaction.Transactional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -11,8 +12,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import spring.backend.domain.auth.dto.request.FormSignupRequest;
 import spring.backend.domain.auth.dto.request.OAuthSignupRequest;
-import spring.backend.domain.auth.dto.response.AccessToken;
-import spring.backend.domain.auth.dto.response.AuthTokens;
 import spring.backend.domain.auth.model.entity.Credentials;
 import spring.backend.domain.auth.respository.jpa.JpaCredentialRepository;
 import spring.backend.domain.auth.respository.spec.CredentialRepository;
@@ -35,7 +34,7 @@ public class AuthServiceImpl implements AuthService {
 
 
   @Override
-  public AuthTokens formSignup(FormSignupRequest req) {
+  public void formSignup(HttpServletResponse response, FormSignupRequest req) {
 
     // 이메일 중복 확인
     if (credentialRepository.existsByEmail(req.email())) {
@@ -64,19 +63,17 @@ public class AuthServiceImpl implements AuthService {
             newCredential.getUser().getName());
     String refreshToken = jwtUtil.generateRefreshToken(newCredential.getUser().getId());
 
-    return new AuthTokens(accessToken, refreshToken);
-
+    jwtUtil.setHttpOnlyAllToken(response, accessToken, refreshToken);
   }
 
   @Override
-  public AuthTokens oauthSignup(OAuthSignupRequest req) {
-    return null;
+  public void oauthSignup(OAuthSignupRequest req) {
   }
 
   @Override
   public void logout(HttpServletRequest req) {
 
-    String bearerToken = jwtUtil.extractTokenFormRequest(req);
+    String bearerToken = jwtUtil.extractAccessTokenFromRequest(req);
 
     Claims claim = jwtUtil.validateToken(bearerToken);
 
@@ -95,7 +92,7 @@ public class AuthServiceImpl implements AuthService {
   }
 
   @Override
-  public AccessToken tokenRefresh(String refreshToken) {
+  public void tokenRefresh(HttpServletResponse response, String refreshToken) {
 
     // refresh 검증
     Claims claims = jwtUtil.validateToken(refreshToken);
@@ -108,6 +105,7 @@ public class AuthServiceImpl implements AuthService {
     // 조회 데이터 기반 access 재생성
     String newAccessToken = jwtUtil.generateAccessToken(user.getId(), user.getRole(), user.getName());
 
-    return new AccessToken(newAccessToken);
+    jwtUtil.setHttpOnlyAllToken(response, newAccessToken, refreshToken);
+
   }
 }
