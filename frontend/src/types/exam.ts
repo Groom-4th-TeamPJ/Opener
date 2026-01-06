@@ -47,6 +47,7 @@ export interface ChatMessage {
   timestamp: string
   highlight?: string
 }
+
 export type ResultData = {
   solveTime: string
   correctCount: number
