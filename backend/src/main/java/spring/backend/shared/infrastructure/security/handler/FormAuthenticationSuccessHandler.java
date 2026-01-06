@@ -94,11 +94,10 @@ public class FormAuthenticationSuccessHandler implements AuthenticationSuccessHa
     response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
     response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
 
-    // 공통 응답 포맷으로 래핑
+    // 공통 응답 포맷으로 래핑 (data는 null)
     ApiResponseFormat<Void> apiResponse = ApiResponseFormat.success(
             SuccessCode.OK.getCode(),
-            SuccessCode.OK.getMessage(),
-            null
+            SuccessCode.OK.getMessage()
     );
 
     // JSON 응답 반환
