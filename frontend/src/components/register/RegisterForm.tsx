@@ -5,6 +5,9 @@ import RegisterFormView from '@/components/register/RegisterFormView'
 import z from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMemo, useState } from 'react'
+import useRegister from '@/hooks/auth/use-register'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 
 const PASSWORD_REGEX: RegExp = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[~!@#$%^&*])[A-Za-z\d~!@#$%^&*]{8,20}$/
 
@@ -26,6 +29,7 @@ export type TermKey = 'service' | 'privacy' | 'age'
 export type Term = Record<TermKey, boolean>
 
 export default function RegisterForm() {
+  const router = useRouter()
   const {
     control,
     handleSubmit,
@@ -37,6 +41,8 @@ export default function RegisterForm() {
     defaultValues: { name: '', email: '', password: '' },
     resolver: zodResolver(registerSchema),
   })
+
+  const { mutate: handleRegister, isPending } = useRegister()
 
   const [terms, setTerms] = useState<Term>({
     service: false,
@@ -55,6 +61,10 @@ export default function RegisterForm() {
     }
     try {
       // TODO: 추후 API 연동
+      handleRegister(form, {
+        onSuccess: () => router.replace('/'),
+        onError: (e) => toast.error(e.message),
+      })
     } catch {
       reset()
     }
@@ -86,7 +96,7 @@ export default function RegisterForm() {
       agreed={agreed}
       termError={termError}
       setTermError={setTermError}
-      isSubmitting={isSubmitting}
+      isSubmitting={isSubmitting || isPending}
     />
   )
 }
