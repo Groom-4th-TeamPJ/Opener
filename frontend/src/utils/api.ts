@@ -1,5 +1,6 @@
-import { getAccessToken, refreshAccessToken } from '../store/token-store'
+import { API_PATHS } from '@/constants/api-path'
 import type { ApiEnvelope } from '@/types/api.types'
+import { toast } from 'sonner'
 
 type ApiError = Error & { status: number }
 
@@ -12,8 +13,6 @@ function fail(status: number, message?: string): never {
 type ApiInit = Omit<RequestInit, 'headers' | 'method' | 'body' | 'credentials'> & {
   headers?: Record<string, string>
   withCredentials?: RequestCredentials | boolean
-  /** credentials는 include로 보내되 Authorization은 붙이지 않게(=refresh, login 등) */
-  auth?: 'required' | 'none'
 }
 
 type RequestConfig<T> = {
@@ -24,64 +23,69 @@ type RequestConfig<T> = {
 
 type RequestMethod = 'GET' | 'POST'
 
-const DEFAULT_INIT: RequestInit = {
-  cache: 'no-store',
-  next: { revalidate: 0 },
-}
-
+const DEFAULT_INIT: RequestInit = { cache: 'no-store', next: { revalidate: 0 } }
 const BASE_URL = process.env.VITE_API_URL ?? 'http://localhost:8080/api'
 
+// 동시 401에도 refresh 1번
+let refreshPromise: Promise<boolean> | null = null
+const refreshOnce = () =>
+  (refreshPromise ??= (async () => {
+    try {
+      const res = await fetch(`${BASE_URL}${API_PATHS.AUTH.REFRESH}`, {
+        ...DEFAULT_INIT,
+        method: 'POST',
+        credentials: 'include',
+      })
+      return res.ok
+    } finally {
+      refreshPromise = null
+    }
+  })())
+
 async function api<B = unknown>(path: string, options?: RequestConfig<B>): Promise<Response> {
-  const url = `${BASE_URL}${path}`
   const init = options?.init
   const method = options?.method ?? (options?.body !== undefined ? 'POST' : 'GET')
 
-  const headers = new Headers(init?.headers)
-  const hasBody = method === 'POST' && options?.body !== undefined
-
+  // 쿠키 기반: 기본 include
   const credentials: RequestCredentials =
     typeof init?.withCredentials === 'boolean'
       ? init.withCredentials
         ? 'include'
-        : 'same-origin'
-      : (init?.withCredentials ?? 'same-origin')
+        : 'omit'
+      : (init?.withCredentials ?? 'include')
 
-  const authMode: 'required' | 'none' =
-    init?.auth ?? (credentials === 'include' ? 'required' : 'none')
+  const headers = new Headers(init?.headers)
 
-  if (hasBody && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
-
-  if (credentials === 'include' && authMode === 'required' && !headers.has('Authorization')) {
-    const token = getAccessToken()
-    if (!token) fail(401, 'Unauthorized')
-    headers.set('Authorization', `Bearer ${token}`)
+  // body 처리 (JSON / FormData / string / Blob)
+  let body: BodyInit | undefined
+  if (method === 'POST' && options?.body !== undefined) {
+    const b = options.body as unknown
+    if (b instanceof FormData) {
+      headers.delete('Content-Type')
+      body = b
+    } else if (typeof b === 'string' || b instanceof Blob) {
+      body = b
+    } else {
+      if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+      body = JSON.stringify(b)
+    }
   }
 
-  const res = await fetch(url, {
+  const res = await fetch(`${BASE_URL}${path}`, {
     ...DEFAULT_INIT,
     ...init,
     method,
     headers,
     credentials,
-    body: hasBody ? JSON.stringify(options!.body) : undefined,
+    body,
   })
 
   if (!res.ok) fail(res.status, res.statusText)
   return res
 }
 
-async function requestJson<T>(path: string, options?: Parameters<typeof api>[1]): Promise<T> {
-  const res = await api(path, options)
-  const json = (await res.json()) as ApiEnvelope<T>
-
-  if (json.status !== 'success') {
-    fail(json.code, json.message)
-  }
-  return json.data
-}
-
 /**
- * @param retryAuth 기본 true
+ * @param retry 기본 true
  * - 401이면 refresh 후 원요청 1회 재시도
  */
 export default async function apiJson<T>(
@@ -90,20 +94,35 @@ export default async function apiJson<T>(
   retry: boolean = true
 ): Promise<T> {
   try {
-    return await requestJson<T>(path, options)
+    const res = await api(path, options)
+    const json = (await res.json()) as ApiEnvelope<T>
+    if (json.status !== 'success') fail(json.code, json.message)
+    return json.data
   } catch (e) {
-    const status = e instanceof Error && 'status' in e ? (e as ApiError) : null
-    const shouldRetry = retry && typeof status === 'number' && status === 401
-    if (!shouldRetry) throw e
+    const status = e instanceof Error && 'status' in e ? (e as ApiError).status : null
+    if (!(retry && status === 401)) throw e
 
-    // refresh 실패 시 최종 401
-    try {
-      await refreshAccessToken()
-    } catch {
+    if (!(await refreshOnce())) {
+      // 리프레시 토큰까지 만료된 최후의 상황
+      if (typeof window !== 'undefined') {
+        // 사용자에게 알림
+        toast.error('세션이 만료되었습니다. 다시 로그인해주세요.', {
+          duration: 3000, // 3초 유지
+        })
+
+        // 즉시 이동하지 않고 토스트를 볼 시간을 약간 주고 replace 실행
+        // TODO: 에러 페이지 제작 후 적용
+        setTimeout(() => {
+          window.location.replace('/login')
+        }, 800)
+      }
       fail(401, 'Unauthorized')
     }
 
     // 원요청 1회 재시도
-    return requestJson<T>(path, options)
+    const res = await api(path, options)
+    const json = (await res.json()) as ApiEnvelope<T>
+    if (json.status !== 'success') fail(json.code, json.message)
+    return json.data
   }
 }
