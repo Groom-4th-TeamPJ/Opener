@@ -19,6 +19,8 @@ import spring.backend.domain.auth.service.spec.AuthService;
 import spring.backend.domain.user.model.entity.User;
 import spring.backend.domain.user.repository.spec.UserRepository;
 import spring.backend.shared.infrastructure.security.util.JwtUtil;
+import spring.backend.shared.response.codes.ErrorCode;
+import spring.backend.shared.response.exception.BusinessException;
 
 @Service
 @RequiredArgsConstructor
@@ -103,7 +105,7 @@ public class AuthServiceImpl implements AuthService {
     String refreshTokenInRedis = (String) redisTemplate.opsForValue().get(redisKey);
 
     if (!refreshToken.equals(refreshTokenInRedis)) {
-      throw new InvalidRefreshTokenException("Refresh Token이 Redis와 일치하지 않습니다.");
+      throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN, "Refresh Token이 Redis와 일치하지 않습니다.");
     }
 
     // user 조회
