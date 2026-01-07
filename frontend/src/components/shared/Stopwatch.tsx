@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef, useImperativeHandle } from 'react'
-import Timer from '@/components/icons/Timer'
 import { formatTime } from '@/utils/format'
-import type { StopwatchRef, StopwatchProps } from '@/types/exam'
+import type { StopwatchProps } from '@/types/exam'
+import TimerIcon from '@/components/icons/TimerIcon'
 
 export default function Stopwatch({ onTimeChange, autoStart = true, ref }: StopwatchProps) {
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
@@ -60,7 +60,7 @@ export default function Stopwatch({ onTimeChange, autoStart = true, ref }: Stopw
 
   return (
     <div className="inline-flex items-center gap-2">
-      <Timer />
+      <TimerIcon />
       <div className="text-text-primary text-lg leading-7 min-w-14 tabular-nums">
         {formatTime(elapsedSeconds)}
       </div>
