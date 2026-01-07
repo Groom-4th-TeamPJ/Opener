@@ -13,7 +13,7 @@ export function proxy(request: NextRequest) {
   // 공개 경로 접근 시: 토큰이 있다면 대시보드로 리다이렉트 (로그인했는데 로그인 페이지 가는 거 방지)
   if (PUBLIC_PATHS.some((path) => pathname.startsWith(path))) {
     if (hasToken) {
-      return NextResponse.redirect(new URL('/dashboard', request.url))
+      return NextResponse.redirect(new URL('/', request.url))
     }
     return NextResponse.next()
   }
