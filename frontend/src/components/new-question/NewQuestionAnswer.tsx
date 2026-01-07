@@ -5,6 +5,7 @@ import Input from '@/components/common/Input'
 import CorrectAnswerIcon from '@/components/icons/CorrectAnswerIcon'
 
 import WrongAnswerIcon from '@/components/icons/WrongAnswerIcon'
+import FRQAnswer from '../shared/FRQAnswer'
 
 export default function NewQuestionAnswer({
   type,
@@ -20,37 +21,50 @@ export default function NewQuestionAnswer({
     const isCorrect = isSubmitted && frqAnswer === answer
     const isWrong = isSubmitted && frqAnswer !== answer
 
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const answer = e.target.value
+      // 숫자만 허용
+      if (!/^\d+$/.test(answer)) return
+      onFrqChange(Number(answer))
+    }
     return (
       <div className="flex flex-col gap-2">
-        <div className="relative">
+        {!isSubmitted && (
           <Input
             type="text"
-            value={frqAnswer || ''}
-            placeholder="생각한 답안을 적어주세요"
+            value={frqAnswer ?? ''}
+            placeholder="생각한 답안을 입력해주세요"
             disabled={isSubmitted}
-            onChange={(e) => onFrqChange(e.target.value === '' ? null : Number(e.target.value))}
+            onChange={handleChange}
             className={cn(
               'lg:h-16 lg:px-6 lg:text-xl lg:placeholder:text-lg',
               isCorrect && ' border-success-600!',
               isWrong && ' border-danger-600!',
+              'placeholder:text-neutral-200',
               'disabled:bg-white disabled:text-neutral-900 '
             )}
           />
-          {isSubmitted && (
-            <div className={cn('absolute left-3 ', 'top-1/2 -translate-y-1/2')}>
-              {isCorrect ? <CorrectAnswerIcon /> : <WrongAnswerIcon />}
-            </div>
-          )}
-        </div>
-        {isSubmitted && isWrong && (
-          <div
-            className={cn(
-              'flex items-center p-3 border rounded-lg border-success-600 mt-4 gap-1.5 md:h-12 md:text-lg lg:h-16 lg:text-xl'
-            )}
-          >
+        )}
+        {/* 정답 시 사용자가 입력한 답안 */}
+        {isSubmitted && isCorrect && (
+          <FRQAnswer variant="correct">
             <CorrectAnswerIcon />
             {answer}
-          </div>
+          </FRQAnswer>
+        )}
+        {/* 오답 시 사용자가 입력한 답과 정답 */}
+        {isSubmitted && isWrong && (
+          <>
+            <FRQAnswer variant="wrong">
+              <WrongAnswerIcon />
+              {frqAnswer}
+            </FRQAnswer>
+
+            <FRQAnswer variant="correct">
+              <CorrectAnswerIcon />
+              {answer}
+            </FRQAnswer>
+          </>
         )}
         {!isSubmitted && <div className="text-xs text-neutral-600">숫자만 입력</div>}
       </div>
@@ -68,6 +82,11 @@ export default function NewQuestionAnswer({
         //제출 후 보여질 내 오답
         const isWrongChecked = isSubmitted && isChecked && !isAnswer
 
+        // 제출 후 오답일 때 정답, 선택한 오답만 보여주기
+        if (isSubmitted && selected !== answer && !isChecked && !isAnswer) {
+          return null
+        }
+
         return (
           <div
             key={option.order}
@@ -77,7 +96,12 @@ export default function NewQuestionAnswer({
               isWrongChecked && ' bg-danger-200'
             )}
           >
-            <label className="group flex items-center cursor-pointer gap-2">
+            <label
+              className={cn(
+                'group flex items-center gap-2',
+                isSubmitted ? 'cursor-default' : 'cursor-pointer'
+              )}
+            >
               <div>
                 {/* 실제 라디오 */}
                 <Input

@@ -44,8 +44,16 @@ export default function NewQuestionModal() {
     router.back()
   }
 
+  const handleChange = (answer: number) => {
+    setFrqAnswer(answer)
+  }
   return (
-    <Modal open={true} onClose={handleClose} className="md:max-w-145 lg:max-w-198">
+    <Modal
+      open={true}
+      onClose={handleClose}
+      className="md:max-w-145 md:max-h-168.5
+       lg:max-w-198 lg:max-h-204"
+    >
       {loading ? (
         <NewQuestionLoading />
       ) : (
@@ -77,7 +85,7 @@ export default function NewQuestionModal() {
                 frqAnswer={frqAnswer}
                 isSubmitted={isSubmitted}
                 onSelect={setIsSelected}
-                onFrqChange={setFrqAnswer}
+                onFrqChange={handleChange}
               />
               {/* 오답 해설 */}
               <NewQuestionAnalysis

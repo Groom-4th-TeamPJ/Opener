@@ -39,7 +39,7 @@ export type NewQuestionAnswerProps = {
   isSubmitted: boolean
   type: string //MCQ' | 'FRQ'
   onSelect: (order: number) => void
-  onFrqChange: (value: number | null) => void //단답식
+  onFrqChange: (answer: number) => void //단답식
 }
 
 export type NewQuestionExamProps = {
