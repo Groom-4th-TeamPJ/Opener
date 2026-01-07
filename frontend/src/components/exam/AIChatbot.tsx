@@ -84,7 +84,7 @@ export default function AIChatbot({ isActive, question, isCorrect }: AIChatPanel
   return (
     <div
       className={cn(
-        'w-86 lg:w-96 h-[calc(100vh-6.5rem)] max-h-244 bg-white rounded-[20px] shadow-[0px_4px_30px_0px_rgba(40,42,46,0.08)] flex flex-col overflow-hidden',
+        'w-86 lg:w-96 h-[calc(100vh-6.5rem)] max-h-244 bg-white rounded-20 shadow-1 flex flex-col overflow-hidden',
         !isActive && 'opacity-30'
       )}
     >
