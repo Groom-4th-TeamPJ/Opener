@@ -14,6 +14,7 @@ public class ExamInfo {
     private Long examId;
     private Integer examYear;
     private ExamType examType;
+    private String name;
     private Integer quantity;
     private Integer timeLimit;
 }
