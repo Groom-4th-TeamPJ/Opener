@@ -1,20 +1,17 @@
+import { API_PATHS } from '@/constants/api-path'
 import { QUERY_KEYS } from '@/constants/query-key'
 import api from '@/utils/api'
-import { clearAccessToken } from '@/store/token-store'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 async function logoutApi() {
-  return api(
-    'logout',
-    { method: 'POST', init: { withCredentials: 'include', auth: 'none' } },
-    false
-  )
+  return api(API_PATHS.AUTH.LOGOUT, { method: 'POST' }, false)
 }
 
 export default function useLogout() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationKey: QUERY_KEYS.AUTH.LOGOUT,
     mutationFn: logoutApi,
-    onSettled: clearAccessToken,
+    onSuccess: () => queryClient.clear(),
   })
 }
