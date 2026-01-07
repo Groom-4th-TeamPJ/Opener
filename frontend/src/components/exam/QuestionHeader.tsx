@@ -1,15 +1,14 @@
-import { Clock } from 'lucide-react'
-import type { Exam, Question } from '@/types/exam'
-import { formatTime } from '@/utils/format'
+import type { Exam, Question, StopwatchRef } from '@/types/exam'
 import { getLevelConfig } from '@/utils/exam-styles'
+import Stopwatch from '@/components/shared/Stopwatch'
 
 interface QuestionHeaderProps {
   exam: Exam
   question: Question
-  elapsedSeconds: number
+  stopwatchRef?: React.Ref<StopwatchRef>
 }
 
-export default function QuestionHeader({ exam, question, elapsedSeconds }: QuestionHeaderProps) {
+export default function QuestionHeader({ exam, question, stopwatchRef }: QuestionHeaderProps) {
   const levelConfig = getLevelConfig(question.level)
 
   return (
@@ -27,10 +26,7 @@ export default function QuestionHeader({ exam, question, elapsedSeconds }: Quest
         <span className={`text-xs font-medium px-3 py-1.5 rounded-full border ${levelConfig.className}`}>
           {levelConfig.label}
         </span>
-        <div className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border bg-slate-100 text-slate-700 border-slate-200">
-          <Clock className="w-3.5 h-3.5" />
-          <span className="font-mono">{formatTime(elapsedSeconds)}</span>
-        </div>
+        <Stopwatch ref={stopwatchRef} />
       </div>
     </div>
   )
