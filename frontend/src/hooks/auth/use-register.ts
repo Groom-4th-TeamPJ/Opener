@@ -9,7 +9,7 @@ type RegisterBody = {
   name: string
 }
 
-async function registerApi(body: RegisterBody): Promise<void> {
+async function registerApi(body: RegisterBody) {
   return api(API_PATHS.AUTH.FORM_REGISTER, {
     method: 'POST',
     body,
