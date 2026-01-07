@@ -4,6 +4,7 @@ import Image from 'next/image'
 import Button from './Button'
 import { useRouter, usePathname } from 'next/navigation'
 import { X } from 'lucide-react'
+import useLogout from '@/hooks/auth/use-logout'
 
 const MENU = [
   { label: '대시보드', href: '/' },
@@ -15,10 +16,13 @@ const MENU = [
 export default function Header() {
   const router = useRouter()
   const pathName = usePathname()
+  const { mutate: logout } = useLogout()
 
   const handleLogout = () => {
     // 백엔드 로그아웃 API 호출 및 토큰 삭제 로직 추가 예정
-    router.replace('/login')
+    logout(undefined, {
+      onSettled: () => router.replace('/login'),
+    })
   }
 
   return (

@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import LoginFormView from '@/components/login/LoginFormView'
 import useLogin from '@/hooks/auth/use-login'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 
 export type LoginFormValues = {
   email: string
@@ -36,6 +37,7 @@ export default function LoginForm() {
       // TODO: 추후 API 연동
       login(form, {
         onSuccess: () => router.replace('/'),
+        onError: (e) => toast.error(e.message),
       })
     } catch {
       resetField('password')

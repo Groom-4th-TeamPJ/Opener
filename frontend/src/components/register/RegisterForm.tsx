@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMemo, useState } from 'react'
 import useRegister from '@/hooks/auth/use-register'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 
 const PASSWORD_REGEX: RegExp = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[~!@#$%^&*])[A-Za-z\d~!@#$%^&*]{8,20}$/
 
@@ -63,6 +64,7 @@ export default function RegisterForm() {
       // TODO: 추후 API 연동
       handleRegister(form, {
         onSuccess: () => router.replace('/'),
+        onError: (e) => toast.error(e.message),
       })
     } catch {
       reset()
