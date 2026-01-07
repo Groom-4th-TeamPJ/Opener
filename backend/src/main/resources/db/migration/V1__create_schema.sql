@@ -265,7 +265,7 @@ CREATE INDEX IF NOT EXISTS idx_can_usage_logs_deleted_at ON "can_usage_logs"(del
 CREATE TABLE IF NOT EXISTS "chat_session" (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL,
-    question_result_id BIGINT NOT NULL,
+    exam_result_id BIGINT NOT NULL,
     started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     ended_at TIMESTAMP,
     status VARCHAR(50) NOT NULL,
@@ -277,8 +277,8 @@ CREATE TABLE IF NOT EXISTS "chat_session" (
     -- 외래키 제약조건
     CONSTRAINT fk_chat_session_user FOREIGN KEY (user_id)
     REFERENCES "users"(id) ON DELETE CASCADE,
-    CONSTRAINT fk_chat_session_question_result FOREIGN KEY (question_result_id)
-    REFERENCES "question_results"(id) ON DELETE CASCADE,
+    CONSTRAINT fk_chat_session_exam_result FOREIGN KEY (exam_result_id)
+    REFERENCES "exam_results"(id) ON DELETE CASCADE,
 
     -- 제약조건
     CONSTRAINT chk_chat_session_dates CHECK (ended_at IS NULL OR ended_at >= started_at)
@@ -286,7 +286,7 @@ CREATE TABLE IF NOT EXISTS "chat_session" (
 
 -- 인덱싱
 CREATE INDEX IF NOT EXISTS idx_chat_session_user_id ON "chat_session"(user_id);
-CREATE INDEX IF NOT EXISTS idx_chat_session_question_result_id ON "chat_session"(question_result_id);
+CREATE INDEX IF NOT EXISTS idx_chat_session_exam_result_id ON "chat_session"(exam_result_id);
 CREATE INDEX IF NOT EXISTS idx_chat_session_deleted_at ON "chat_session"(deleted_at) WHERE deleted_at IS NULL;
 
 
