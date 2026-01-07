@@ -1,4 +1,4 @@
-import PartyPopperIcon from '@/icons/partyPopperIcon'
+import PartyPopperIcon from '@/components/icons/partyPopperIcon'
 import { RESULT_MENU, resultData } from '@/mocks/exam-complete-mocks'
 
 export default function ExamResultSummary() {
