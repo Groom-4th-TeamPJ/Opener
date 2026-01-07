@@ -75,10 +75,10 @@ export default function ExamSelect() {
                     key={category.id}
                     variant="ghost"
                     widthFull
-                    className={`h-16 font-medium text-text-secondary ${
+                    className={`h-20 bg-white font-medium text-text-secondary ${
                       selectedCategory === category.id
-                        ? 'h-20 font-bold bg-white text-text-primary border-2 border-primary-600 hover:bg-white'
-                        : 'h-20 bg-white hover:bg-neutral-100'
+                        ? 'font-bold  text-text-primary border-2 border-primary-600 hover:bg-white'
+                        : 'hover:bg-neutral-100'
                     }`}
                     onClick={() => setSelectedCategory(category.id)}
                   >
@@ -107,10 +107,10 @@ export default function ExamSelect() {
                     key={type.id}
                     variant="ghost"
                     widthFull
-                    className={`h-16 font-medium text-text-secondary ${
+                    className={`h-20 bg-white font-medium text-text-secondary ${
                       selectedExamType === type.id
-                        ? 'h-20 font-bold bg-white text-text-primary border-2 border-primary-600 hover:bg-white'
-                        : 'h-20 bg-white hover:bg-neutral-100'
+                        ? 'font-bold text-text-primary border-2 border-primary-600 hover:bg-white'
+                        : 'hover:bg-neutral-100'
                     }`}
                     onClick={() => setSelectedExamType(type.id)}
                   >

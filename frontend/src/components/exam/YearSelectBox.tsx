@@ -56,10 +56,10 @@ export default function YearSelectBox({ value, onChange, isSelected = false }: Y
           variant="ghost"
           onClick={() => setIsOpen(!isOpen)}
           className={cn(
-            'w-full h-20 px-4 rounded-lg justify-center',
+            'w-full h-20 bg-white px-4 rounded-lg justify-center',
             isSelected
-              ? 'font-bold bg-white border-2 border-primary-600 hover:bg-white'
-              : 'font-medium bg-white hover:bg-neutral-100'
+              ? 'font-bold border-2 border-primary-600 hover:bg-white'
+              : 'font-medium hover:bg-neutral-100'
           )}
         >
           <span
@@ -88,7 +88,7 @@ export default function YearSelectBox({ value, onChange, isSelected = false }: Y
               variant="ghost"
               onClick={() => handleSelect(year)}
               className={cn(
-                'w-full h-20 px-4 relative justify-center rounded-none bg-white hover:bg-neutral-100',
+                'w-full h-20 px-4 relative justify-center rounded-none hover:bg-neutral-100',
                 index < years.length - 1 && 'border-b border-neutral-200'
               )}
             >
