@@ -2,9 +2,9 @@ import { Check } from 'lucide-react'
 import cn from '@/utils/cn'
 import type { NewQuestionAnswerProps } from '@/types/exam-variant'
 import Input from '@/components/common/Input'
-import CorrectAnswerIcon from '../icons/CorrectAnswerIcon'
+import CorrectAnswerIcon from '@/components/icons/CorrectAnswerIcon'
 
-import WrongAnswerIcon from '../icons/WrongAnswerIcon'
+import WrongAnswerIcon from '@/components/icons/WrongAnswerIcon'
 
 export default function NewQuestionAnswer({
   type,
