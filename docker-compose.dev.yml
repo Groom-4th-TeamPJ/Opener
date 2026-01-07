@@ -41,7 +41,7 @@ services:
 
   # Backend (Spring Boot)
   backend:
-    image: ${DOCKERHUB_USERNAME}/opener-backend:latest
+    image: ${DOCKERHUB_USERNAME}/opener-backend:dev
     container_name: backend-dev
     environment:
       - SPRING_PROFILES_ACTIVE=dev
@@ -62,27 +62,19 @@ services:
 
   # Frontend (Development with Hot Reload)
   frontend:
-    image: ${DOCKERHUB_USERNAME}/opener-frontend:latest
+    image: ${DOCKERHUB_USERNAME}/opener-frontend:dev
     container_name: frontend-dev
-    working_dir: /app
     environment:
       - NODE_ENV=development
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
     ports:
       - "3000:3000"
-    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install && pnpm dev"
-    depends_on:
-      - backend
     networks:
       - dev-network
     restart: unless-stopped
 
   # Nginx Reverse Proxy (Optional for dev)
   nginx:
-    image: ${DOCKERHUB_USERNAME}/opener-nginx:latest
+    image: ${DOCKERHUB_USERNAME}/opener-nginx:dev
     container_name: nginx-dev
     environment:
       - TZ=Asia/Seoul

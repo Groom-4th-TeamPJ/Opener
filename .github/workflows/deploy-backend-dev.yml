@@ -24,23 +24,13 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # 4. Frontend 이미지 빌드 및 푸시
-      - name: Build and push Frontend
-        uses: docker/build-push-action@v4
-        with:
-          context: ./frontend
-          push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/opener-frontend:latest
-          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/opener-frontend:buildcache
-          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/opener-frontend:buildcache,mode=max
-
-      # 5. Backend 이미지 빌드 및 푸시
+      # 4. Backend 이미지 빌드 및 푸시
       - name: Build and push Backend
         uses: docker/build-push-action@v4
         with:
           context: ./backend
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/opener-backend:latest
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/opener-backend:dev
           cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/opener-backend:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/opener-backend:buildcache,mode=max
 
@@ -50,7 +40,7 @@ jobs:
         with:
           context: ./nginx
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/opener-nginx:latest
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/opener-nginx:dev
 
   deploy:
     needs: build-and-push
