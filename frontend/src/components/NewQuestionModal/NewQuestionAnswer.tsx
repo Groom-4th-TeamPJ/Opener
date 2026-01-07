@@ -1,4 +1,4 @@
-import { Check, CircleStop, X } from 'lucide-react'
+import { Check } from 'lucide-react'
 import cn from '@/utils/cn'
 import type { NewQuestionAnswerProps } from '@/types/exam-variant'
 import Input from '@/components/common/Input'
