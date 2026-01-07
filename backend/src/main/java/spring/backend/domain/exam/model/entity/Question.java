@@ -10,6 +10,7 @@ import spring.backend.domain.exam.model.dto.Option;
 import spring.backend.domain.exam.model.dto.Passage;
 import spring.backend.domain.exam.model.enums.Category;
 import spring.backend.domain.exam.model.enums.QuestionType;
+import spring.backend.shared.entity.BaseEntity;
 
 import java.util.List;
 
@@ -20,7 +21,7 @@ import java.util.List;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Builder
-public class Question {
+public class Question extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
