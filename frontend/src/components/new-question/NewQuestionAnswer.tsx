@@ -30,7 +30,7 @@ export default function NewQuestionAnswer({
             disabled={isSubmitted}
             onChange={(e) => onFrqChange(e.target.value === '' ? null : Number(e.target.value))}
             className={cn(
-              'pl-9.5! md: h-12 md:px-5 md:text-lg md:placeholder:text-base lg:h-16 lg:px-6 lg:text-xl lg:placeholder:text-lg',
+              'lg:h-16 lg:px-6 lg:text-xl lg:placeholder:text-lg',
               isCorrect && ' border-success-600!',
               isWrong && ' border-danger-600!',
               'disabled:bg-white disabled:text-neutral-900 '
