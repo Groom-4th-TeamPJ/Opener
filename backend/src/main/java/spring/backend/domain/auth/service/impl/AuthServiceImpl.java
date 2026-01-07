@@ -99,13 +99,20 @@ public class AuthServiceImpl implements AuthService {
 
     UUID userId = UUID.fromString(claims.getSubject());
 
+    String redisKey = "refreshToken:" + userId;
+    String refreshTokenInRedis = (String) redisTemplate.opsForValue().get(redisKey);
+
+    if (!refreshToken.equals(refreshTokenInRedis)) {
+      throw new InvalidRefreshTokenException("Refresh Token이 Redis와 일치하지 않습니다.");
+    }
+
     // user 조회
     User user = userRepository.findUserById(userId);
 
     // 조회 데이터 기반 access 재생성
     String newAccessToken = jwtUtil.generateAccessToken(user.getId(), user.getRole(), user.getName());
 
-    jwtUtil.setHttpOnlyAllToken(response, newAccessToken, refreshToken);
+    jwtUtil.setHttpOnlyAccessToken(response, newAccessToken);
 
   }
 }
