@@ -72,14 +72,16 @@ Spring Boot 애플리케이션 실행 시:
 
 ```sql
 DROP TABLE IF EXISTS "users" CASCADE;
-DROP TABLE IF EXISTS "user_results" CASCADE;
+DROP TABLE IF EXISTS "exam_results" CASCADE;
 DROP TABLE IF EXISTS "user_cans" CASCADE;
 DROP TABLE IF EXISTS "questions" CASCADE;
 DROP TABLE IF EXISTS "question_new" CASCADE;
 DROP TABLE IF EXISTS "can_usage_logs" CASCADE;
 DROP TABLE IF EXISTS "credentials" CASCADE;
 DROP TABLE IF EXISTS "exams" CASCADE;
-DROP TABLE IF EXISTS "exam_history" CASCADE;
+DROP TABLE IF EXISTS "question_results" CASCADE;
+DROP TABLE IF EXISTS "chat_session" CASCADE;
+DROP TABLE IF EXISTS "chat_message" CASCADE;
 ```
 
 ---
