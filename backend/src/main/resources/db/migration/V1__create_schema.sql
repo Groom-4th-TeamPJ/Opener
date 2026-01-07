@@ -22,6 +22,9 @@ CREATE TABLE IF NOT EXISTS "credentials" (
     email VARCHAR(500),
     password VARCHAR(500),
     last_login_at TIMESTAMP,  -- NOT NULL 제거 (첫 생성시는 null일 수 있음)
+    failed_login_attempts BIGINT,
+    last_failed_login_at TIMESTAMP,
+    locked_until TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,
     deleted_at TIMESTAMP,
@@ -257,6 +260,59 @@ CREATE INDEX IF NOT EXISTS idx_can_usage_logs_type ON "can_usage_logs"(usage_typ
 CREATE INDEX IF NOT EXISTS idx_can_usage_logs_created_at ON "can_usage_logs"(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_can_usage_logs_deleted_at ON "can_usage_logs"(deleted_at) WHERE deleted_at IS NULL;
 
+
+-- chat_session 테이블
+CREATE TABLE IF NOT EXISTS "chat_session" (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    question_result_id BIGINT NOT NULL,
+    started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ended_at TIMESTAMP,
+    status VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP,
+    deleted_at TIMESTAMP,
+    version BIGINT NOT NULL DEFAULT 1,
+
+    -- 외래키 제약조건
+    CONSTRAINT fk_chat_session_user FOREIGN KEY (user_id)
+    REFERENCES "users"(id) ON DELETE CASCADE,
+    CONSTRAINT fk_chat_session_question_result FOREIGN KEY (question_result_id)
+    REFERENCES "question_results"(id) ON DELETE CASCADE,
+
+    -- 제약조건
+    CONSTRAINT chk_chat_session_dates CHECK (ended_at IS NULL OR ended_at >= started_at)
+);
+
+-- 인덱싱
+CREATE INDEX IF NOT EXISTS idx_chat_session_user_id ON "chat_session"(user_id);
+CREATE INDEX IF NOT EXISTS idx_chat_session_question_result_id ON "chat_session"(question_result_id);
+CREATE INDEX IF NOT EXISTS idx_chat_session_deleted_at ON "chat_session"(deleted_at) WHERE deleted_at IS NULL;
+
+
+-- chat_message 테이블
+CREATE TABLE IF NOT EXISTS "chat_message" (
+    id BIGSERIAL PRIMARY KEY,
+    session_id UUID NOT NULL,
+    question_result_id BIGINT NOT NULL,
+    history JSONB NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP,
+    deleted_at TIMESTAMP,
+    version BIGINT NOT NULL DEFAULT 1,
+
+    -- 외래키 제약조건
+    CONSTRAINT fk_chat_message_session FOREIGN KEY (session_id)
+    REFERENCES "chat_session"(id) ON DELETE CASCADE,
+    CONSTRAINT fk_chat_message_question_result FOREIGN KEY (question_result_id)
+    REFERENCES "question_results"(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_message_session_id ON "chat_message"(session_id);
+CREATE INDEX IF NOT EXISTS idx_chat_message_question_result_id ON "chat_message"(question_result_id);
+CREATE INDEX IF NOT EXISTS idx_chat_message_deleted_at ON "chat_message"(deleted_at) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_chat_message_created_at_desc ON "chat_message"(created_at DESC);
+
 -- 코멘트 추가 (선택사항)
 COMMENT ON TABLE "users" IS '사용자 정보';
 COMMENT ON TABLE "exams" IS '시험 정보';
@@ -267,3 +323,5 @@ COMMENT ON TABLE "question_new" IS 'AI가 생성한 신규 문제';
 COMMENT ON TABLE "credentials" IS '인증 정보';
 COMMENT ON TABLE "user_cans" IS '사용자 캔(포인트) 정보';
 COMMENT ON TABLE "can_usage_logs" IS '캔 사용 로그';
+COMMENT ON TABLE "chat_session" IS 'LLM 채팅 세션';
+COMMENT ON TABLE "chat_message" IS 'LLM 채팅 메세지';
