@@ -5,8 +5,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 public interface ChatService {
 
-  // 세션 생성
-  SseEmitter createSession(UUID userId);
+  // 세션 연결
+  SseEmitter connectSession(Long sessionId, UUID userId);
 
   // 세션 소유권 검증
   void validateSessionOwner(String sessionId, UUID userId);
