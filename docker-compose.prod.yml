@@ -41,18 +41,16 @@ services:
 
   # Backend (Spring Boot)
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: ${DOCKERHUB_USERNAME}/opener-backend:prod
     container_name: backend-prod
-    env_file:
-      - ./backend/.env.prod
     environment:
       - SPRING_PROFILES_ACTIVE=prod
       - DB_URL=jdbc:postgresql://db:5432/proddb
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - TZ=Asia/Seoul
+    ports:
+      - "8080:8080"
     depends_on:
       db:
         condition: service_healthy
@@ -64,23 +62,17 @@ services:
 
   # Frontend
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        - VITE_API_URL=/api
+    image: ${DOCKERHUB_USERNAME}/opener-frontend:prod
     container_name: frontend-prod
-    env_file:
-      - ./frontend/.env.prod
-    depends_on:
-      - backend
+    ports:
+      - "3000:3000"
     networks:
       - prod-network
     restart: always
 
   # Nginx Reverse Proxy
   nginx:
-    image: nginx:alpine
+    image: ${DOCKERHUB_USERNAME}/opener-nginx:prod
     container_name: nginx-prod
     environment:
       - TZ=Asia/Seoul
@@ -90,6 +82,7 @@ services:
     volumes:
       - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
+      - certbot-www:/var/www/certbot
     depends_on:
       - backend
       - frontend
@@ -104,3 +97,4 @@ networks:
 volumes:
   postgres_data_prod:
   redis_data_prod:
+  certbot-www:
