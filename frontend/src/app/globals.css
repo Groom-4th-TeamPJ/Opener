@@ -102,6 +102,13 @@
   --color-dimmer: rgba(0, 0, 0, 0.36); /* Modal/Overlay 배경 (Black 36%) */
 
   /* =========================
+   * Border Radius - Custom
+   * Tailwind 기본값: 2xl=16px, 3xl=24px
+   * 디자인 시스템 필요: 20px (배너, 다이얼로그용)
+   * ========================= */
+  --radius-20: 20px;
+
+  /* =========================
    * Animations & Keyframes
    * ========================= */
   --animate-pulse-scale: pulse-scale 1.8s ease-in-out infinite;
@@ -155,4 +162,18 @@ body {
 /* Firefox */
 .scrollbar-overlay {
   scrollbar-color: var(--color-neutral-100) transparent;
+}
+
+/* =========================
+ * Shadow Utilities
+ * ========================= */
+
+@utility shadow-1 {
+  box-shadow: 0px 4px 30px 0px rgba(40, 42, 46, 0.04);
+}
+
+@utility shadow-2 {
+  box-shadow:
+    0px 4px 30px 0px rgba(0, 179, 171, 0.08),
+    0px 2px 12px 0px rgba(0, 179, 171, 0.04);
 }
