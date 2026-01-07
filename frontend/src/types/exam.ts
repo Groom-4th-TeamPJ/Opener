@@ -54,3 +54,16 @@ export type ResultData = {
   wrongCount: number
   openerCount: number
 }
+
+export interface StopwatchRef {
+  start: () => void
+  stop: () => void
+  reset: () => void
+  getTime: () => number
+}
+
+export interface StopwatchProps {
+  onTimeChange?: (seconds: number) => void
+  autoStart?: boolean
+  ref?: React.Ref<StopwatchRef>
+}

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Button from '@/components/common/Button'
 import { X } from 'lucide-react'
-import type { ExamResponse } from '@/types/exam'
+import type { ExamResponse, StopwatchRef } from '@/types/exam'
 import { ROUTES } from '@/constants/routes'
 import QuestionHeader from './QuestionHeader'
 import QuestionCard from './QuestionCard'
@@ -28,33 +28,15 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
   const [isAnalysisActive, setIsAnalysisActive] = useState(false)
 
-  // 스탑워치 상태
-  const [elapsedSeconds, setElapsedSeconds] = useState(0)
-  const [isTimerRunning, setIsTimerRunning] = useState(true)
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
+  // 스탑워치 ref
+  const stopwatchRef = useRef<StopwatchRef>(null)
 
   const currentQuestion = questions[currentIndex]
   const isLastQuestion = currentIndex === questions.length - 1
 
-  // 스탑워치 타이머
-  useEffect(() => {
-    if (!isTimerRunning) return
-
-    const intervalId = setInterval(() => {
-      setElapsedSeconds((prev) => prev + 1)
-    }, 1000)
-
-    timerRef.current = intervalId
-
-    return () => {
-      clearInterval(intervalId)
-    }
-  }, [currentIndex, isTimerRunning])
-
   // 문제 변경 시 타이머 리셋
   useEffect(() => {
-    setElapsedSeconds(0)
-    setIsTimerRunning(true)
+    stopwatchRef.current?.reset()
   }, [currentIndex])
 
   const handleChoiceSelect = (index: number) => {
@@ -67,10 +49,7 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
     if (currentQuestion.type === 'FRQ' && frqAnswer.trim() === '') return
 
     // 답안 제출 시 스탑워치 정지
-    setIsTimerRunning(false)
-    if (timerRef.current) {
-      clearInterval(timerRef.current)
-    }
+    stopwatchRef.current?.stop()
 
     const correct =
       currentQuestion.type === 'MCQ'
@@ -150,7 +129,7 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
                 <QuestionHeader
                   exam={exam}
                   question={currentQuestion}
-                  elapsedSeconds={elapsedSeconds}
+                  stopwatchRef={stopwatchRef}
                 />
                 <QuestionCard
                   question={currentQuestion}
