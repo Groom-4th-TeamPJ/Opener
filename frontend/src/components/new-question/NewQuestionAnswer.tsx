@@ -5,7 +5,7 @@ import Input from '@/components/common/Input'
 import CorrectAnswerIcon from '@/components/icons/CorrectAnswerIcon'
 
 import WrongAnswerIcon from '@/components/icons/WrongAnswerIcon'
-import FRQAnswer from '../shared/FRQAnswer'
+import FRQAnswer from '@/components/shared/FRQAnswer'
 
 export default function NewQuestionAnswer({
   type,

@@ -1,4 +1,4 @@
-import Stopwatch from '../shared/Stopwatch'
+import Stopwatch from '@/components/shared/Stopwatch'
 
 export default function NewQuestionHeader() {
   return (
