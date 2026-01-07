@@ -34,6 +34,9 @@ public class ChatSession {
   @JoinColumn(name = "user_id", nullable = false)
   private User user;
 
+  @Column(name = "session_id", nullable = false)
+  private Long sessionId;
+
   @Enumerated(EnumType.STRING)
   @Column(name = "status", nullable = false, length = 20)
   private ChatStatus status;
