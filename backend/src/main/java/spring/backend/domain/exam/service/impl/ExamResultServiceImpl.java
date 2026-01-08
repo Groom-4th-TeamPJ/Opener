@@ -48,12 +48,13 @@ public class ExamResultServiceImpl implements ExamResultService {
     @Override
     public SubmitAnswerResponse submitAnswers(Long examResultId, Long questionId, UUID userId, SubmitAnswerRequest request) {
         // 파라미터 검증
-        if (examResultId == null || questionId == null || userId == null || request == null) {
+        if (examResultId == null || questionId == null || userId == null || request == null
+                    || request.getSelected() == null || request.getTimeSpent() == null) {
             throw new IllegalArgumentException("Parameters must not be null");
         }
 
         // QuestionResult에 이미 제출된 답안 검증
-        if(questionResultRepository.existsByExamResultIdAndQuestionId(examResultId, questionId)) {
+        if (questionResultRepository.existsByExamResultIdAndQuestionId(examResultId, questionId)) {
             throw new IllegalArgumentException("Answers for this question have already been submitted");
         }
 
@@ -63,6 +64,11 @@ public class ExamResultServiceImpl implements ExamResultService {
         Question question = examRepository.findQuestionById(questionId)
                 .orElseThrow(() -> new IllegalArgumentException("Question not found"));
 
+        // 질문이 해당 시험에 속하는지 검증
+        if (question.getExam() == null || question.getExam().getId() == null || !question.getExam().getId().equals(examResult.getExamId())) {
+            throw new IllegalArgumentException("Question does not belong to this exam");
+        }
+
         // QuestionResult 엔티티 생성
         QuestionResult questionResult = QuestionResult.of(examResult, question, request.getSelected(), request.getTimeSpent());
         boolean isCorrect = isAnswerCorrect(question, request.getSelected()); // 정답 여부 체크
@@ -70,8 +76,11 @@ public class ExamResultServiceImpl implements ExamResultService {
 
         QuestionResult saved = questionResultRepository.save(questionResult); // QuestionResult 저장
 
-        if(isCorrect) {
-            examResult.addScore(question.getPoint());    // ExamResult 점수 갱신
+        if (isCorrect) {
+            Integer point = question.getPoint();
+            if (point != null) {
+                examResult.addScore(question.getPoint());    // ExamResult 점수 갱신
+            }
         }
         examResult.addTimeSpent(request.getTimeSpent()); // ExamResult 소요 시간 갱신
         examResultRepository.save(examResult);           // ExamResult 저장
@@ -81,7 +90,7 @@ public class ExamResultServiceImpl implements ExamResultService {
 
     // 정답 확인 메서드
     protected boolean isAnswerCorrect(Question question, Integer selectedAnswer) {
-        if(selectedAnswer == null) {
+        if (selectedAnswer == null || question.getAnswer() == null) {
             return false;
         }
 

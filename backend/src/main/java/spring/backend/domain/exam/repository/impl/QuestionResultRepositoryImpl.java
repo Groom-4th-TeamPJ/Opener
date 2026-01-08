@@ -28,6 +28,6 @@ public class QuestionResultRepositoryImpl implements QuestionResultRepository {
 
     @Override
     public boolean existsByExamResultIdAndQuestionId(Long examResultId, Long questionId) {
-        return jpaQuestionResultRepository.existsByExamResultIdAndQuestionId(examResultId,questionId);
+        return jpaQuestionResultRepository.existsByExamResultIdAndQuestionId(examResultId, questionId);
     }
 }
