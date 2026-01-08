@@ -17,10 +17,7 @@ import java.util.List;
 @Entity
 @Table(name = "questions")
 @Getter
-@Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
-@Builder
 public class Question extends BaseEntity {
 
     @Id

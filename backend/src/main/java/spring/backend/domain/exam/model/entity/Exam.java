@@ -12,10 +12,7 @@ import java.util.List;
 @Entity
 @Table(name = "exams")
 @Getter
-@Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
-@Builder
 @ToString(exclude = "questions")
 public class Exam extends BaseEntity {
 
@@ -41,6 +38,5 @@ public class Exam extends BaseEntity {
 
     @OneToMany(mappedBy = "exam", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonManagedReference
-    @Builder.Default
     private List<Question> questions = new ArrayList<>();
 }
