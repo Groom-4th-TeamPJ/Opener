@@ -1,6 +1,6 @@
 import Button from '@/components/common/Button'
 import { Control, FieldErrors } from 'react-hook-form'
-import { RegisterFormValues, Term } from '@/components/register/RegisterForm'
+import { RegisterFormValues, Term } from '@/types/auth.types'
 import TermsAgreementSection from '@/components/register/TermsAgreementSection'
 import { Dispatch, SetStateAction } from 'react'
 import AuthInput from '@/components/auth/AuthInput'
@@ -16,7 +16,10 @@ interface RegisterFormViewProps {
   termError: string | null
   setTermError: Dispatch<SetStateAction<string | null>>
   isSubmitting: boolean
+  mode: RegisterMode
 }
+
+type RegisterMode = 'oauth' | 'form'
 
 const MAX_NAME_LENGTH = 12
 const MAX_PASSWORD_LENGTH = 20
@@ -31,6 +34,7 @@ export default function RegisterFormView({
   termError,
   setTermError,
   isSubmitting,
+  mode,
 }: RegisterFormViewProps) {
   return (
     <form onSubmit={onSubmit} className="w-full flex flex-col gap-2">
@@ -46,30 +50,34 @@ export default function RegisterFormView({
         maxLength={MAX_NAME_LENGTH}
         size="lg"
       />
-      <AuthInput
-        name="email"
-        autoComplete="email"
-        control={control}
-        error={errors.email?.message}
-        label="이메일"
-        type="email"
-        placeholder="이메일을 입력하세요"
-        size="lg"
-      />
-      <AuthInput
-        name="password"
-        control={control}
-        error={errors.password?.message}
-        label="비밀번호"
-        type="password"
-        placeholder="비밀번호를 입력하세요"
-        maxLength={MAX_PASSWORD_LENGTH}
-        helperText="영문, 숫자, 특수문자 (~!@#$%^&*) 조합 8~20 자리"
-        size="lg"
-        badgeRenderer={(value) =>
-          value.length > 0 ? <PasswordStrengthBadge value={value} /> : null
-        }
-      />
+      {mode == 'form' && (
+        <>
+          <AuthInput
+            name="email"
+            autoComplete="email"
+            control={control}
+            error={errors.email?.message}
+            label="이메일"
+            type="email"
+            placeholder="이메일을 입력하세요"
+            size="lg"
+          />
+          <AuthInput
+            name="password"
+            control={control}
+            error={errors.password?.message}
+            label="비밀번호"
+            type="password"
+            placeholder="비밀번호를 입력하세요"
+            maxLength={MAX_PASSWORD_LENGTH}
+            helperText="영문, 숫자, 특수문자 (~!@#$%^&*) 조합 8~20 자리"
+            size="lg"
+            badgeRenderer={(value) =>
+              value.length > 0 ? <PasswordStrengthBadge value={value} /> : null
+            }
+          />
+        </>
+      )}
       <TermsAgreementSection
         agreed={agreed}
         terms={terms}

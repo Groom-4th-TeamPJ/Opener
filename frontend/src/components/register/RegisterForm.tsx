@@ -8,13 +8,17 @@ import { useMemo, useState } from 'react'
 import useRegister from '@/hooks/auth/use-register'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { RegisterFormValues, Term } from '@/types/auth.types'
 
 const PASSWORD_REGEX: RegExp = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[~!@#$%^&*])[A-Za-z\d~!@#$%^&*]{8,20}$/
 
 // TODO: 에러 텍스트 상수화 및 파일 분리
-export const registerSchema = z.object({
+const registerSchema = z.object({
   name: z.string().trim().min(2, '2~12 자리로 입력해주세요.').max(12, '2~12 자리로 입력해주세요.'),
+})
 
+// TODO: 에러 텍스트 상수화 및 파일 분리
+export const formRegisterSchema = registerSchema.extend({
   email: z.email('올바른 이메일 형식이 아닙니다.'),
 
   password: z
@@ -22,14 +26,27 @@ export const registerSchema = z.object({
     .regex(PASSWORD_REGEX, '영문, 숫자, 특수문자 (~!@#$%^&*) 조합 8~20 자리로 입력해주세요.'),
 })
 
-export type RegisterFormValues = z.infer<typeof registerSchema>
+interface RegisterFormProps {
+  signupToken?: string
+}
 
-export type TermKey = 'service' | 'privacy' | 'age'
-
-export type Term = Record<TermKey, boolean>
-
-export default function RegisterForm() {
+export default function RegisterForm({ signupToken }: RegisterFormProps) {
   const router = useRouter()
+  // TODO: signupToken 존재 시 유효성 검증 및 decode 진행
+  const DEFAULT_SET = useMemo(
+    () =>
+      signupToken
+        ? {
+            schema: registerSchema,
+            // TODO: decode 후 사용자 이름 default 설정
+            defaultValues: { name: '' },
+          }
+        : {
+            schema: formRegisterSchema,
+            defaultValues: { name: '', email: '', password: '' },
+          },
+    [signupToken]
+  )
   const {
     control,
     handleSubmit,
@@ -38,8 +55,8 @@ export default function RegisterForm() {
     clearErrors,
     reset,
   } = useForm<RegisterFormValues>({
-    defaultValues: { name: '', email: '', password: '' },
-    resolver: zodResolver(registerSchema),
+    defaultValues: DEFAULT_SET.defaultValues,
+    resolver: zodResolver(DEFAULT_SET.schema),
   })
 
   const { mutate: handleRegister, isPending } = useRegister()
@@ -54,7 +71,8 @@ export default function RegisterForm() {
 
   const agreed: boolean = useMemo(() => Object.values(terms).every(Boolean), [terms])
 
-  const onSubmit = async (form: RegisterFormValues) => {
+  const onSubmit = async (formValues: RegisterFormValues) => {
+    const form = signupToken ? { signupToken, ...formValues } : formValues
     clearErrors()
     if (!agreed) {
       setTermError('약관에 동의해주세요.')
@@ -97,6 +115,7 @@ export default function RegisterForm() {
       termError={termError}
       setTermError={setTermError}
       isSubmitting={isSubmitting || isPending}
+      mode={signupToken ? 'oauth' : 'form'}
     />
   )
 }

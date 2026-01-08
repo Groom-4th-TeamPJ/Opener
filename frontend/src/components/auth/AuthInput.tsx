@@ -25,7 +25,6 @@ export default function AuthInput<T extends FieldValues>({
   control,
   type = 'text',
   maxLength,
-  autoComplete,
   error,
   badgeRenderer,
   ...props
@@ -117,6 +116,7 @@ export default function AuthInput<T extends FieldValues>({
   return (
     <Input
       {...props}
+      name={name}
       ref={(e) => {
         controllerRef(e)
         inputRef.current = e
@@ -128,7 +128,7 @@ export default function AuthInput<T extends FieldValues>({
       onBlur={handleBlur}
       error={error}
       maxLength={maxLength}
-      autoComplete={autoComplete}
+      autoComplete={name}
       rightIcon={renderRightIcon()}
       size="lg"
       className={cn(props.className, !error && isCompleted && 'border-neutral-600')}
