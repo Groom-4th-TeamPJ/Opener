@@ -23,7 +23,7 @@ export const formRegisterSchema = registerSchema.extend({
 
   password: z
     .string()
-    .regex(PASSWORD_REGEX, '영문, 숫자, 특수문자 (~!@#$%^&*) 조합 8~20 자리로 입력해주세요.'),
+    .regex(PASSWORD_REGEX, '영문, 숫자, 특수문자(~!@#$%^&*) 조합 8~20 자리로 입력해주세요.'),
 })
 
 interface RegisterFormProps {
