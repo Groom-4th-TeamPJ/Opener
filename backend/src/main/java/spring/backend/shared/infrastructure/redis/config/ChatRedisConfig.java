@@ -25,9 +25,8 @@ public class ChatRedisConfig {
           RedisConnectionFactory factory) {
 
     StringRedisTemplate template = new StringRedisTemplate();
-    template.setConnectionFactory(chatRedisConnectionFactory());
+    template.setConnectionFactory(factory);
 
-    // 명시적 Serializer 설정
     template.setKeySerializer(new StringRedisSerializer());
     template.setValueSerializer(new StringRedisSerializer());
     template.setHashKeySerializer(new StringRedisSerializer());
