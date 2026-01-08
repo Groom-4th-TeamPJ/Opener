@@ -47,7 +47,7 @@ export default function NewQuestionAnswer({
         )}
         {/* 정답 시 사용자가 입력한 답안 */}
         {isSubmitted && isCorrect && (
-          <FRQAnswer variant="correct">
+          <FRQAnswer variant="correct" className="md:h-12 lg:h-15">
             <CorrectAnswerIcon />
             {answer}
           </FRQAnswer>
@@ -55,12 +55,12 @@ export default function NewQuestionAnswer({
         {/* 오답 시 사용자가 입력한 답과 정답 */}
         {isSubmitted && isWrong && (
           <>
-            <FRQAnswer variant="wrong">
+            <FRQAnswer variant="wrong" className="md:h-12 lg:h-15">
               <WrongAnswerIcon />
               {frqAnswer}
             </FRQAnswer>
 
-            <FRQAnswer variant="correct">
+            <FRQAnswer variant="correct" className="md:h-12 lg:h-15">
               <CorrectAnswerIcon />
               {answer}
             </FRQAnswer>
@@ -88,10 +88,11 @@ export default function NewQuestionAnswer({
         }
 
         return (
-          <div
+          <FRQAnswer
+            variant="default"
             key={option.order}
             className={cn(
-              'flex items-center p-3  rounded-lg bg-neutral-50 md:h-10 lg:h-12',
+              'flex items-center p-3 rounded-lg lg:h-12',
               isCorrectChecked && 'bg-success-200',
               isWrongChecked && ' bg-danger-200'
             )}
@@ -138,7 +139,7 @@ export default function NewQuestionAnswer({
               {/* 텍스트 */}
               <div className="text-sm ">{option.text}</div>
             </label>
-          </div>
+          </FRQAnswer>
         )
       })}
     </div>
