@@ -1,6 +1,6 @@
 import Button from '@/components/common/Button'
 import { X } from 'lucide-react'
-import CanIcon from '@/components/icons/CanIcon'
+import SolidCanIcon from '@/components/icons/SolidCanIcon'
 
 interface ExamHeaderProps {
   onClose: () => void
@@ -22,7 +22,7 @@ export default function ExamHeader({ onClose, canCount = 10 }: ExamHeaderProps) 
 
         {/* 우측: 캔 아이콘 */}
         <div className="px-4 py-2 flex justify-start items-center gap-1.5">
-          <CanIcon />
+          <SolidCanIcon className="text-primary-600" />
           <div className="text-text-primary font-bold leading-6">{canCount}</div>
         </div>
       </div>
