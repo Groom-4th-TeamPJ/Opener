@@ -1,4 +1,3 @@
-import { Check } from 'lucide-react'
 import cn from '@/utils/cn'
 import type { NewQuestionAnswerProps } from '@/types/exam-variant'
 import Input from '@/components/common/Input'
@@ -6,6 +5,7 @@ import CorrectAnswerIcon from '@/components/icons/CorrectAnswerIcon'
 
 import WrongAnswerIcon from '@/components/icons/WrongAnswerIcon'
 import FRQAnswer from '@/components/shared/FRQAnswer'
+import ResultAnswer from '../shared/ResultAnswer'
 
 export default function NewQuestionAnswer({
   type,
@@ -97,48 +97,15 @@ export default function NewQuestionAnswer({
               isWrongChecked && ' bg-danger-200'
             )}
           >
-            <label
-              className={cn(
-                'group flex items-center gap-2',
-                isSubmitted ? 'cursor-default' : 'cursor-pointer'
-              )}
-            >
-              <div>
-                {/* 실제 라디오 */}
-                <Input
-                  type="radio"
-                  checked={isChecked}
-                  onChange={() => onSelect(option.order)}
-                  disabled={isSubmitted}
-                  name="answer"
-                  className="sr-only absolute"
-                />
-                {/* 바깥 원 */}
-                <span
-                  className={cn(
-                    'relative flex items-center justify-center size-5 rounded-full border bg-white border-gray-400 transition-colors ',
-                    !isSubmitted && isChecked && 'border-none bg-primary-600',
-                    isCorrectChecked && 'border-success-600 bg-success-600',
-                    isWrongChecked && 'border-danger-600 bg-danger-600'
-                  )}
-                >
-                  {/* 안쪽 점 */}
-                  <span className="absolute size-5 rounded-full bg-primary-600 scale-0 transition-transform " />
-                  {!isSubmitted && isChecked && (
-                    <Check className="absolute size-4 text-white opacity-100 scale-75 transition-all " />
-                  )}
-                  {isCorrectChecked && (
-                    <CorrectAnswerIcon className="absolute size-4 text-white opacity-100 scale-75 transition-all " />
-                  )}
-                  {isWrongChecked && isChecked && (
-                    <WrongAnswerIcon className="absolute size-4 text-white opacity-100 scale-75 transition-all " />
-                  )}
-                </span>
-              </div>
-
-              {/* 텍스트 */}
-              <div className="text-sm ">{option.text}</div>
-            </label>
+            <ResultAnswer
+              checked={isChecked}
+              onChange={() => onSelect(option.order)}
+              disabled={isSubmitted}
+              isWrong={isWrongChecked}
+              isCorrect={isCorrectChecked}
+              name={'answer'}
+              optionText={option.text}
+            />
           </FRQAnswer>
         )
       })}
