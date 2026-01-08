@@ -6,16 +6,21 @@ import Button from '@/components/common/Button'
 import { X } from 'lucide-react'
 import type { ExamResponse, StopwatchRef } from '@/types/exam'
 import { ROUTES } from '@/constants/routes'
+import useInactivityDetection from '@/hooks/exam/use-inactivity-detection'
 import QuestionHeader from './QuestionHeader'
 import QuestionCard from './QuestionCard'
 import QuestionActionButton from './QuestionActionButton'
 import NavigationButton from './NavigationButton'
 import AIChatbot from './AIChatbot'
+import InactivityModal from '@/components/shared/InactivityModal'
 
 interface QuestionSolveProps {
   data: ExamResponse
   onClose: () => void
 }
+
+// 비활성 타임아웃
+const INACTIVITY_TIMEOUT = 60 * 60 * 1000
 
 export default function QuestionSolveView({ data, onClose }: QuestionSolveProps) {
   const router = useRouter()
@@ -27,9 +32,16 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
   const [submitted, setSubmitted] = useState(false)
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
   const [isAnalysisActive, setIsAnalysisActive] = useState(false)
+  const [showInactivityModal, setShowInactivityModal] = useState(false)
 
   // 스탑워치 ref
   const stopwatchRef = useRef<StopwatchRef>(null)
+
+  // 비활성 감지
+  useInactivityDetection({
+    timeout: INACTIVITY_TIMEOUT,
+    onInactive: () => setShowInactivityModal(true),
+  })
 
   const currentQuestion = questions[currentIndex]
   const isLastQuestion = currentIndex === questions.length - 1
@@ -76,6 +88,11 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
   const handleShowAnalysis = () => {
     setIsAnalysisActive(true)
     // TODO: AI 분석 요청
+  }
+
+  // 비활성 모달 확인 시 처리
+  const handleInactivityConfirm = () => {
+    router.push(ROUTES.DASHBOARD)
   }
 
   // 콘텐츠 보호: 우클릭, 드래그, 복사 차단
@@ -173,6 +190,9 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
           </div>
         </div>
       </div>
+
+      {/* 비활성 모달 */}
+      <InactivityModal open={showInactivityModal} onConfirm={handleInactivityConfirm} />
     </div>
   )
 }
