@@ -1,4 +1,4 @@
-import { TermKey } from '@/components/register/RegisterForm'
+import { TermKey } from '@/types/auth.types'
 import cn from '@/utils/cn'
 import { ChevronDown } from 'lucide-react'
 import CircleCheckbox from './CircleCheckBox'
