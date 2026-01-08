@@ -7,5 +7,8 @@ import spring.backend.domain.exam.model.enums.ExamType;
 import java.util.Optional;
 
 public interface ExamRepository {
+
+    boolean existsById(Long id);
+
     Optional<ExamResponse> findExamWithQuestions(Integer examYear, ExamType examType, Category category);
 }

@@ -47,4 +47,9 @@ public class ExamRepositoryImpl implements ExamRepository {
 
         return Optional.of(examMapper.toDto(exam, questions));
     }
+
+    @Override
+    public boolean existsById(Long id) {
+        return jpaExamRepository.existsById(id);
+    }
 }
