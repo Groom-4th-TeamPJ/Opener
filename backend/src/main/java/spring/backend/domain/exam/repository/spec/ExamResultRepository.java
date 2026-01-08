@@ -7,6 +7,8 @@ import java.util.UUID;
 
 public interface ExamResultRepository {
 
+    boolean existsByIdAndUserId(Long id, UUID userId);
+
     Optional<ExamResult> findById(Long id);
 
     Optional<ExamResult> findByIdAndUserId(Long examResultId, UUID userId);

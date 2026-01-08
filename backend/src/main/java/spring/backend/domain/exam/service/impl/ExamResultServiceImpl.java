@@ -3,7 +3,10 @@ package spring.backend.domain.exam.service.impl;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import spring.backend.domain.exam.dto.request.SubmitAnswerRequest;
+import spring.backend.domain.exam.dto.response.SubmitAnswerResponse;
 import spring.backend.domain.exam.model.entity.ExamResult;
+import spring.backend.domain.exam.model.entity.Question;
+import spring.backend.domain.exam.model.entity.QuestionResult;
 import spring.backend.domain.exam.repository.spec.ExamRepository;
 import spring.backend.domain.exam.repository.spec.ExamResultRepository;
 import spring.backend.domain.exam.repository.spec.QuestionResultRepository;
@@ -41,8 +44,47 @@ public class ExamResultServiceImpl implements ExamResultService {
         return saved.getId();
     }
 
+    @Transactional
     @Override
-    public Long submitAnswers(Long examResultId, Long questionId, Long userId, SubmitAnswerRequest request) {
-        return 0L;
+    public SubmitAnswerResponse submitAnswers(Long examResultId, Long questionId, UUID userId, SubmitAnswerRequest request) {
+        // 파라미터 검증
+        if (examResultId == null || questionId == null || userId == null || request == null) {
+            throw new IllegalArgumentException("Parameters must not be null");
+        }
+
+        // QuestionResult에 이미 제출된 답안 검증
+        if(questionResultRepository.existsByExamResultIdAndQuestionId(examResultId, questionId)) {
+            throw new IllegalArgumentException("Answers for this question have already been submitted");
+        }
+
+        ExamResult examResult = examResultRepository.findByIdAndUserId(examResultId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("ExamResult not found"));
+
+        Question question = examRepository.findQuestionById(questionId)
+                .orElseThrow(() -> new IllegalArgumentException("Question not found"));
+
+        // QuestionResult 엔티티 생성
+        QuestionResult questionResult = QuestionResult.of(examResult, question, request.getSelected(), request.getTimeSpent());
+        boolean isCorrect = isAnswerCorrect(question, request.getSelected()); // 정답 여부 체크
+        questionResult.markCorrect(isCorrect);
+
+        QuestionResult saved = questionResultRepository.save(questionResult); // QuestionResult 저장
+
+        if(isCorrect) {
+            examResult.addScore(question.getPoint());    // ExamResult 점수 갱신
+        }
+        examResult.addTimeSpent(request.getTimeSpent()); // ExamResult 소요 시간 갱신
+        examResultRepository.save(examResult);           // ExamResult 저장
+
+        return new SubmitAnswerResponse(saved.getId(), isCorrect);
+    }
+
+    // 정답 확인 메서드
+    protected boolean isAnswerCorrect(Question question, Integer selectedAnswer) {
+        if(selectedAnswer == null) {
+            return false;
+        }
+
+        return question.getAnswer().equals(selectedAnswer);
     }
 }

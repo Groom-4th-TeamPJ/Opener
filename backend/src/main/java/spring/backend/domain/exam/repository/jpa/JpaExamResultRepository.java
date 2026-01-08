@@ -9,4 +9,6 @@ import java.util.UUID;
 public interface JpaExamResultRepository extends JpaRepository<ExamResult, Long> {
 
     Optional<ExamResult> findByIdAndUserId(Long id, UUID userId);
+
+    boolean existsByIdAndUserId(Long id, UUID userId);
 }

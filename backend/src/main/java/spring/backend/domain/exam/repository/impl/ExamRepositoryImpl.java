@@ -52,4 +52,9 @@ public class ExamRepositoryImpl implements ExamRepository {
     public boolean existsById(Long id) {
         return jpaExamRepository.existsById(id);
     }
+
+    @Override
+    public Optional<Question> findQuestionById(Long id) {
+        return jpaQuestionRepository.findById(id);
+    }
 }
