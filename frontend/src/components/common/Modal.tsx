@@ -133,7 +133,7 @@ export function ModalHeader({
   ...props
 }: ModalHeaderProps) {
   return (
-    <div className={cn('flex items-start justify-between p-6', className)} {...props}>
+    <div className={cn('flex items-start justify-between p-4 md:p-5', className)} {...props}>
       <div className="flex-1 text-text-primary">{children}</div>
       {closable && onClose && (
         <button
@@ -155,7 +155,7 @@ interface ModalContentProps extends ComponentPropsWithRef<'div'> {
 
 export function ModalContent({ className, children, ...props }: ModalContentProps) {
   return (
-    <div className={cn('p-6 text-text-primary', className)} {...props}>
+    <div className={cn('px-4 lg:px-6 text-text-primary', className)} {...props}>
       {children}
     </div>
   )
@@ -168,7 +168,7 @@ interface ModalFooterProps extends ComponentPropsWithRef<'div'> {
 
 export function ModalFooter({ className, children, ...props }: ModalFooterProps) {
   return (
-    <div className={cn('flex items-center justify-end gap-3 p-6', className)} {...props}>
+    <div className={cn('p-4 lg:p-6 flex items-center justify-end gap-3', className)} {...props}>
       {children}
     </div>
   )

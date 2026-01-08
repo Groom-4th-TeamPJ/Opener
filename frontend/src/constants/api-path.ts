@@ -5,6 +5,7 @@ export const API_PATHS = {
     FORM_LOGIN: '/auth/form-login',
     LOGOUT: '/auth/logout',
     FORM_REGISTER: '/auth/form-signup',
+    OAUTH_REGISTER: '/auth/oauth-signup',
     REFRESH: '/auth/refresh',
   },
   EXAM: {

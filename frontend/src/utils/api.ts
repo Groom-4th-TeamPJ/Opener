@@ -24,7 +24,7 @@ type RequestConfig<T> = {
 type RequestMethod = 'GET' | 'POST'
 
 const DEFAULT_INIT: RequestInit = { cache: 'no-store', next: { revalidate: 0 } }
-const BASE_URL = process.env.VITE_API_URL ?? 'http://localhost:8080/api'
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'https://opener.deving.xyz/api/'
 
 // 동시 401에도 refresh 1번
 let refreshPromise: Promise<boolean> | null = null

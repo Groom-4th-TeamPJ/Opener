@@ -3,7 +3,7 @@
 import cn from '@/utils/cn'
 import { ChevronDown } from 'lucide-react'
 import { Dispatch, SetStateAction, useState } from 'react'
-import { Term, TermKey } from '@/components/register/RegisterForm'
+import { Term, TermKey } from '@/types/auth.types'
 import TermItem from '@/components/register/TermItem'
 import CircleCheckbox from './CircleCheckBox'
 
