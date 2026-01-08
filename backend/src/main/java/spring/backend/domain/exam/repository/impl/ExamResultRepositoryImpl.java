@@ -31,4 +31,9 @@ public class ExamResultRepositoryImpl implements ExamResultRepository {
     public ExamResult save(ExamResult examResult) {
         return jpaExamResultRepository.save(examResult);
     }
+
+    @Override
+    public boolean existsByIdAndUserId(Long id, UUID userId) {
+        return jpaExamResultRepository.existsByIdAndUserId(id, userId);
+    }
 }

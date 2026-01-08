@@ -8,4 +8,6 @@ public interface QuestionResultRepository {
     Optional<QuestionResult> findById(Long id);
 
     QuestionResult save(QuestionResult questionResult);
+
+    boolean existsByExamResultIdAndQuestionId(Long examResultId, Long questionId);
 }
