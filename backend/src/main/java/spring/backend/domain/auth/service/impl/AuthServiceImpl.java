@@ -7,7 +7,8 @@ import jakarta.transaction.Transactional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import spring.backend.domain.auth.dto.request.FormSignupRequest;
@@ -32,7 +33,9 @@ public class AuthServiceImpl implements AuthService {
   private final JwtUtil jwtUtil;
   private final JpaCredentialRepository jpaCredentialRepository;
   private final UserRepository userRepository;
-  private final RedisTemplate redisTemplate;
+
+  @Qualifier("authRedisTemplate")
+  private final StringRedisTemplate redisTemplate;
 
 
   @Override

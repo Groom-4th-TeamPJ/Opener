@@ -6,12 +6,13 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-import spring.backend.domain.chat.dto.ChatMessageDto;
-import spring.backend.domain.chat.dto.SseMessageDto;
+import spring.backend.domain.chat.dto.response.ChatMessageDto;
 import spring.backend.domain.chat.service.spec.ChatRedisService;
 import spring.backend.domain.chat.service.spec.ChatService;
 import spring.backend.domain.chat.service.spec.LlmService;
@@ -29,6 +30,9 @@ public class ChatServiceImpl implements ChatService {
   private final LlmService llmService;
   private final ObjectMapper objectMapper;
   private final UserRepository userRepository;
+
+  @Qualifier("chatRedisTemplate")
+  private final StringRedisTemplate redisTemplate;
 
   // SSE 연결 관리 (sessionId → SseEmitter)
   private final ConcurrentHashMap<Long, SseEmitter> emitters = new ConcurrentHashMap<>();
@@ -155,8 +159,8 @@ public class ChatServiceImpl implements ChatService {
    */
   private void sendSseChunk(SseEmitter emitter, String sessionId, String chunk) {
     try {
-      SseMessageDto message =
-              SseMessageDto.builder().type("chunk").sessionId(sessionId).chunk(chunk).build();
+      SseMessageResponse message =
+              SseMessageResponse.builder().type("chunk").sessionId(sessionId).chunk(chunk).build();
 
       emitter.send(
               SseEmitter.event().name("message").data(objectMapper.writeValueAsString(message)));
@@ -171,8 +175,8 @@ public class ChatServiceImpl implements ChatService {
    */
   private void sendSseComplete(SseEmitter emitter, String sessionId, int totalTokens) {
     try {
-      SseMessageDto message =
-              SseMessageDto.builder()
+      SseMessageResponse message =
+              SseMessageResponse.builder()
                       .type("complete")
                       .sessionId(sessionId)
                       .totalTokens(totalTokens)
@@ -193,8 +197,8 @@ public class ChatServiceImpl implements ChatService {
    */
   private void sendSseError(SseEmitter emitter, String sessionId, String error) {
     try {
-      SseMessageDto message =
-              SseMessageDto.builder().type("error").sessionId(sessionId).error(error).build();
+      SseMessageResponse message =
+              SseMessageResponse.builder().type("error").sessionId(sessionId).error(error).build();
 
       emitter.send(
               SseEmitter.event().name("error").data(objectMapper.writeValueAsString(message)));

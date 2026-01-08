@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import spring.backend.domain.chat.dto.request.ChatSendRequest;
-import spring.backend.domain.chat.dto.response.ChatSessionResponse;
 import spring.backend.domain.chat.service.spec.ChatService;
 import spring.backend.shared.infrastructure.security.dto.AuthUser;
 
@@ -44,15 +43,13 @@ public class ChatController {
     return ResponseEntity.ok(ChatSessionResponse.builder().sessionId(sessionId).build());
   }
 
-  /**
-   * 3. 메시지 전송 (사용자 → 서버) POST /api/chat/send
-   */
+  // 메시지 전송 (사용자 → 서버) POST /api/chat/send
   @PostMapping("/send")
   public ResponseEntity<Void> sendMessage(
           @RequestBody ChatSendRequest request, @AuthenticationPrincipal AuthUser authUser) {
 
     // 세션 소유권 검증
-    chatService.validateSessionOwner(request.getSessionId(), authUser.id());
+    chatService.validateSessionOwner(authUser.id(), request.getSessionId());
 
     // SSE Emitter 조회
     SseEmitter emitter = emitters.get(request.getSessionId());
