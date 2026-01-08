@@ -1,6 +1,6 @@
 'use client'
 
-import { Info } from 'lucide-react'
+import Image from 'next/image'
 import { Modal, ModalContent, ModalFooter } from '@/components/common/Modal'
 import Button from '@/components/common/Button'
 
@@ -22,7 +22,9 @@ export default function InactivityModal({ open, onConfirm }: InactivityModalProp
       <ModalContent>
         <div className="py-5 lg:py-7 flex flex-col justify-center items-center gap-5">
           {/* 아이콘 영역 */}
-          <Info className="w-15 h-15 lg:w-20 lg:h-20 text-neutral-300" />
+          <div className="w-15 h-15 lg:w-20 lg:h-20 relative">
+            <Image src="/icons/info-fill_gray.svg" alt="" fill className="object-contain" />
+          </div>
 
           {/* 텍스트 영역 */}
           <div className="flex flex-col justify-start items-center gap-3">
