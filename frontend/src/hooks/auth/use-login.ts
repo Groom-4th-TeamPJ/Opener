@@ -6,10 +6,14 @@ import { API_PATHS } from '@/constants/api-path'
 type LoginBody = { email: string; password: string }
 
 async function loginApi(body: LoginBody) {
-  return api(API_PATHS.AUTH.FORM_LOGIN, {
-    method: 'POST',
-    body,
-  })
+  return api(
+    API_PATHS.AUTH.FORM_LOGIN,
+    {
+      method: 'POST',
+      body,
+    },
+    false
+  )
 }
 
 export default function useLogin() {
