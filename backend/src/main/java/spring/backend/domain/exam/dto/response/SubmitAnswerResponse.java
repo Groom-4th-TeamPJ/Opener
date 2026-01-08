@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+@Schema(description = "문제 정답 제출 응답")
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
