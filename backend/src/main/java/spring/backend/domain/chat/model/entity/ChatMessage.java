@@ -2,12 +2,9 @@ package spring.backend.domain.chat.model.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,21 +25,15 @@ public class ChatMessage extends BaseEntity {
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "chat_session_id", nullable = false)
-  private ChatSession chatSession;
-
   @JdbcTypeCode(SqlTypes.JSON)
   @Column(name = "messages", columnDefinition = "jsonb", nullable = false)
   private List<ChatMessageContent> messages = new ArrayList<>();
 
   // chat message 생성 팩토리 메서드
   public static ChatMessage createFromSession(
-          ChatSession chatSession,
           List<ChatMessageContent> messages
   ) {
     ChatMessage chatMessage = new ChatMessage();
-    chatMessage.chatSession = chatSession;
     chatMessage.messages = messages != null ? messages : new ArrayList<>();
     return chatMessage;
   }
