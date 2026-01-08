@@ -61,7 +61,7 @@ export default function Stopwatch({ onTimeChange, autoStart = true, ref }: Stopw
   return (
     <div className="inline-flex items-center gap-2">
       <TimerIcon />
-      <div className="text-text-primary text-lg leading-7 min-w-14 tabular-nums">
+      <div className="text-text-primary text-lg leading-7 tabular-nums">
         {formatTime(elapsedSeconds)}
       </div>
     </div>

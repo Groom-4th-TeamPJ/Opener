@@ -34,7 +34,7 @@ export default function Button({
       className={cn(
         'inline-flex items-center justify-center gap-2 rounded-lg cursor-pointer font-bold',
         'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        'disabled:pointer-events-none disabled:text-neutral-200',
+        'disabled:pointer-events-none disabled:text-neutral-200 disabled:shadow-1',
         'relative',
 
         variant === 'default' &&
