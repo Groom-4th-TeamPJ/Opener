@@ -2,15 +2,14 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import Button from '@/components/common/Button'
-import { X } from 'lucide-react'
 import type { ExamResponse, StopwatchRef } from '@/types/exam'
 import { ROUTES } from '@/constants/routes'
-import QuestionHeader from './QuestionHeader'
-import QuestionCard from './QuestionCard'
+import ExamHeader from './ExamHeader'
+import AnswerCard from './AnswerCard'
 import QuestionActionButton from './QuestionActionButton'
 import NavigationButton from './NavigationButton'
 import AIChatbot from './AIChatbot'
+import QuestionCard from './QuestionCard'
 
 interface QuestionSolveProps {
   data: ExamResponse
@@ -99,78 +98,53 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
       onDragStart={handleDragStart}
     >
       {/* Top Header Bar */}
-      <header className="shrink-0 bg-background/80 backdrop-blur-sm border-b border-foreground/10">
-        <div className="container max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
-          {/* Left: X Button */}
-          <Button
-            variant="ghost"
-            onClick={onClose}
-            className="p-2 rounded-full text-foreground/60 hover:bg-red-600/10 hover:text-red-600 transition-all"
-          >
-            <X className="w-5 h-5" />
-          </Button>
-
-          {/* Right: Can Currency - TODO */}
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-foreground/10 rounded" />
-            <span className="text-sm font-medium">10</span>
-          </div>
-        </div>
-      </header>
+      <ExamHeader onClose={onClose} canCount={10} />
 
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto flex items-start">
-        <div className="container max-w-7xl mx-auto px-4 md:px-8 py-6 w-full">
-          <div className="flex items-start justify-between">
-            {/* Center: Question & Chat Panel */}
-            <div className="flex gap-6 items-stretch flex-1 justify-center">
-              {/* Left: Question */}
-              <div className="w-110 flex flex-col gap-5">
-                <QuestionHeader
-                  exam={exam}
-                  question={currentQuestion}
-                  stopwatchRef={stopwatchRef}
-                />
-                <QuestionCard
-                  question={currentQuestion}
-                  selectedChoice={selectedChoice}
-                  frqAnswer={frqAnswer}
-                  submitted={submitted}
-                  isCorrect={isCorrect}
-                  onChoiceSelect={handleChoiceSelect}
-                  onFrqAnswerChange={setFrqAnswer}
-                />
+      <div className="flex-1 overflow-y-auto bg-neutral-50">
+        <div className="w-full max-w-6xl mx-auto px-4 md:px-8 py-6 flex items-start gap-6">
+          {/* Left: Question + Answer */}
+          <div className="flex-1 flex flex-col gap-6">
+            <QuestionCard
+              exam={exam}
+              question={currentQuestion}
+              stopwatchRef={stopwatchRef}
+              submitted={submitted}
+              isCorrect={isCorrect}
+            />
 
-                <div className="sticky bottom-0 bg-background -mb-6">
-                  <QuestionActionButton
-                    submitted={submitted}
-                    selectedChoice={selectedChoice}
-                    frqAnswer={frqAnswer}
-                    questionType={currentQuestion.type}
-                    isAnalysisActive={isAnalysisActive}
-                    onSubmit={handleSubmit}
-                    onShowAnalysis={handleShowAnalysis}
-                  />
-                </div>
-              </div>
+            <AnswerCard
+              question={currentQuestion}
+              selectedChoice={selectedChoice}
+              frqAnswer={frqAnswer}
+              submitted={submitted}
+              isCorrect={isCorrect}
+              onChoiceSelect={handleChoiceSelect}
+              onFrqAnswerChange={setFrqAnswer}
+            />
 
-              {/* Center: AI Chatbot */}
-              <AIChatbot
-                isActive={isAnalysisActive}
-                question={currentQuestion}
-                isCorrect={isCorrect}
-              />
-            </div>
-
-            {/* Right: Next Button */}
-            <div className="flex items-center self-center">
-              <NavigationButton
-                isLastQuestion={isLastQuestion}
-                submitted={submitted}
-                onNext={handleNext}
-              />
-            </div>
+            <QuestionActionButton
+              submitted={submitted}
+              selectedChoice={selectedChoice}
+              frqAnswer={frqAnswer}
+              questionType={currentQuestion.type}
+              isAnalysisActive={isAnalysisActive}
+              onSubmit={handleSubmit}
+              onShowAnalysis={handleShowAnalysis}
+            />
           </div>
+
+          {/* Right: AI Chatbot */}
+          <AIChatbot isActive={isAnalysisActive} question={currentQuestion} isCorrect={isCorrect} />
+        </div>
+
+        {/* Next Button - Floating */}
+        <div className="fixed top-1/2 -translate-y-1/2 left-[calc(50%+36rem-2rem+5rem)]">
+          <NavigationButton
+            isLastQuestion={isLastQuestion}
+            submitted={submitted}
+            onNext={handleNext}
+          />
         </div>
       </div>
     </div>
