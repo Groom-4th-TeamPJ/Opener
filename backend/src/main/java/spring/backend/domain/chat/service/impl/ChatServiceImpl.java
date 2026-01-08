@@ -90,9 +90,6 @@ public class ChatServiceImpl implements ChatService {
   // 세션 주인 확인 (권한 없으면 예외 throw)
   @Override
   public void validateSessionOwner(UUID userId, Long sessionId) {
-
-    sessions.get(userId);
-
     if (sessionId != sessions.get(userId)) {
       throw new IllegalArgumentException(
               "세션 접근 권한이 없습니다.: sessionId=" + sessionId + ", userId=" + userId);
