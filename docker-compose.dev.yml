@@ -1,4 +1,3 @@
-version: '3.8'
 
 services:
   # PostgreSQL Database
@@ -17,7 +16,7 @@ services:
     networks:
       - dev-network
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U dev" ]
+      test: [ "CMD-SHELL", "pg_isready -U dev -d postgres" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -42,12 +41,8 @@ services:
 
   # Backend (Spring Boot)
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: ${DOCKERHUB_USERNAME}/opener-backend:dev
     container_name: backend-dev
-    env_file:
-      - ./backend/.env.dev
     environment:
       - SPRING_PROFILES_ACTIVE=dev
       - DB_URL=jdbc:postgresql://db:5432/postgres
@@ -67,36 +62,29 @@ services:
 
   # Frontend (Development with Hot Reload)
   frontend:
-    image: node:22-alpine
+    image: ${DOCKERHUB_USERNAME}/opener-frontend:dev
     container_name: frontend-dev
-    working_dir: /app
-    env_file:
-      - ./frontend/.env.dev
     environment:
       - NODE_ENV=development
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
     ports:
       - "3000:3000"
-    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install && pnpm dev"
-    depends_on:
-      - backend
     networks:
       - dev-network
     restart: unless-stopped
 
   # Nginx Reverse Proxy (Optional for dev)
   nginx:
-    image: nginx:alpine
+    image: ${DOCKERHUB_USERNAME}/opener-nginx:dev
     container_name: nginx-dev
     environment:
       - TZ=Asia/Seoul
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - certbot-www:/var/www/certbot
     depends_on:
       - backend
       - frontend
@@ -111,3 +99,4 @@ networks:
 volumes:
   postgres_data_dev:
   redis_data_dev:
+  certbot-www:

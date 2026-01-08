@@ -29,6 +29,9 @@ public class Exam extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "exam_type")
     private ExamType examType;
+    
+    @Column(name = "name")
+    private String name;
 
     @Column(name = "quantity")
     private Integer quantity;
