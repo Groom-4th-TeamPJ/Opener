@@ -12,4 +12,6 @@ public interface ChatSessionRepository {
 
   Optional<ChatSession> findBySessionIdAndUserId(Long sessionId, UUID userId);
 
+  ChatSession save(ChatSession chatSession);
+
 }

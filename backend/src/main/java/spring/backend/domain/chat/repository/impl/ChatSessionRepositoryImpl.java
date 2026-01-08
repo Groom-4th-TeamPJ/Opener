@@ -28,4 +28,9 @@ public class ChatSessionRepositoryImpl implements ChatSessionRepository {
   public Optional<ChatSession> findBySessionIdAndUserId(Long sessionId, UUID userId) {
     return jpaChatSessionRepository.findBySessionIdAndUser_Id(sessionId, userId);
   }
+
+  @Override
+  public ChatSession save(ChatSession chatSession) {
+    return jpaChatSessionRepository.save(chatSession);
+  }
 }

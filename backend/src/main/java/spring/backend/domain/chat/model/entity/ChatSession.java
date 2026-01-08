@@ -50,11 +50,11 @@ public class ChatSession {
   // 세션 생성 팩토리 메서드
   public static ChatSession createChatSession(
           User user,
-          Long questionId,
-          String title
+          Long sessionId
   ) {
     ChatSession chatSession = new ChatSession();
     chatSession.user = user;
+    chatSession.sessionId = sessionId;
     chatSession.status = ChatStatus.ACTIVE;
     chatSession.startedAt = LocalDateTime.now();
     return chatSession;
