@@ -68,7 +68,7 @@ export default function ExamSelect() {
           <div className="bg-neutral-50 rounded-20 mb-10">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-0">
               {/* 선택 영역 */}
-              <div className="p-8 md:pr-8 md:border-r md:border-neutral-100">
+              <div className="p-8 md:border-r md:border-neutral-100">
                 <h2 className="text-lg lg:text-xl text-center font-bold text-text-primary mb-10">
                   선택 영역
                 </h2>
@@ -92,7 +92,7 @@ export default function ExamSelect() {
               </div>
 
               {/* 시험 연도 */}
-              <div className="p-8 md:px-8 md:border-r md:border-neutral-100">
+              <div className="p-8 md:border-r md:border-neutral-100">
                 <h2 className="text-lg lg:text-xl text-center font-bold text-text-primary mb-10">
                   시험 연도
                 </h2>
@@ -104,7 +104,7 @@ export default function ExamSelect() {
               </div>
 
               {/* 시험 종류 */}
-              <div className="p-8 md:pl-8">
+              <div className="p-8">
                 <h2 className="text-lg lg:text-xl text-center font-bold text-text-primary mb-10">
                   시험 종류
                 </h2>
@@ -135,7 +135,7 @@ export default function ExamSelect() {
               size="lg"
               disabled={!canStart}
               onClick={handleStartExam}
-              className="font-bold h-12 p-4"
+              className="font-bold p-4"
             >
               문제 풀이 시작하기
             </Button>
