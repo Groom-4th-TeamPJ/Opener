@@ -16,9 +16,9 @@ export default function ExamResult() {
   }
   return (
     <Modal open={true} onClose={onClose} className="md:max-w-97.5 lg:max-w-150">
-      <ModalHeader closable={true} onClose={onClose} className="flex">
+      <ModalHeader onClose={onClose} className="flex">
         <div className="flex justify-between">
-          <h2 className="font-bold text-lg">학습 결과</h2>
+          <h2 className="font-bold md:text-xl lg:text-2xl">학습 결과</h2>
         </div>
       </ModalHeader>
 
