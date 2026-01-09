@@ -7,6 +7,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -17,13 +19,10 @@ import spring.backend.shared.infrastructure.security.dto.AuthUser;
 
 @RestController
 @RequestMapping("/exams")
+@RequiredArgsConstructor
 public class ExamResultController {
 
     private final ExamResultService examResultService;
-
-    ExamResultController(ExamResultService examResultService) {
-        this.examResultService = examResultService;
-    }
 
     @Operation(
             summary = "문제 정답 제출",
@@ -51,16 +50,12 @@ public class ExamResultController {
                     description = "인증 실패"
             ),
             @ApiResponse(
-                    responseCode = "403",
-                    description = "접근 권한 없음"
-            ),
-            @ApiResponse(
                     responseCode = "404",
                     description = "시험 결과 또는 문제를 찾을 수 없음"
             )
     })
     @PostMapping("/results/{examResultId}/questions/{questionId}")
-    public ResponseEntity<SubmitAnswerResponse> submitAnswers(
+    public ResponseEntity<SubmitAnswerResponse> submitAnswer(
             @Parameter(description = "시험 결과 ID", example = "1")
             @PathVariable Long examResultId,
             @Parameter(description = "문제 ID", example = "10")
@@ -70,7 +65,7 @@ public class ExamResultController {
                     required = true,
                     content = @Content(schema = @Schema(implementation = SubmitAnswerRequest.class))
             )
-            @RequestBody SubmitAnswerRequest submitAnswerRequest,
+            @Valid @RequestBody SubmitAnswerRequest submitAnswerRequest,
             @AuthenticationPrincipal AuthUser authUser
     ) {
         SubmitAnswerResponse resp = examResultService.submitAnswers(examResultId, questionId, authUser.id(), submitAnswerRequest);
