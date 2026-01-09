@@ -14,6 +14,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import spring.backend.domain.chat.dto.response.ChatMessageDto;
 import spring.backend.domain.chat.service.spec.ChatRedisService;
+import spring.backend.shared.response.codes.ErrorCode;
+import spring.backend.shared.response.exception.BusinessException;
 
 @Slf4j
 @Service
@@ -31,7 +33,6 @@ public class ChatRedisServiceImpl implements ChatRedisService {
   public void initializeSession(Long sessionId, UUID userId) {
 
     String sessionKey = SESSION_KEY_PREFIX + sessionId;
-    String messageKey = sessionKey + ":messages";
 
     // 중복 초기화 방지
     Boolean sessionExists = redisTemplate.hasKey(sessionKey);
@@ -53,11 +54,13 @@ public class ChatRedisServiceImpl implements ChatRedisService {
   }
 
   @Override
-  public void saveMessage(String sessionId, ChatMessageDto message) {
-    String key = SESSION_KEY_PREFIX + sessionId;
+  public void saveMessage(Long sessionId, ChatMessageDto message) {
+    String key = SESSION_KEY_PREFIX + sessionId + ":messages";
 
     try {
+
       String json = redisTemplate.opsForValue().get(key);
+
       if (json == null) {
         throw new IllegalArgumentException("Session not found: " + sessionId);
       }
@@ -84,7 +87,7 @@ public class ChatRedisServiceImpl implements ChatRedisService {
   }
 
   @Override
-  public List<ChatMessageDto> getSessionMessages(String sessionId) {
+  public List<ChatMessageDto> getSessionMessages(Long sessionId) {
     String key = SESSION_KEY_PREFIX + sessionId;
 
     try {
@@ -108,7 +111,7 @@ public class ChatRedisServiceImpl implements ChatRedisService {
   }
 
   @Override
-  public UUID getSessionOwnerId(String sessionId) {
+  public UUID getSessionOwnerId(Long sessionId) {
     String key = SESSION_KEY_PREFIX + sessionId;
 
     try {
@@ -135,9 +138,18 @@ public class ChatRedisServiceImpl implements ChatRedisService {
   }
 
   @Override
-  public void deleteSession(String sessionId) {
+  public void deleteSession(Long sessionId) {
     String key = SESSION_KEY_PREFIX + sessionId;
     redisTemplate.delete(key);
 
+  }
+
+  // 세션 주인 확인 (권한 없으면 예외 throw)
+  @Override
+  public void validateSessionOwner(Long sessionId, UUID userId) {
+
+    if (redisTemplate.opsForHash().get(SESSION_KEY_PREFIX + sessionId, "userId") != userId.toString()) {
+      throw new BusinessException(ErrorCode.INVALID_SESSION);
+    }
   }
 }
