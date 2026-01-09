@@ -24,5 +24,4 @@ public class QuestionResponse {
     private QuestionType questionType;
     private List<Passage> passages;
     private List<Option> options;
-    private Integer answer;
 }
