@@ -12,10 +12,14 @@ type RegisterBody = {
 
 async function registerApi(body: RegisterBody) {
   const endPoint = body.signupToken ? API_PATHS.AUTH.OAUTH_REGISTER : API_PATHS.AUTH.FORM_REGISTER
-  return api(endPoint, {
-    method: 'POST',
-    body,
-  })
+  return api(
+    endPoint,
+    {
+      method: 'POST',
+      body,
+    },
+    false
+  )
 }
 
 export default function useRegister() {
