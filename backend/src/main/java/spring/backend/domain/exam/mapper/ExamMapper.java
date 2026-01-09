@@ -13,8 +13,8 @@ import java.util.stream.Collectors;
 @Component
 public class ExamMapper {
 
-    public ExamResponse toDto(Exam exam, List<Question> questions) {
-        if (exam == null) return null;
+    public ExamResponse toDto(Exam exam, List<Question> questions, Long examResultId) {
+        if (exam == null || examResultId == null) return null;
 
         ExamInfo info = ExamInfo.builder()
                 .examId(exam.getId())
@@ -29,6 +29,7 @@ public class ExamMapper {
                 : questions.stream().map(this::toQuestionResponse).collect(Collectors.toList());
 
         return ExamResponse.builder()
+                .examResultId(examResultId)
                 .exam(info)
                 .questions(qs)
                 .build();
@@ -43,7 +44,6 @@ public class ExamMapper {
                 .questionType(q.getQuestionType())
                 .passages(q.getPassages())
                 .options(q.getOptions())
-                .answer(q.getAnswer())
                 .build();
     }
 }
