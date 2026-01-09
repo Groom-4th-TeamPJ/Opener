@@ -37,7 +37,7 @@ public class ExamServiceImpl implements ExamService {
     public ExamResponse findExamWithQuestions(UUID userId, Integer examYear, ExamType examType, Category category) {
         log.info("Finding exam for year: {}, type: {}, category: {}", examYear, examType, category);
 
-        if(examYear == null || examType == null || category == null) {
+        if (examYear == null || examType == null || category == null) {
             throw new BusinessException(ErrorCode.MISSING_PARAMETER);
         }
 
@@ -52,17 +52,13 @@ public class ExamServiceImpl implements ExamService {
         // ExamResult 시작
         Long examResultId = startExamResult(userId, exam.getId());
 
-        if(examResultId == null) {
-            throw new BusinessException(ErrorCode.EXAM_FAILED_TO_CREATE);
-        }
-
         ExamResponse response = examMapper.toDto(exam, questions, examResultId);
 
-        if(response == null) {
+        if (response == null) {
             throw new BusinessException(ErrorCode.EXAM_NOT_FOUND);
         }
 
-        // 유저 캔 차감
+        // TODO :: 유저 캔 차감
         deductUserCan(userId);
 
         return response;

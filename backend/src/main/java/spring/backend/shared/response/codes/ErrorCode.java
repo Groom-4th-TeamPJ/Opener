@@ -34,7 +34,6 @@ public enum ErrorCode {
 
   // Exam 관련 에러 (E_xxx)
   EXAM_NOT_FOUND(404, "E_001", "시험을 찾을 수 없습니다"),
-  EXAM_FAILED_TO_CREATE(500, "R_003", "시험 생성에 실패했습니다"),
 
   // Exam Result 관련 에러 (R_xxx)
   RESULT_ALREADY_SUBMITTED(400, "R_001", "이미 제출된 시험 결과입니다"),

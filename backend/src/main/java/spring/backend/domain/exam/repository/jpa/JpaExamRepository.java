@@ -9,5 +9,4 @@ import java.util.Optional;
 public interface JpaExamRepository extends JpaRepository<Exam, Long> {
     Optional<Exam> findByExamYearAndExamType(Integer examYear, ExamType examType);
 
-    boolean existsByExamYearAndExamType(Integer examYear, ExamType examType);
 }

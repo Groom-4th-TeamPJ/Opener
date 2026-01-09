@@ -156,7 +156,7 @@ CREATE TABLE IF NOT EXISTS "question_results" (
 
     -- 제약조건
     CONSTRAINT chk_question_results_time CHECK (time_spent >= 0),
-
+    CONSTRAINT uk_exam_result_question UNIQUE (exam_result_id, question_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_question_results_question_id ON "question_results"(question_id);
