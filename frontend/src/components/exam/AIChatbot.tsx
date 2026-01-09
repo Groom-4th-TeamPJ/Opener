@@ -13,13 +13,19 @@ import { InfoTooltip } from '@/components/common/InfoTooltip'
 interface AIChatPanelProps {
   isActive: boolean
   question: Question
-  isCorrect: boolean | null
+  selectedChoice: number | null
+  frqAnswer: string
 }
 
 const INFO_TOOLTIP_TEXT =
   'AI 대화는 문제별로 진행됩니다.\n대화를 종료하거나 다음 문제로 이동하면 현재 대화는 종료되며, 대화 기록은 스크랩북에 자동 저장됩니다.'
 
-export default function AIChatbot({ isActive, question, isCorrect }: AIChatPanelProps) {
+export default function AIChatbot({
+  isActive,
+  question,
+  selectedChoice,
+  frqAnswer,
+}: AIChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputValue, setInputValue] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -32,18 +38,21 @@ export default function AIChatbot({ isActive, question, isCorrect }: AIChatPanel
 
   useEffect(() => {
     if (isActive && messages.length === 0) {
+      const userAnswer = question.type === 'MCQ' ? `${selectedChoice}번` : frqAnswer
+      const highlightText = `${userAnswer}을 선택했네요.`
+      const contentText = `왜 ${userAnswer}이 정답이라고 생각하셨나요?\n어떤 근거로 그렇게 판단하셨는지 설명해주세요!`
+
       setMessages([
         {
           id: 1,
           role: 'assistant',
-          content:
-            "이 문제는 미분의 기본 개념을 활용하는 문제입니다.\n\nf(x) = x³ - 3x² + 2x를 미분하면\nf'(x) = 3x² - 6x + 2가 됩니다.\n\nx = 1을 대입하면\nf'(1) = 3 - 6 + 2 = -1입니다.",
+          content: contentText,
           timestamp: formatChatTimestamp(new Date()),
-          highlight: '2번을 선택했네요.',
+          highlight: highlightText,
         },
       ])
     }
-  }, [isActive, messages.length])
+  }, [isActive, messages.length, question.type, selectedChoice, frqAnswer])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -84,7 +93,7 @@ export default function AIChatbot({ isActive, question, isCorrect }: AIChatPanel
   return (
     <div
       className={cn(
-        'w-86 lg:w-96 h-[calc(100vh-6.5rem)] max-h-244 bg-white rounded-20 shadow-1 flex flex-col overflow-hidden',
+        'w-86 lg:w-96 bg-white rounded-20 shadow-1 flex flex-col overflow-hidden',
         !isActive && 'opacity-30'
       )}
     >
@@ -120,7 +129,7 @@ export default function AIChatbot({ isActive, question, isCorrect }: AIChatPanel
                       <div className="flex flex-col gap-2 flex-1">
                         <div className="max-w-64 min-w-44 px-3 py-2.5 bg-neutral-50 rounded-tr-lg rounded-bl-lg rounded-br-lg flex flex-col gap-1">
                           {message.highlight && (
-                            <p className="text-primary-600 text-sm font-medium">
+                            <p className="text-primary-600 text-sm font-medium whitespace-pre-line">
                               {message.highlight}
                             </p>
                           )}

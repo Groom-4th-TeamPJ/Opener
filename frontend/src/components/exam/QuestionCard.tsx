@@ -19,7 +19,7 @@ export default function QuestionCard({
   isCorrect,
 }: QuestionCardProps) {
   return (
-    <Card className="flex flex-col overflow-hidden min-h-117.5">
+    <Card className="flex flex-col flex-1 overflow-hidden min-h-117.5">
       <CardHeader className="p-6">
         <QuestionTitle exam={exam} question={question} stopwatchRef={stopwatchRef} />
       </CardHeader>

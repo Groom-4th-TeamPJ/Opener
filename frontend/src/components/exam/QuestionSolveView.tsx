@@ -173,7 +173,12 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
           </div>
 
           {/* Right: AI Chatbot */}
-          <AIChatbot isActive={isAnalysisActive} question={currentQuestion} isCorrect={isCorrect} />
+          <AIChatbot
+            isActive={isAnalysisActive}
+            question={currentQuestion}
+            selectedChoice={selectedChoice}
+            frqAnswer={frqAnswer}
+          />
         </div>
 
         {/* Next Button - Floating */}
