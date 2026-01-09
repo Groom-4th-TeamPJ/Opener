@@ -14,8 +14,6 @@ import AIChatbot from './AIChatbot'
 import InactivityModal from '@/components/shared/InactivityModal'
 import NewQuestionModal from '@/components/new-question/NewQuestionModal'
 import ExamExitModal from './ExamExitModal'
-import Button from '@/components/common/Button'
-import cn from '@/utils/cn'
 
 interface QuestionSolveProps {
   data: ExamResponse
@@ -173,33 +171,8 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
               onFrqAnswerChange={setFrqAnswer}
             />
 
-            {/* 데스크톱: 제출 버튼만 */}
-            <div className="hidden xl:block">
-              <QuestionActionButton
-                submitted={submitted}
-                selectedChoice={selectedChoice}
-                frqAnswer={frqAnswer}
-                questionType={currentQuestion.type}
-                isAnalysisActive={isAnalysisActive}
-                isCorrect={isCorrect}
-                hasNewQuestion={hasNewQuestion}
-                onSubmit={handleSubmit}
-                onShowAnalysis={handleShowAnalysis}
-                onVariationClick={handleVariationClick}
-              />
-            </div>
-
-            {/* Next Button - Floating (데스크톱) */}
-            <div className="hidden xl:block fixed top-1/2 -translate-y-1/2 xl:left-[calc(50%+36rem)] 2xl:left-[calc(50%+36rem-2rem+5rem)]">
-              <NavigationButton
-                isLastQuestion={isLastQuestion}
-                submitted={submitted}
-                onNext={handleNext}
-              />
-            </div>
-
-            {/* 태블릿: 버튼 + 네비게이션 */}
-            <div className="flex xl:hidden gap-4">
+            {/* 버튼 + 네비게이션 */}
+            <div className="flex gap-4">
               <QuestionActionButton
                 submitted={submitted}
                 selectedChoice={selectedChoice}
@@ -213,18 +186,11 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
                 onVariationClick={handleVariationClick}
               />
               <div className="shrink-0">
-                <Button
-                  onClick={submitted ? handleNext : undefined}
-                  disabled={!submitted}
-                  variant="outline"
-                  size="lg"
-                  className={cn(
-                    'w-20 border-neutral-200 hover:border-neutral-200',
-                    !submitted && 'cursor-not-allowed opacity-50'
-                  )}
-                >
-                  {isLastQuestion ? '학습종료' : '다음'}
-                </Button>
+                <NavigationButton
+                  isLastQuestion={isLastQuestion}
+                  submitted={submitted}
+                  onNext={handleNext}
+                />
               </div>
             </div>
           </div>
