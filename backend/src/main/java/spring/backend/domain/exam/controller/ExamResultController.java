@@ -16,6 +16,8 @@ import spring.backend.domain.exam.dto.request.SubmitAnswerRequest;
 import spring.backend.domain.exam.dto.response.SubmitAnswerResponse;
 import spring.backend.domain.exam.service.spec.ExamResultService;
 import spring.backend.shared.infrastructure.security.dto.AuthUser;
+import spring.backend.shared.response.codes.ErrorCode;
+import spring.backend.shared.response.exception.BusinessException;
 
 @RestController
 @RequestMapping("/exams")
@@ -68,6 +70,10 @@ public class ExamResultController {
             @Valid @RequestBody SubmitAnswerRequest submitAnswerRequest,
             @AuthenticationPrincipal AuthUser authUser
     ) {
+        if (authUser == null || authUser.id() == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+
         SubmitAnswerResponse resp = examResultService.submitAnswers(examResultId, questionId, authUser.id(), submitAnswerRequest);
 
         return ResponseEntity.ok(resp);
