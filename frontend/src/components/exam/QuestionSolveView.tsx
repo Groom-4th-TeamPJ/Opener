@@ -2,17 +2,19 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import Button from '@/components/common/Button'
-import { X } from 'lucide-react'
 import type { ExamResponse, StopwatchRef } from '@/types/exam'
 import { ROUTES } from '@/constants/routes'
-import useInactivityDetection from '@/hooks/exam/use-inactivity-detection'
-import QuestionHeader from './QuestionHeader'
-import QuestionCard from './QuestionCard'
+import ExamHeader from './ExamHeader'
+import AnswerCard from './AnswerCard'
 import QuestionActionButton from './QuestionActionButton'
 import NavigationButton from './NavigationButton'
+import useInactivityDetection from '@/hooks/exam/use-inactivity-detection'
+import QuestionCard from './QuestionCard'
 import AIChatbot from './AIChatbot'
 import InactivityModal from '@/components/shared/InactivityModal'
+import NewQuestionModal from '@/components/new-question/NewQuestionModal'
+import Button from '@/components/common/Button'
+import cn from '@/utils/cn'
 
 interface QuestionSolveProps {
   data: ExamResponse
@@ -33,6 +35,8 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
   const [isAnalysisActive, setIsAnalysisActive] = useState(false)
   const [showInactivityModal, setShowInactivityModal] = useState(false)
+  const [showVariationModal, setShowVariationModal] = useState(false)
+  const [hasNewQuestion, setHasNewQuestion] = useState(false)
 
   // 스탑워치 ref
   const stopwatchRef = useRef<StopwatchRef>(null)
@@ -40,7 +44,10 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
   // 비활성 감지
   useInactivityDetection({
     timeout: INACTIVITY_TIMEOUT,
-    onInactive: () => setShowInactivityModal(true),
+    onInactive: () => {
+      setShowInactivityModal(true)
+      setShowVariationModal(false)
+    },
   })
 
   const currentQuestion = questions[currentIndex]
@@ -82,6 +89,7 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
       setSubmitted(false)
       setIsCorrect(null)
       setIsAnalysisActive(false)
+      setHasNewQuestion(false)
     }
   }
 
@@ -93,6 +101,17 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
   // 비활성 모달 확인 시 처리
   const handleInactivityConfirm = () => {
     router.push(ROUTES.DASHBOARD)
+  }
+
+  // 변형 문제 풀기 모달 열기
+  const handleVariationClick = () => {
+    setShowVariationModal(true)
+    setHasNewQuestion(true)
+  }
+
+  // 변형 문제 모달 닫기
+  const handleVariationModalClose = () => {
+    setShowVariationModal(false)
   }
 
   // 콘텐츠 보호: 우클릭, 드래그, 복사 차단
@@ -116,80 +135,101 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
       onDragStart={handleDragStart}
     >
       {/* Top Header Bar */}
-      <header className="shrink-0 bg-background/80 backdrop-blur-sm border-b border-foreground/10">
-        <div className="container max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
-          {/* Left: X Button */}
-          <Button
-            variant="ghost"
-            onClick={onClose}
-            className="p-2 rounded-full text-foreground/60 hover:bg-red-600/10 hover:text-red-600 transition-all"
-          >
-            <X className="w-5 h-5" />
-          </Button>
-
-          {/* Right: Can Currency - TODO */}
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-foreground/10 rounded" />
-            <span className="text-sm font-medium">10</span>
-          </div>
-        </div>
-      </header>
+      <ExamHeader onClose={onClose} canCount={10} />
 
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto flex items-start">
-        <div className="container max-w-7xl mx-auto px-4 md:px-8 py-6 w-full">
-          <div className="flex items-start justify-between">
-            {/* Center: Question & Chat Panel */}
-            <div className="flex gap-6 items-stretch flex-1 justify-center">
-              {/* Left: Question */}
-              <div className="w-110 flex flex-col gap-5">
-                <QuestionHeader
-                  exam={exam}
-                  question={currentQuestion}
-                  stopwatchRef={stopwatchRef}
-                />
-                <QuestionCard
-                  question={currentQuestion}
-                  selectedChoice={selectedChoice}
-                  frqAnswer={frqAnswer}
-                  submitted={submitted}
-                  isCorrect={isCorrect}
-                  onChoiceSelect={handleChoiceSelect}
-                  onFrqAnswerChange={setFrqAnswer}
-                />
+      <div className="flex-1 overflow-y-auto bg-neutral-50">
+        <div className="w-full max-w-6xl mx-auto px-4 md:px-8 py-6 flex items-stretch gap-6 min-h-full">
+          {/* Left: Question + Answer */}
+          <div className="flex-1 flex flex-col gap-6 min-w-86">
+            <QuestionCard
+              exam={exam}
+              question={currentQuestion}
+              stopwatchRef={stopwatchRef}
+              submitted={submitted}
+              isCorrect={isCorrect}
+            />
 
-                <div className="sticky bottom-0 bg-background -mb-6">
-                  <QuestionActionButton
-                    submitted={submitted}
-                    selectedChoice={selectedChoice}
-                    frqAnswer={frqAnswer}
-                    questionType={currentQuestion.type}
-                    isAnalysisActive={isAnalysisActive}
-                    onSubmit={handleSubmit}
-                    onShowAnalysis={handleShowAnalysis}
-                  />
-                </div>
-              </div>
+            <AnswerCard
+              question={currentQuestion}
+              selectedChoice={selectedChoice}
+              frqAnswer={frqAnswer}
+              submitted={submitted}
+              isCorrect={isCorrect}
+              onChoiceSelect={handleChoiceSelect}
+              onFrqAnswerChange={setFrqAnswer}
+            />
 
-              {/* Center: AI Chatbot */}
-              <AIChatbot
-                isActive={isAnalysisActive}
-                question={currentQuestion}
+            {/* 데스크톱: 제출 버튼만 */}
+            <div className="hidden xl:block">
+              <QuestionActionButton
+                submitted={submitted}
+                selectedChoice={selectedChoice}
+                frqAnswer={frqAnswer}
+                questionType={currentQuestion.type}
+                isAnalysisActive={isAnalysisActive}
                 isCorrect={isCorrect}
+                hasNewQuestion={hasNewQuestion}
+                onSubmit={handleSubmit}
+                onShowAnalysis={handleShowAnalysis}
+                onVariationClick={handleVariationClick}
               />
             </div>
 
-            {/* Right: Next Button */}
-            <div className="flex items-center self-center">
+            {/* Next Button - Floating (데스크톱) */}
+            <div className="hidden xl:block fixed top-1/2 -translate-y-1/2 xl:left-[calc(50%+36rem)] 2xl:left-[calc(50%+36rem-2rem+5rem)]">
               <NavigationButton
                 isLastQuestion={isLastQuestion}
                 submitted={submitted}
                 onNext={handleNext}
               />
             </div>
+
+            {/* 태블릿: 버튼 + 네비게이션 */}
+            <div className="flex xl:hidden gap-4">
+              <QuestionActionButton
+                submitted={submitted}
+                selectedChoice={selectedChoice}
+                frqAnswer={frqAnswer}
+                questionType={currentQuestion.type}
+                isAnalysisActive={isAnalysisActive}
+                isCorrect={isCorrect}
+                hasNewQuestion={hasNewQuestion}
+                onSubmit={handleSubmit}
+                onShowAnalysis={handleShowAnalysis}
+                onVariationClick={handleVariationClick}
+              />
+              <div className="shrink-0">
+                <Button
+                  onClick={submitted ? handleNext : undefined}
+                  disabled={!submitted}
+                  variant="outline"
+                  size="lg"
+                  className={cn(
+                    'w-20 border-neutral-200 hover:border-neutral-200',
+                    !submitted && 'cursor-not-allowed opacity-50'
+                  )}
+                >
+                  {isLastQuestion ? '학습종료' : '다음'}
+                </Button>
+              </div>
+            </div>
           </div>
+
+          {/* Right: AI Chatbot */}
+          <AIChatbot
+            isActive={isAnalysisActive}
+            question={currentQuestion}
+            selectedChoice={selectedChoice}
+            frqAnswer={frqAnswer}
+          />
         </div>
       </div>
+
+      {/* 변형 문제 모달 */}
+      {showVariationModal && (
+        <NewQuestionModal open={showVariationModal} onClose={handleVariationModalClose} />
+      )}
 
       {/* 비활성 모달 */}
       <InactivityModal open={showInactivityModal} onConfirm={handleInactivityConfirm} />

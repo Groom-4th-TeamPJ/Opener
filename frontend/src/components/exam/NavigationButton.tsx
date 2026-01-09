@@ -1,6 +1,6 @@
 import cn from '@/utils/cn'
 import Button from '@/components/common/Button'
-import { ArrowRight } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 
 interface NavigationButtonProps {
   isLastQuestion: boolean
@@ -13,19 +13,7 @@ export default function NavigationButton({
   submitted,
   onNext,
 }: NavigationButtonProps) {
-  if (isLastQuestion) {
-    return (
-      <Button
-        onClick={submitted ? onNext : undefined}
-        disabled={!submitted}
-        variant="default"
-        size="lg"
-        className={cn('rounded-xl px-6 transition-all', !submitted && 'opacity-50 cursor-not-allowed')}
-      >
-        시험완료
-      </Button>
-    )
-  }
+  const label = isLastQuestion ? '학습종료' : '다음'
 
   return (
     <Button
@@ -33,13 +21,16 @@ export default function NavigationButton({
       disabled={!submitted}
       variant="ghost"
       className={cn(
-        'w-14 h-14 rounded-full flex items-center justify-center transition-all shadow-lg p-0',
+        'w-20 h-20 2xl:w-36 2xl:h-36 px-0 bg-white rounded-full flex items-center justify-center shadow-1 transition-all',
         submitted
-          ? 'bg-primary-600 text-white hover:bg-primary-700 hover:scale-105 cursor-pointer'
-          : 'bg-foreground/10 text-foreground/40 opacity-50 cursor-not-allowed'
+          ? 'text-primary-600 hover:bg-white'
+          : 'bg-neutral-50 text-neutral-200 cursor-not-allowed'
       )}
     >
-      <ArrowRight className="w-6 h-6" />
+      <div className="flex items-center text-xl justify-center gap-1">
+        <p className="font-bold hidden 2xl:block">{label}</p>
+        {!isLastQuestion && <ChevronRight className="2xl:-mr-2 2xl:-ml-1" />}
+      </div>
     </Button>
   )
 }
