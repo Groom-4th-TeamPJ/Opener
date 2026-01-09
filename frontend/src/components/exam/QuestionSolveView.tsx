@@ -12,6 +12,7 @@ import useInactivityDetection from '@/hooks/exam/use-inactivity-detection'
 import QuestionCard from './QuestionCard'
 import AIChatbot from './AIChatbot'
 import InactivityModal from '@/components/shared/InactivityModal'
+import NewQuestionModal from '@/components/new-question/NewQuestionModal'
 
 interface QuestionSolveProps {
   data: ExamResponse
@@ -32,6 +33,8 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
   const [isAnalysisActive, setIsAnalysisActive] = useState(false)
   const [showInactivityModal, setShowInactivityModal] = useState(false)
+  const [showVariationModal, setShowVariationModal] = useState(false)
+  const [hasNewQuestion, setHasNewQuestion] = useState(false)
 
   // 스탑워치 ref
   const stopwatchRef = useRef<StopwatchRef>(null)
@@ -39,7 +42,10 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
   // 비활성 감지
   useInactivityDetection({
     timeout: INACTIVITY_TIMEOUT,
-    onInactive: () => setShowInactivityModal(true),
+    onInactive: () => {
+      setShowInactivityModal(true)
+      setShowVariationModal(false)
+    },
   })
 
   const currentQuestion = questions[currentIndex]
@@ -81,6 +87,7 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
       setSubmitted(false)
       setIsCorrect(null)
       setIsAnalysisActive(false)
+      setHasNewQuestion(false)
     }
   }
 
@@ -92,6 +99,17 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
   // 비활성 모달 확인 시 처리
   const handleInactivityConfirm = () => {
     router.push(ROUTES.DASHBOARD)
+  }
+
+  // 변형 문제 풀기 모달 열기
+  const handleVariationClick = () => {
+    setShowVariationModal(true)
+    setHasNewQuestion(true)
+  }
+
+  // 변형 문제 모달 닫기
+  const handleVariationModalClose = () => {
+    setShowVariationModal(false)
   }
 
   // 콘텐츠 보호: 우클릭, 드래그, 복사 차단
@@ -119,9 +137,9 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
 
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto bg-neutral-50">
-        <div className="w-full max-w-6xl mx-auto px-4 md:px-8 py-6 flex items-start gap-6">
+        <div className="w-full max-w-6xl mx-auto px-4 md:px-8 py-6 flex items-stretch gap-6 min-h-full">
           {/* Left: Question + Answer */}
-          <div className="flex-1 flex flex-col gap-6">
+          <div className="flex-1 flex flex-col gap-6 min-w-86">
             <QuestionCard
               exam={exam}
               question={currentQuestion}
@@ -146,8 +164,11 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
               frqAnswer={frqAnswer}
               questionType={currentQuestion.type}
               isAnalysisActive={isAnalysisActive}
+              isCorrect={isCorrect}
+              hasNewQuestion={hasNewQuestion}
               onSubmit={handleSubmit}
               onShowAnalysis={handleShowAnalysis}
+              onVariationClick={handleVariationClick}
             />
           </div>
 
@@ -164,6 +185,11 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
           />
         </div>
       </div>
+
+      {/* 변형 문제 모달 */}
+      {showVariationModal && (
+        <NewQuestionModal open={showVariationModal} onClose={handleVariationModalClose} />
+      )}
 
       {/* 비활성 모달 */}
       <InactivityModal open={showInactivityModal} onConfirm={handleInactivityConfirm} />

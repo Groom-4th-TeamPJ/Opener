@@ -1,5 +1,5 @@
 import Button from '@/components/common/Button'
-import { Sparkles } from 'lucide-react'
+import OutlineCanIcon from '@/components/icons/OutlineCanIcon'
 
 interface QuestionActionButtonProps {
   submitted: boolean
@@ -7,8 +7,11 @@ interface QuestionActionButtonProps {
   frqAnswer: string
   questionType: 'MCQ' | 'FRQ'
   isAnalysisActive: boolean
+  isCorrect: boolean | null
+  hasNewQuestion: boolean
   onSubmit: () => void
   onShowAnalysis: () => void
+  onVariationClick: () => void
 }
 
 export default function QuestionActionButton({
@@ -17,11 +20,13 @@ export default function QuestionActionButton({
   frqAnswer,
   questionType,
   isAnalysisActive,
+  isCorrect,
+  hasNewQuestion,
   onSubmit,
   onShowAnalysis,
+  onVariationClick,
 }: QuestionActionButtonProps) {
-  const isDisabled =
-    questionType === 'MCQ' ? selectedChoice === null : frqAnswer.trim() === ''
+  const isDisabled = questionType === 'MCQ' ? selectedChoice === null : frqAnswer.trim() === ''
 
   if (!submitted) {
     return (
@@ -33,7 +38,25 @@ export default function QuestionActionButton({
         onClick={onSubmit}
         disabled={isDisabled}
       >
-        제출하기
+        답안제출
+      </Button>
+    )
+  }
+
+  if (isAnalysisActive) {
+    const isDisabledVariation = isCorrect !== false || hasNewQuestion
+
+    return (
+      <Button
+        variant="default"
+        size="lg"
+        widthFull
+        className="rounded-xl"
+        onClick={onVariationClick}
+        disabled={isDisabledVariation}
+        leftIcon={<OutlineCanIcon />}
+      >
+        변형 문제 풀어보기
       </Button>
     )
   }
@@ -45,8 +68,7 @@ export default function QuestionActionButton({
       widthFull
       className="rounded-xl"
       onClick={onShowAnalysis}
-      disabled={isAnalysisActive}
-      leftIcon={<Sparkles className="w-5 h-5" />}
+      leftIcon={<OutlineCanIcon />}
     >
       오프너 분석 보기
     </Button>

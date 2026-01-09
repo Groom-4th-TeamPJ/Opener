@@ -1,7 +1,6 @@
 'use client'
 import { useState } from 'react'
 import { Modal, ModalContent, ModalFooter, ModalHeader } from '@/components/common/Modal'
-import { useRouter } from 'next/navigation'
 import ResultBanner from '@/components/shared/ResultBanner'
 import { MOCK_DATA } from '@/mocks/exam-variant-mocks'
 import type { NewQuestion } from '@/types/exam-variant'
@@ -12,7 +11,12 @@ import NewQuestionAnalysis from './NewQuestionAnalysis'
 import NewQuestionAction from './NewQuestionAction'
 import NewQuestionExam from './NewQuestionExam'
 
-export default function NewQuestionModal() {
+interface NewQuestionModalProps {
+  open: boolean
+  onClose: () => void
+}
+
+export default function NewQuestionModal({ open, onClose }: NewQuestionModalProps) {
   // 데이터 불러오는 상태 (현재 Mock 데이터를 사용하므로 set 함수 제외)
   const [loading] = useState(false)
   //   문제 불러오기 (현재 Mock 데이터를 사용하므로 set 함수 제외)
@@ -24,11 +28,6 @@ export default function NewQuestionModal() {
   //   선택지 선택 상태
   const [selected, setIsSelected] = useState<number | null>(null)
   const [frqAnswer, setFrqAnswer] = useState<number | null>(null)
-  const router = useRouter()
-
-  const handleClose = () => {
-    router.back()
-  }
 
   const handleSubmit = () => {
     if (!data) return
@@ -39,18 +38,14 @@ export default function NewQuestionModal() {
     setIsCorrect(answer === data.answer)
   }
 
-  // 원래 문제로 돌아가기
-  const handleBack = () => {
-    router.back()
-  }
-
   const handleChange = (answer: number) => {
     setFrqAnswer(answer)
   }
   return (
     <Modal
-      open={true}
-      onClose={handleClose}
+      open={open}
+      onClose={onClose}
+      zIndex={150}
       className="md:max-w-145 md:max-h-168.5
        lg:max-w-198 lg:max-h-204"
     >
@@ -59,7 +54,7 @@ export default function NewQuestionModal() {
       ) : (
         data && (
           <div>
-            <ModalHeader closable={true} onClose={handleClose} className="flex">
+            <ModalHeader closable={true} onClose={onClose} className="flex">
               <NewQuestionHeader />
             </ModalHeader>
             {/* 문제 */}
@@ -103,7 +98,7 @@ export default function NewQuestionModal() {
                 selected={selected}
                 frqAnswer={frqAnswer}
                 onSubmit={handleSubmit}
-                onBack={handleBack}
+                onBack={onClose}
               />
             </ModalFooter>
           </div>
