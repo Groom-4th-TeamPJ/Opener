@@ -1,6 +1,6 @@
 import Image from 'next/image'
-import Button from '../common/Button'
-import { Modal, ModalContent, ModalFooter } from '../common/Modal'
+import Button from '@/components/common/Button'
+import { Modal, ModalContent, ModalFooter } from '@/components/common/Modal'
 
 interface ExamExitModalProps {
   open: boolean
