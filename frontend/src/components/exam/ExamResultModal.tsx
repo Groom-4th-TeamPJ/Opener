@@ -4,7 +4,7 @@ import { Modal, ModalContent, ModalFooter, ModalHeader } from '@/components/comm
 import { useRouter } from 'next/navigation'
 import ExamResultSummary from './ExamResultSummary'
 
-export default function ExamResult() {
+export default function ExamResultModal() {
   const router = useRouter()
 
   const onClose = () => {
