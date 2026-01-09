@@ -34,7 +34,7 @@ function usePrefersReducedMotion() {
   return reduced
 }
 
-export function CircularChart({
+export default function CircularChart({
   percent,
   label = 'N문제',
   size = 180,
