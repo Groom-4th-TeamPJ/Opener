@@ -14,6 +14,7 @@ import AIChatbot from './AIChatbot'
 import InactivityModal from '@/components/shared/InactivityModal'
 import NewQuestionModal from '@/components/new-question/NewQuestionModal'
 import ExamExitModal from './ExamExitModal'
+import ExamResultModal from './ExamResultModal'
 
 interface QuestionSolveProps {
   data: ExamResponse
@@ -36,6 +37,7 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
   const [showInactivityModal, setShowInactivityModal] = useState(false)
   const [showVariationModal, setShowVariationModal] = useState(false)
   const [showExitModal, setShowExitModal] = useState(false)
+  const [showResultModal, setShowResultModal] = useState(false)
   const [hasNewQuestion, setHasNewQuestion] = useState(false)
 
   // 스탑워치 ref
@@ -44,6 +46,7 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
   // 비활성 감지
   useInactivityDetection({
     timeout: INACTIVITY_TIMEOUT,
+    enabled: !showResultModal,
     onInactive: () => {
       setShowInactivityModal(true)
       setShowVariationModal(false)
@@ -81,8 +84,8 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
 
   const handleNext = () => {
     if (isLastQuestion) {
-      // 시험 완료 - 대시보드로 이동
-      router.push(ROUTES.DASHBOARD)
+      // 시험 완료 - 결과 모달 표시
+      setShowResultModal(true)
     } else {
       setCurrentIndex((prev) => prev + 1)
       setSelectedChoice(null)
@@ -122,6 +125,12 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
 
   // 이탈 경고 모달 - 학습 종료하기
   const handleExitConfirm = () => {
+    onClose()
+  }
+
+  // 결과 모달 닫기
+  const handleResultModalClose = () => {
+    setShowResultModal(false)
     onClose()
   }
 
@@ -219,6 +228,9 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
         onCancel={handleExitCancel}
         onConfirm={handleExitConfirm}
       />
+
+      {/* 학습 결과 모달 */}
+      <ExamResultModal open={showResultModal} onClose={handleResultModalClose} />
     </div>
   )
 }
