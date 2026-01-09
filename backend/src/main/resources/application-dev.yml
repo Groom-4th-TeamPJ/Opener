@@ -15,7 +15,7 @@ spring:
   # JPA/Hibernate 설정
   jpa:
     hibernate:
-      ddl-auto: update # create, create-drop, update, validate, none
+      ddl-auto: validate # create, create-drop, update, validate, none
     show-sql: true
     properties:
       hibernate:
@@ -34,15 +34,15 @@ spring:
 
       # 토큰용 redis 접속 설정
       auth:
-        host: localhost
-        port: 6379
-        timeout: 3000ms
+        host: ${REDIS_HOST:localhost}
+        port: ${REDIS_PORT:6379}
+        timeout: ${REDIS_TIMEOUT:3000}ms
       
       # 채팅용 redis 접속 설정
       chat:
-        host: localhost
-        port: 6380
-        timeout: 3000ms
+        host: ${REDIS_CHAT_HOST:localhost}
+        port: ${REDIS_CHAT_PORT:6380}
+        timeout: ${REDIS_CHAT_TIMEOUT:3000}ms
 
   # Security 개발 설정 (필요시 커스터마이징)
   security:
@@ -78,3 +78,9 @@ security:
   account-lock:
     max-attempts: 5            # 최대 로그인 실패 허용 횟수
     lock-duration-minutes: 1   # 개발 환경: 1분 (테스트 용이성)
+
+app:
+  cors:
+    allowed-origins:
+      - http://localhost:3000
+      - https://opener.vercel.app
