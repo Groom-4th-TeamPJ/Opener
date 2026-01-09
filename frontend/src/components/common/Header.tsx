@@ -36,7 +36,7 @@ export default function Header() {
 
   return (
     <header className="bg-background sticky top-0 z-50 px-4">
-      <div className="mx-auto max-w-6xl flex items-center h-14  justify-between ">
+      <div className="mx-auto max-w-6xl flex items-center h-14 justify-between ">
         <div className="flex gap-6 items-center">
           {/* mobile */}
           <div
@@ -75,7 +75,7 @@ export default function Header() {
                   href={menuItem.href}
                   className={cn(
                     'text-neutral-600',
-                    isActive ? 'text-neutral-900 font-bold' : ' hover:font-bold'
+                    isActive ? 'text-neutral-900 font-bold' : 'hover:font-bold'
                   )}
                 >
                   {menuItem.label}
