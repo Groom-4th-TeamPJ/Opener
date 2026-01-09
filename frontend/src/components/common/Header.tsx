@@ -111,7 +111,7 @@ export default function Header() {
                   key={menuItem.label}
                   href={menuItem.href}
                   onClick={closeMenu}
-                  className="h-14 py-4 px-8 "
+                  className="h-14 py-4 px-4"
                 >
                   {menuItem.label}
                 </Link>
