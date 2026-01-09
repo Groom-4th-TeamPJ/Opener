@@ -13,7 +13,7 @@ export default function NavigationButton({
   submitted,
   onNext,
 }: NavigationButtonProps) {
-  const label = isLastQuestion ? '학습 종료' : '다음'
+  const label = isLastQuestion ? '학습종료' : '다음'
 
   return (
     <Button
@@ -21,15 +21,15 @@ export default function NavigationButton({
       disabled={!submitted}
       variant="ghost"
       className={cn(
-        'w-36 h-36 px-0 bg-white rounded-full flex items-center justify-center shadow-1 transition-all',
+        'w-20 h-20 2xl:w-36 2xl:h-36 px-0 bg-white rounded-full flex items-center justify-center shadow-1 transition-all',
         submitted
           ? 'text-primary-600 hover:bg-white'
           : 'bg-neutral-50 text-neutral-200 cursor-not-allowed'
       )}
     >
       <div className="flex items-center text-xl justify-center gap-1">
-        <p className="font-bold">{label}</p>
-        {!isLastQuestion && <ChevronRight className="-mr-2 -ml-1" />}
+        <p className="font-bold hidden 2xl:block">{label}</p>
+        {!isLastQuestion && <ChevronRight className="2xl:-mr-2 2xl:-ml-1" />}
       </div>
     </Button>
   )
