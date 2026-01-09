@@ -64,6 +64,8 @@ services:
   frontend:
     image: ${DOCKERHUB_USERNAME}/opener-frontend:prod
     container_name: frontend-prod
+    environment:
+      - TZ=Asia/Seoul
     ports:
       - "3000:3000"
     networks:

@@ -46,8 +46,12 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=dev
       - DB_URL=jdbc:postgresql://db:5432/postgres
-      - REDIS_HOST=redis
+      - REDIS_HOST=redis-dev
       - REDIS_PORT=6379
+      - REDIS_TIMEOUT=3000
+      - REDIS_CHAT_HOST=redis-dev
+      - REDIS_CHAT_PORT=6380
+      - REDIS_CHAT_TIMEOUT=3000
       - TZ=Asia/Seoul
     ports:
       - "8080:8080"
@@ -66,6 +70,7 @@ services:
     container_name: frontend-dev
     environment:
       - NODE_ENV=development
+      - TZ=Asia/Seoul
     ports:
       - "3000:3000"
     networks:
