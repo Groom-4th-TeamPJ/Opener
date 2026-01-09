@@ -6,6 +6,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import useLogout from '@/hooks/auth/use-logout'
 import { useState } from 'react'
 import cn from '@/utils/cn'
+import SolidCanIcon from '../icons/SolidCanIcon'
 
 const MENU = [
   { label: '대시보드', href: '/' },
@@ -87,14 +88,7 @@ export default function Header() {
 
         <div className=" flex items-center gap-2">
           <div className="flex gap-1.5 items-center px-4">
-            <Image
-              src="/icons/solid_can_primary.svg"
-              alt="오프너의 재화 캔"
-              width={48}
-              height={48}
-              className="shrink-0 h-5 w-auto"
-              fetchPriority="auto"
-            />
+            <SolidCanIcon className="text-primary-600" />
 
             <span className="font-bold">{/* 캔 개수 */}10</span>
           </div>
