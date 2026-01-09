@@ -3,12 +3,12 @@ package spring.backend.shared.infrastructure.security.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -16,10 +16,16 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import spring.backend.shared.infrastructure.security.filter.FormAuthenticationFilter;
 import spring.backend.shared.infrastructure.security.filter.JwtAuthenticationFilter;
 import spring.backend.shared.infrastructure.security.handler.FormAuthenticationFailureHandler;
 import spring.backend.shared.infrastructure.security.handler.FormAuthenticationSuccessHandler;
+
+import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 @RequiredArgsConstructor
@@ -32,6 +38,9 @@ public class SecurityConfig {
   private final UserDetailsService userDetailsService;
   private final ObjectMapper objectMapper;
 
+    @Value("${app.cors.allowed-origins:}")
+    private String[] allowedOrigins;
+
   @Bean
   public SecurityFilterChain filterChain(
           HttpSecurity http,
@@ -40,7 +49,7 @@ public class SecurityConfig {
 
     http
             .csrf(csrf -> csrf.disable())
-            .cors(Customizer.withDefaults())
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
             .authorizeHttpRequests(auth -> auth
                     .requestMatchers(
@@ -104,4 +113,26 @@ public class SecurityConfig {
   public PasswordEncoder passwordEncoder() {
     return new BCryptPasswordEncoder();
   }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+
+        if (allowedOrigins != null && allowedOrigins.length > 0) {
+            configuration.setAllowedOrigins(Arrays.asList(allowedOrigins));
+            configuration.setAllowCredentials(true);
+        } else {
+            // 운영 설정 누락 시 안전한 fallback (개발용). 운영에서는 사용 금지 권장.
+            configuration.setAllowedOriginPatterns(List.of("*"));
+            configuration.setAllowCredentials(false);
+        }
+
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setMaxAge(3600L);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
 }
