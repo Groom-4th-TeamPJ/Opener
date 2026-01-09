@@ -11,6 +11,8 @@ import spring.backend.domain.exam.repository.spec.ExamRepository;
 import spring.backend.domain.exam.repository.spec.ExamResultRepository;
 import spring.backend.domain.exam.repository.spec.QuestionResultRepository;
 import spring.backend.domain.exam.service.spec.ExamResultService;
+import spring.backend.shared.response.codes.ErrorCode;
+import spring.backend.shared.response.exception.BusinessException;
 
 import java.util.UUID;
 
@@ -31,11 +33,11 @@ public class ExamResultServiceImpl implements ExamResultService {
     @Override
     public Long startExam(UUID userId, Long examId) {
         if (userId == null || examId == null) {
-            throw new IllegalArgumentException("userId and examId must not be null");
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
 
         if (!examRepository.existsById(examId)) {
-            throw new IllegalArgumentException("Invalid examId: " + examId);
+            throw new BusinessException(ErrorCode.EXAM_NOT_FOUND);
         }
 
         ExamResult examResult = ExamResult.of(userId ,examId);
@@ -50,23 +52,23 @@ public class ExamResultServiceImpl implements ExamResultService {
         // 파라미터 검증
         if (examResultId == null || questionId == null || userId == null || request == null
                     || request.getSelected() == null || request.getTimeSpent() == null) {
-            throw new IllegalArgumentException("Parameters must not be null");
+            throw new BusinessException(ErrorCode.MISSING_PARAMETER);
         }
 
         // QuestionResult에 이미 제출된 답안 검증
         if (questionResultRepository.existsByExamResultIdAndQuestionId(examResultId, questionId)) {
-            throw new IllegalArgumentException("Answers for this question have already been submitted");
+            throw new BusinessException(ErrorCode.RESULT_ALREADY_SUBMITTED);
         }
 
         ExamResult examResult = examResultRepository.findByIdAndUserId(examResultId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("ExamResult not found"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESULT_NOT_FOUND));
 
         Question question = examRepository.findQuestionById(questionId)
-                .orElseThrow(() -> new IllegalArgumentException("Question not found"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.QUESTION_NOT_FOUND));
 
         // 질문이 해당 시험에 속하는지 검증
         if (question.getExam() == null || question.getExam().getId() == null || !question.getExam().getId().equals(examResult.getExamId())) {
-            throw new IllegalArgumentException("Question does not belong to this exam");
+            throw new BusinessException(ErrorCode.QUESTION_NOT_IN_EXAM);
         }
 
         // QuestionResult 엔티티 생성
