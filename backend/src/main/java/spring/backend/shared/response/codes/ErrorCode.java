@@ -37,7 +37,10 @@ public enum ErrorCode {
   DATABASE_ERROR(500, "S_002", "데이터베이스 오류가 발생했습니다"),
 
   // chatting 에러 (C_xxx)
-  INVALID_SESSION(400, "C_001", "사용자의 세션 접근권한이 없습니다.");
+  INVALID_SESSION(400, "C_001", "사용자의 세션 접근권한이 없습니다."),
+  SESSION_INITIALIZE_FAIL(500, "C_002", "세션 초기화에 실패하였습니다."),
+  SESSION_EXPIRED(401, "C_003", "만료된 세션입니다.");
+
   private final int status;
   private final String code;
   private final String message;
