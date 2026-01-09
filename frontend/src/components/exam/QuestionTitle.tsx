@@ -23,20 +23,20 @@ export default function QuestionTitle({ exam, question, stopwatchRef }: Question
         {question.order}
       </span>
       <div className="flex flex-col justify-center gap-0.5">
-        <p className="text-lg lg:text-[1.375rem] text-text-primary font-bold leading-tight">
+        <p className="text-lg xl:text-[1.375rem] text-text-primary font-bold leading-tight">
           {exam.year}학년도 {exam.examType.name}
         </p>
         <p className="text-sm text-text-secondary leading-tight">{question.order}번 문항</p>
       </div>
 
-      <div className="lg:ml-auto flex items-center gap-4">
+      <div className="w-full xl:w-auto xl:ml-auto flex items-center gap-4">
         <Badge
           type="solid-pastel"
           size="md"
           variant={pointVariant}
           pill
           label={`${question.point}점`}
-          className="rounded-sm lg:h-7 lg:px-4 lg:text-base"
+          className="rounded-sm xl:h-7 xl:px-4 lg:text-base"
         />
         <Stopwatch ref={stopwatchRef} />
       </div>
