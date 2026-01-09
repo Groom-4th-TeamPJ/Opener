@@ -2,7 +2,7 @@ import cn from '@/utils/cn'
 import { ComponentPropsWithRef, ReactNode } from 'react'
 
 interface ButtonProps extends ComponentPropsWithRef<'button'> {
-  variant?: 'default' | 'ghost' | 'outline'
+  variant?: 'default' | 'secondary' | 'ghost' | 'outline'
   size?: 'sm' | 'md' | 'lg'
   widthFull?: boolean
   isLoading?: boolean
@@ -34,18 +34,20 @@ export default function Button({
       className={cn(
         'inline-flex items-center justify-center gap-2 rounded-lg cursor-pointer font-bold',
         'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        'disabled:pointer-events-none disabled:text-neutral-200',
+        'disabled:pointer-events-none disabled:text-neutral-200 disabled:shadow-1',
         'relative',
 
         variant === 'default' &&
           'bg-primary-600 text-background hover:bg-primary-500 active:bg-primary-700 disabled:bg-neutral-50',
+        variant === 'secondary' &&
+          'bg-neutral-200 text-text-primary hover:bg-neutral-100 active:bg-neutral-300 disabled:bg-neutral-50',
         variant === 'ghost' && 'text-text-primary hover:bg-neutral-50',
         variant === 'outline' &&
           'border border-primary-600 text-text-primary hover:border-primary-500 active:border-primary-700 disabled:border-neutral-50',
 
         size === 'sm' && 'h-8 px-3 text-sm',
         size === 'md' && 'h-10 px-4',
-        size === 'lg' && 'h-12 px-6 text-lg',
+        size === 'lg' && 'h-12 px-6',
 
         widthFull && 'w-full',
 

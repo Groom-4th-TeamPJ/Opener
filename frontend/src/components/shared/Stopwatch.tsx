@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef, useImperativeHandle } from 'react'
+import Image from 'next/image'
 import { formatTime } from '@/utils/format'
 import type { StopwatchProps } from '@/types/exam'
-import TimerIcon from '@/components/icons/TimerIcon'
 
 export default function Stopwatch({ onTimeChange, autoStart = true, ref }: StopwatchProps) {
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
@@ -60,8 +60,14 @@ export default function Stopwatch({ onTimeChange, autoStart = true, ref }: Stopw
 
   return (
     <div className="inline-flex items-center gap-2">
-      <TimerIcon />
-      <div className="text-text-primary text-lg leading-7 min-w-14 tabular-nums">
+      <Image
+        src="/icons/solid_timer_gray.svg"
+        alt=""
+        width={24}
+        height={24}
+        className="w-5 h-5 lg:w-6 lg:h-6"
+      />
+      <div className="text-text-primary lg:text-lg leading-7 tabular-nums">
         {formatTime(elapsedSeconds)}
       </div>
     </div>

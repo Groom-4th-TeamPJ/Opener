@@ -9,7 +9,7 @@ interface CardProps extends ComponentPropsWithRef<'div'> {
 export function Card({ className, children, ...props }: CardProps) {
   return (
     <div
-      className={cn('relative rounded-lg shadow-1 bg-white text-text-primary', className)}
+      className={cn('relative rounded-20 shadow-1 bg-white text-text-primary', className)}
       {...props}
     >
       {children}

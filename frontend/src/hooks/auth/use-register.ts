@@ -4,16 +4,22 @@ import { QUERY_KEYS } from '@/constants/query-key'
 import { API_PATHS } from '@/constants/api-path'
 
 type RegisterBody = {
-  email: string
-  password: string
+  email?: string
+  password?: string
   name: string
+  signupToken?: string
 }
 
 async function registerApi(body: RegisterBody) {
-  return api(API_PATHS.AUTH.FORM_REGISTER, {
-    method: 'POST',
-    body,
-  })
+  const endPoint = body.signupToken ? API_PATHS.AUTH.OAUTH_REGISTER : API_PATHS.AUTH.FORM_REGISTER
+  return api(
+    endPoint,
+    {
+      method: 'POST',
+      body,
+    },
+    false
+  )
 }
 
 export default function useRegister() {
