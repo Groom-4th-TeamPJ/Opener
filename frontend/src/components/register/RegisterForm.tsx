@@ -7,8 +7,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMemo, useState } from 'react'
 import useRegister from '@/hooks/auth/use-register'
 import { useRouter } from 'next/navigation'
-import { toast } from 'sonner'
 import { RegisterFormValues, Term } from '@/types/auth.types'
+import { UiError } from '@/types/api.types'
 
 const PASSWORD_REGEX: RegExp = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[~!@#$%^&*])[A-Za-z\d~!@#$%^&*]{8,20}$/
 
@@ -52,6 +52,7 @@ export default function RegisterForm({ signupToken }: RegisterFormProps) {
     handleSubmit,
     setFocus,
     formState: { errors, isSubmitting },
+    setError,
     clearErrors,
     reset,
   } = useForm<RegisterFormValues>({
@@ -78,10 +79,15 @@ export default function RegisterForm({ signupToken }: RegisterFormProps) {
       setTermError('약관에 동의해주세요.')
     }
     try {
-      // TODO: 추후 API 연동
       handleRegister(form, {
         onSuccess: () => router.replace('/'),
-        onError: (e) => toast.error(e.message),
+        onError: (e: unknown) => {
+          // TODO: 에러 코드 상수화
+          const error = e as UiError
+          if (error.code === 500 && error.errorCode === 'S_001') {
+            setError('email', { message: '이미 존재하는 계정입니다.' }, { shouldFocus: true })
+          }
+        },
       })
     } catch {
       reset()
