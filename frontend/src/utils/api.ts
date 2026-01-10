@@ -1,14 +1,6 @@
 import { API_PATHS } from '@/constants/api-path'
-import type { ApiEnvelope } from '@/types/api.types'
+import type { ApiEnvelope, ApiFail, UiError } from '@/types/api.types'
 import { toast } from 'sonner'
-
-type ApiError = Error & { status: number }
-
-function fail(status: number, message?: string): never {
-  const err = new Error(message ?? 'Api Error') as ApiError
-  err.status = status
-  throw err
-}
 
 type ApiInit = Omit<RequestInit, 'headers' | 'method' | 'body' | 'credentials'> & {
   headers?: Record<string, string>
@@ -25,6 +17,14 @@ type RequestMethod = 'GET' | 'POST'
 
 const DEFAULT_INIT: RequestInit = { cache: 'no-store', next: { revalidate: 0 } }
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'https://opener.deving.xyz/api'
+
+function toUiError(fail: ApiFail): UiError {
+  return {
+    code: fail.code,
+    errorCode: fail.error?.code ?? null,
+    message: fail.error?.reason ?? fail.message,
+  }
+}
 
 // 동시 401에도 refresh 1번
 let refreshPromise: Promise<boolean> | null = null
@@ -80,7 +80,7 @@ async function api<B = unknown>(path: string, options?: RequestConfig<B>): Promi
     body,
   })
 
-  if (!res.ok) fail(res.status, res.statusText)
+  if (!res.ok) throw res
   return res
 }
 
@@ -96,33 +96,26 @@ export default async function apiJson<T>(
   try {
     const res = await api(path, options)
     const json = (await res.json()) as ApiEnvelope<T>
-    if (json.status !== 'success') fail(json.code, json.message)
+    if (json.status !== 'success') throw toUiError(json)
     return json.data
   } catch (e) {
-    const status = e instanceof Error && 'status' in e ? (e as ApiError).status : null
-    if (!(retry && status === 401)) throw e
+    if (e instanceof Response) {
+      const fail = (await e.json()) as ApiFail
 
-    if (!(await refreshOnce())) {
-      // 리프레시 토큰까지 만료된 최후의 상황
-      if (typeof window !== 'undefined') {
-        // 사용자에게 알림
-        toast.error('세션이 만료되었습니다. 다시 로그인해주세요.', {
-          duration: 3000, // 3초 유지
-        })
-
-        // 즉시 이동하지 않고 토스트를 볼 시간을 약간 주고 replace 실행
-        // TODO: 에러 페이지 제작 후 적용
-        setTimeout(() => {
-          window.location.replace('/login')
-        }, 800)
+      if (retry && fail.code === 401) {
+        if (!(await refreshOnce())) {
+          if (typeof window !== 'undefined') {
+            toast.error('세션이 만료되었습니다. 다시 로그인해주세요.', { duration: 3000 })
+            setTimeout(() => window.location.replace('/login'), 800)
+          }
+          throw toUiError(fail)
+        }
+        return apiJson<T>(path, options, false)
       }
-      fail(401, 'Unauthorized')
+
+      throw toUiError(fail)
     }
 
-    // 원요청 1회 재시도
-    const res = await api(path, options)
-    const json = (await res.json()) as ApiEnvelope<T>
-    if (json.status !== 'success') fail(json.code, json.message)
-    return json.data
+    throw toUiError(e as ApiFail)
   }
 }
