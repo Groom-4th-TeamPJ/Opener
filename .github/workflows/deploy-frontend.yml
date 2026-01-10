@@ -31,6 +31,8 @@ jobs:
           context: ./frontend
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/opener-frontend:dev
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
           cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/opener-frontend:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/opener-frontend:buildcache,mode=max
 
