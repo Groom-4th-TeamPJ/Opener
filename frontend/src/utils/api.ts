@@ -17,15 +17,6 @@ type RequestMethod = 'GET' | 'POST'
 
 const DEFAULT_INIT: RequestInit = { cache: 'no-store', next: { revalidate: 0 } }
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'https://opener.deving.xyz/api'
-
-function toUiError(fail: ApiFail): UiError {
-  return {
-    code: fail.code,
-    errorCode: fail.error?.code ?? null,
-    message: fail.error?.reason ?? fail.message,
-  }
-}
-
 // 동시 401에도 refresh 1번
 let refreshPromise: Promise<boolean> | null = null
 const refreshOnce = () =>
@@ -92,10 +83,11 @@ export default async function apiJson<T>(
   path: string,
   options?: Parameters<typeof api>[1],
   retry: boolean = true
-): Promise<T> {
+): Promise<T | null> {
   try {
     const res = await api(path, options)
-    const json = (await res.json()) as ApiEnvelope<T>
+    const json = await readJsonOrNull<T>(res)
+    if (!json) return null
     if (json.status !== 'success') throw toUiError(json)
     return json.data
   } catch (e) {
@@ -117,5 +109,19 @@ export default async function apiJson<T>(
     }
 
     throw toUiError(e as ApiFail)
+  }
+}
+
+async function readJsonOrNull<T>(res: Response): Promise<ApiEnvelope<T> | null> {
+  const text = await res.text().catch(() => '')
+  if (!text) return null
+  return JSON.parse(text) as ApiEnvelope<T>
+}
+
+function toUiError(fail: ApiFail): UiError {
+  return {
+    code: fail.code,
+    errorCode: fail.error?.code ?? null,
+    message: fail.error?.reason ?? fail.message,
   }
 }
