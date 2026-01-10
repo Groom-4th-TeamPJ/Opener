@@ -19,8 +19,8 @@ export default function NavigationButton({
       variant="default"
       size="lg"
       className={cn(
-        'bg-white text-primary-600 hover:bg-primary-50 active:bg-primary-100 hover:border-primary-600 whitespace-nowrap',
-        !submitted && 'cursor-not-allowed opacity-50'
+        'bg-white text-primary-600 hover:text-primary-500 hover:bg-neutral-50 active:text-primary-700 active:bg-neutral-100 whitespace-nowrap',
+        !submitted && 'cursor-not-allowed'
       )}
     >
       {isLastQuestion ? '학습종료' : '다음'}
