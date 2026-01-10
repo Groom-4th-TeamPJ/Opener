@@ -1,7 +1,5 @@
 import { Card, CardContent } from '@/components/common/Card'
 import LegendDot from './LegendDot'
-
-// 너가 이미 만들어 둔 컴포넌트라고 가정
 import CircularChart from './CircularChart'
 
 type AccuracyCardProps = {
