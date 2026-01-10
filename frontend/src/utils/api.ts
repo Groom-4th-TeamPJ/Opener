@@ -108,7 +108,7 @@ export default async function apiJson<T>(
       throw toUiError(fail)
     }
 
-    throw toUiError(e as ApiFail)
+    throw toUiError(e)
   }
 }
 
@@ -118,10 +118,21 @@ async function readJsonOrNull<T>(res: Response): Promise<ApiEnvelope<T> | null> 
   return JSON.parse(text) as ApiEnvelope<T>
 }
 
-function toUiError(fail: ApiFail): UiError {
-  return {
-    code: fail.code,
-    errorCode: fail.error?.code ?? null,
-    message: fail.error?.reason ?? fail.message,
+function toUiError(e: unknown): UiError {
+  if (e && typeof e === 'object' && 'code' in e && 'status' in e && 'message' in e) {
+    const fail = e as ApiFail
+    return {
+      code: fail.code,
+      errorCode: fail.error?.code ?? null,
+      message: fail.error?.reason ?? fail.message,
+    }
   }
+
+  // 일반 Error(네트워크 등)
+  if (e instanceof Error) {
+    return { code: 0, errorCode: 'CLIENT_ERROR', message: e.message }
+  }
+
+  // 나머지
+  return { code: 0, errorCode: 'UNKNOWN', message: '알 수 없는 오류가 발생했습니다.' }
 }
