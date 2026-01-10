@@ -30,14 +30,7 @@ export default function QuestionActionButton({
 
   if (!submitted) {
     return (
-      <Button
-        variant="default"
-        size="lg"
-        widthFull
-        className="rounded-xl"
-        onClick={onSubmit}
-        disabled={isDisabled}
-      >
+      <Button variant="default" size="lg" widthFull onClick={onSubmit} disabled={isDisabled}>
         답안제출
       </Button>
     )
@@ -51,7 +44,6 @@ export default function QuestionActionButton({
         variant="default"
         size="lg"
         widthFull
-        className="rounded-xl"
         onClick={onVariationClick}
         disabled={isDisabledVariation}
         leftIcon={<OutlineCanIcon />}
@@ -66,7 +58,6 @@ export default function QuestionActionButton({
       variant="default"
       size="lg"
       widthFull
-      className="rounded-xl"
       onClick={onShowAnalysis}
       leftIcon={<OutlineCanIcon />}
     >
