@@ -4,18 +4,26 @@ import { Modal, ModalContent, ModalFooter, ModalHeader } from '@/components/comm
 import { useRouter } from 'next/navigation'
 import ExamResultSummary from './ExamResultSummary'
 
-export default function ExamResult() {
-  const router = useRouter()
+interface ExamResultModalProps {
+  open: boolean
+  onClose: () => void
+}
 
-  const onClose = () => {
-    router.back()
-  }
+export default function ExamResultModal({ open, onClose }: ExamResultModalProps) {
+  const router = useRouter()
 
   const handleGoToDashboard = () => {
     router.push('/')
   }
   return (
-    <Modal open={true} onClose={onClose} className="md:max-w-97.5 lg:max-w-150">
+    <Modal
+      open={open}
+      onClose={onClose}
+      closeOnBackdrop={false}
+      closeOnEscape={false}
+      zIndex={100}
+      className="md:max-w-97.5 lg:max-w-150"
+    >
       <ModalHeader onClose={onClose} className="flex">
         <div className="flex justify-between">
           <h2 className="font-bold md:text-xl lg:text-2xl">학습 결과</h2>

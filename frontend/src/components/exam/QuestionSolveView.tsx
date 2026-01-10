@@ -14,8 +14,7 @@ import AIChatbot from './AIChatbot'
 import InactivityModal from '@/components/shared/InactivityModal'
 import NewQuestionModal from '@/components/new-question/NewQuestionModal'
 import ExamExitModal from './ExamExitModal'
-import Button from '@/components/common/Button'
-import cn from '@/utils/cn'
+import ExamResultModal from './ExamResultModal'
 
 interface QuestionSolveProps {
   data: ExamResponse
@@ -38,6 +37,7 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
   const [showInactivityModal, setShowInactivityModal] = useState(false)
   const [showVariationModal, setShowVariationModal] = useState(false)
   const [showExitModal, setShowExitModal] = useState(false)
+  const [showResultModal, setShowResultModal] = useState(false)
   const [hasNewQuestion, setHasNewQuestion] = useState(false)
 
   // 스탑워치 ref
@@ -46,6 +46,7 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
   // 비활성 감지
   useInactivityDetection({
     timeout: INACTIVITY_TIMEOUT,
+    enabled: !showResultModal,
     onInactive: () => {
       setShowInactivityModal(true)
       setShowVariationModal(false)
@@ -83,8 +84,8 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
 
   const handleNext = () => {
     if (isLastQuestion) {
-      // 시험 완료 - 대시보드로 이동
-      router.push(ROUTES.DASHBOARD)
+      // 시험 완료 - 결과 모달 표시
+      setShowResultModal(true)
     } else {
       setCurrentIndex((prev) => prev + 1)
       setSelectedChoice(null)
@@ -124,6 +125,12 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
 
   // 이탈 경고 모달 - 학습 종료하기
   const handleExitConfirm = () => {
+    onClose()
+  }
+
+  // 결과 모달 닫기
+  const handleResultModalClose = () => {
+    setShowResultModal(false)
     onClose()
   }
 
@@ -173,33 +180,8 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
               onFrqAnswerChange={setFrqAnswer}
             />
 
-            {/* 데스크톱: 제출 버튼만 */}
-            <div className="hidden xl:block">
-              <QuestionActionButton
-                submitted={submitted}
-                selectedChoice={selectedChoice}
-                frqAnswer={frqAnswer}
-                questionType={currentQuestion.type}
-                isAnalysisActive={isAnalysisActive}
-                isCorrect={isCorrect}
-                hasNewQuestion={hasNewQuestion}
-                onSubmit={handleSubmit}
-                onShowAnalysis={handleShowAnalysis}
-                onVariationClick={handleVariationClick}
-              />
-            </div>
-
-            {/* Next Button - Floating (데스크톱) */}
-            <div className="hidden xl:block fixed top-1/2 -translate-y-1/2 xl:left-[calc(50%+36rem)] 2xl:left-[calc(50%+36rem-2rem+5rem)]">
-              <NavigationButton
-                isLastQuestion={isLastQuestion}
-                submitted={submitted}
-                onNext={handleNext}
-              />
-            </div>
-
-            {/* 태블릿: 버튼 + 네비게이션 */}
-            <div className="flex xl:hidden gap-4">
+            {/* 버튼 + 네비게이션 */}
+            <div className="flex gap-4">
               <QuestionActionButton
                 submitted={submitted}
                 selectedChoice={selectedChoice}
@@ -213,18 +195,11 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
                 onVariationClick={handleVariationClick}
               />
               <div className="shrink-0">
-                <Button
-                  onClick={submitted ? handleNext : undefined}
-                  disabled={!submitted}
-                  variant="outline"
-                  size="lg"
-                  className={cn(
-                    'w-20 border-neutral-200 hover:border-neutral-200',
-                    !submitted && 'cursor-not-allowed opacity-50'
-                  )}
-                >
-                  {isLastQuestion ? '학습종료' : '다음'}
-                </Button>
+                <NavigationButton
+                  isLastQuestion={isLastQuestion}
+                  submitted={submitted}
+                  onNext={handleNext}
+                />
               </div>
             </div>
           </div>
@@ -253,6 +228,9 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
         onCancel={handleExitCancel}
         onConfirm={handleExitConfirm}
       />
+
+      {/* 학습 결과 모달 */}
+      <ExamResultModal open={showResultModal} onClose={handleResultModalClose} />
     </div>
   )
 }
