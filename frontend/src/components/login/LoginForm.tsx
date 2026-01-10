@@ -4,12 +4,12 @@ import { useForm } from 'react-hook-form'
 import LoginFormView from '@/components/login/LoginFormView'
 import useLogin from '@/hooks/auth/use-login'
 import { useRouter } from 'next/navigation'
-import { toast } from 'sonner'
 import { LoginFormValues } from '@/types/auth.types'
 
 const ERROR_MSG: string =
   '아이디 또는 비밀번호가 잘못되었습니다.\n아이디와 비밀번호를 정확히 입력해주세요.'
 
+// TODO: 사용자 계정 잠금 시 시간 및 안내 메시지 추가
 export default function LoginForm() {
   const router = useRouter()
   const {
@@ -30,10 +30,12 @@ export default function LoginForm() {
       return
     }
     try {
-      // TODO: 추후 API 연동
       login(form, {
         onSuccess: () => router.replace('/'),
-        onError: (e) => toast.error(e.message),
+        onError: () => {
+          setError('root', { message: ERROR_MSG })
+          resetField('password')
+        },
       })
     } catch {
       resetField('password')
