@@ -51,7 +51,7 @@ export default function CircularChart({
   const [progress, setProgress] = useState(0) // 원형 진행용(0~target, 소수)
 
   useEffect(() => {
-    // 모션 줄이기 설정이면 즉시 반영
+    // 모션 줄이기 설정이면 정답률 즉시 반영
     if (prefersReducedMotion) {
       setDisplay(Math.round(target))
       setProgress(target)

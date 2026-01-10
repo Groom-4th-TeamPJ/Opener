@@ -22,7 +22,7 @@ export default function StatCard({
   return (
     <Card>
       <CardHeader
-        className=" font-bold"
+        className="font-bold"
         left={
           <Image
             src={iconSrc}
