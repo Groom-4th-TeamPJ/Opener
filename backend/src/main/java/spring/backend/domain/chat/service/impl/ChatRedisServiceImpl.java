@@ -1,11 +1,8 @@
 package spring.backend.domain.chat.service.impl;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -75,26 +72,32 @@ public class ChatRedisServiceImpl implements ChatRedisService {
     }
 
     @Override
-    public List<Chat> getSessionMessages(Long sessionId) {
-        String key = SESSION_KEY_PREFIX + sessionId;
+    public List<MessageDto> getSessionMessages(Long sessionId) {
+        String messageKey = SESSION_KEY_PREFIX + sessionId + ":messages";
 
         try {
-            String json = redisTemplate.opsForValue().get(key);
-            if (json == null) {
+            // Redis List에서 모든 메시지 조회 (0부터 -1까지 = 전체)
+            // 가져올때는 json 포멧
+            List<String> jsonMessages = redisTemplate.opsForList().range(messageKey, 0, -1);
 
-                return new ArrayList<>();
+            if (jsonMessages == null || jsonMessages.isEmpty()) {
+                return List.of();
             }
 
-            Map<String, Object> sessionData =
-                    objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {
-                    });
-            return objectMapper.convertValue(
-                    sessionData.get("messages"), new TypeReference<List<ChatMessageResponse>>() {
-                    });
+            // JSON 문자열을 MessageDto로 변환
+            return jsonMessages.stream()
+                    .map(json -> {
+                        try {
+                            return objectMapper.readValue(json, MessageDto.class);
+                        } catch (Exception e) {
+                            return null;
+                        }
+                    })
+                    .filter(msg -> msg != null)
+                    .toList();
 
         } catch (Exception e) {
-
-            return new ArrayList<>();
+            throw new BusinessException(ErrorCode.MESSAGE_INPUT_FAIL);
         }
     }
 
