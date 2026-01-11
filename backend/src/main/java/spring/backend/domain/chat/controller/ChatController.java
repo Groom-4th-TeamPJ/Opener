@@ -41,16 +41,15 @@ public class ChatController {
         return null;
     }
 
-    /**
-     * 대화 저장 (Redis → PostgreSQL) POST /api/chat/conversations/{sessionId}/save
-     */
-    @PostMapping("/save/{sessionId}")
+    // 대화 저장 (Redis → PostgreSQL) POST /api/chat/conversations/{sessionId}/save
+    @PostMapping("/save-message/{sessionId}")
     public ResponseEntity<Void> saveConversation(
-            @PathVariable String sessionId, @AuthenticationPrincipal AuthUser authUser) {
+            @PathVariable Long sessionId,
+            @AuthenticationPrincipal AuthUser authUser) {
 
-        chatService.saveConversationAsync(sessionId, authUser.id());
+        chatService.saveMessagesAsync(sessionId, authUser.id());
 
-        return ResponseEntity.accepted().build(); // 202 Accepted
+        return null;
     }
 
     /**
@@ -59,7 +58,6 @@ public class ChatController {
     @GetMapping("/conversations")
     public ResponseEntity<?> getConversations(@AuthenticationPrincipal AuthUser authUser) {
         // TODO: 구현
-        log.info("Get conversations request: userId={}", authUser.id());
         return ResponseEntity.ok().build();
     }
 
@@ -68,6 +66,8 @@ public class ChatController {
     public ResponseEntity<Void> disconnectSession(
             @PathVariable Long sessionId,
             @AuthenticationPrincipal AuthUser authUser) {
-        return chatService.disconnectSession(sessionId, authUser.id());
+        chatService.disconnectSession(sessionId, authUser.id());
+
+        return null;
     }
 }

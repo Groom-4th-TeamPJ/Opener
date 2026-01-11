@@ -13,7 +13,7 @@ public interface ChatService {
     void processUserMessageAsync(ChatSendRequest req, UUID userId);
 
     // 대화 저장 (Redis → PostgreSQL)
-    void saveConversationAsync(String sessionId, UUID userId);
+    void saveMessagesAsync(Long sessionId, UUID userId);
 
     // 명시적 세션 해제
     void disconnectSession(Long sessionId, UUID userId);
