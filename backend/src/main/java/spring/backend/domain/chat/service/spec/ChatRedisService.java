@@ -2,7 +2,7 @@ package spring.backend.domain.chat.service.spec;
 
 import java.util.List;
 import java.util.UUID;
-import spring.backend.domain.chat.dto.redis_dto.MessageInputDto;
+import spring.backend.domain.chat.dto.redis_dto.MessageDto;
 
 public interface ChatRedisService {
 
@@ -10,11 +10,11 @@ public interface ChatRedisService {
     void initializeSession(Long sessionId, UUID userId);
 
     // 메시지 저장
-    void saveMessage(Long sessionId, MessageInputDto message);
+    void saveMessage(Long sessionId, MessageDto message);
 
     // 세션의 모든 메시지 조회
     List<ChatMessageResponse> getSessionMessages(Long sessionId);
-    
+
     // 세션 삭제
     void deleteSession(Long sessionId);
 

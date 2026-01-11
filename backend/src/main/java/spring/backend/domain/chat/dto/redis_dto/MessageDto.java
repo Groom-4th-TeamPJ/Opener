@@ -6,7 +6,7 @@ import lombok.Builder;
 import spring.backend.domain.chat.dto.enums.ChatRole;
 
 @Builder
-public record MessageInputDto(
+public record MessageDto(
 
         // 메세지 주체
         @JsonProperty("role")

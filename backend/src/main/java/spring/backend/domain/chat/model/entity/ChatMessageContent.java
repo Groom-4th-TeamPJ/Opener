@@ -7,6 +7,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import spring.backend.domain.chat.dto.enums.ChatRole;
 
 @Getter
 @Setter
@@ -14,10 +15,10 @@ import lombok.Setter;
 @AllArgsConstructor
 @Builder
 public class ChatMessageContent {
-  
+
     // 메시지 역할: USER, LLM
     @JsonProperty("role")
-    private String role;
+    private ChatRole role;
 
     // 메세지 내용
     @JsonProperty("content")

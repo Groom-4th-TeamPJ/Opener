@@ -11,7 +11,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-import spring.backend.domain.chat.dto.redis_dto.MessageInputDto;
+import spring.backend.domain.chat.dto.redis_dto.MessageDto;
 import spring.backend.domain.chat.dto.request.ChatSendRequest;
 import spring.backend.domain.chat.mapper.RedisMessageMapper;
 import spring.backend.domain.chat.service.spec.ChatRedisService;
@@ -125,7 +125,7 @@ public class ChatServiceImpl implements ChatService {
         // 권한 검증
         chatRedisService.validateSessionOwner(sessionId, userId);
 
-        MessageInputDto msg = redisMessageMapper.toDtoUser(req);
+        MessageDto msg = redisMessageMapper.toDtoUser(req);
 
         // redis 적재
         chatRedisService.saveMessage(sessionId, msg);
@@ -134,9 +134,20 @@ public class ChatServiceImpl implements ChatService {
     @Async
     @Transactional
     @Override
-    public void saveConversationAsync(String sessionId, UUID userId) {
-        // TODO: Redis → PostgreSQL 마이그레이션
-        log.info("Saving conversation: sessionId={}, userId={}", sessionId, userId);
+    public void saveMessagesAsync(Long sessionId, UUID userId) {
+
+        // 스프링 인메모리 힙에 sessionId로 운영중인 SSE 연결 조회
+        SseEmitter sseEmitter = emitters.get(sessionId);
+
+        // SSE 연결 유지 확인
+        if (sseEmitter == null) {
+            throw new BusinessException(ErrorCode.SESSION_EXPIRED);
+        }
+
+        // 권한 검증
+        chatRedisService.validateSessionOwner(sessionId, userId);
+
+
     }
 
     /**
