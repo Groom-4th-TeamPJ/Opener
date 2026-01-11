@@ -44,6 +44,32 @@ spring:
         port: 6380
         timeout: 3000ms
 
+  # RabbitMQ 설정
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    listener:
+      simple:
+        prefetch: 1 # 한 번에 하나의 메시지만 처리
+        acknowledge-mode: auto # 자동 ACK
+        retry:
+          enabled: true
+          initial-interval: 3000 # 3초 후 재시도
+          max-attempts: 3 # 최대 3회 재시도
+
+  # Spring AI 설정
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:your-api-key-here}
+      chat:
+        options:
+          model: ${OPENAI_MODEL:gpt-4o}
+          temperature: 0.7
+          max-tokens: 2000
+        base-url: https://api.openai.com
+
   # Security 개발 설정 (필요시 커스터마이징)
   security:
     user:
