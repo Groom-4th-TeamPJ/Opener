@@ -13,7 +13,7 @@ public interface ChatRedisService {
     void saveMessage(Long sessionId, MessageDto message);
 
     // 세션의 모든 메시지 조회
-    List<ChatMessageResponse> getSessionMessages(Long sessionId);
+    List<MessageDto> getSessionMessages(Long sessionId);
 
     // 세션 삭제
     void deleteSession(Long sessionId);
