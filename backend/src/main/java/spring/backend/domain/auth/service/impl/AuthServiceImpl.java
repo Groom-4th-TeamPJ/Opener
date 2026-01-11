@@ -37,13 +37,12 @@ public class AuthServiceImpl implements AuthService {
   @Qualifier("authRedisTemplate")
   private final StringRedisTemplate redisTemplate;
 
-
   @Override
   public void formSignup(HttpServletResponse response, FormSignupRequest req) {
 
     // 이메일 중복 확인
     if (credentialRepository.existsByEmail(req.email())) {
-      throw new IllegalArgumentException("이미존재하는 계정"); // 이후 공통 응답으로 수정
+      throw new IllegalArgumentException("이미 존재하는 계정"); // 이후 공통 응답으로 수정
     }
 
     // User 생성
