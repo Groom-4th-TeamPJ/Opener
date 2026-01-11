@@ -40,7 +40,8 @@ public enum ErrorCode {
     INVALID_SESSION(400, "C_001", "사용자의 세션 접근권한이 없습니다."),
     SESSION_INITIALIZE_FAIL(500, "C_002", "세션 초기화에 실패하였습니다."),
     SESSION_EXPIRED(401, "C_003", "만료된 세션입니다."),
-    MESSAGE_INPUT_FAIL(401, "C_004", "Redis 메세지 적재에 실패했습니다.");
+    MESSAGE_INPUT_FAIL(401, "C_004", "Redis 메세지 적재에 실패했습니다."),
+    NO_MESSAGE_STORED(401, "C_005", "저장할 채팅 내용이 없습니다.");
 
     private final int status;
     private final String code;
