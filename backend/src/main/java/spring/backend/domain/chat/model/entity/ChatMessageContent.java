@@ -14,20 +14,16 @@ import lombok.Setter;
 @AllArgsConstructor
 @Builder
 public class ChatMessageContent {
+  
+    // 메시지 역할: USER, LLM
+    @JsonProperty("role")
+    private String role;
 
-  // 메세지 순서
-  @JsonProperty("order")
-  private Integer order;
+    // 메세지 내용
+    @JsonProperty("content")
+    private String content;
 
-  // 메시지 역할: USER, LLM
-  @JsonProperty("role")
-  private String role;
-
-  // 메세지 내용
-  @JsonProperty("content")
-  private String content;
-
-  // 메세지 생성 시간
-  @JsonProperty("timestamp")
-  private LocalDateTime timestamp;
+    // 메세지 생성 시간
+    @JsonProperty("timestamp")
+    private LocalDateTime timestamp;
 }
