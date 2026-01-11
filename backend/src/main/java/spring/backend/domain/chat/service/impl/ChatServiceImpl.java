@@ -1,7 +1,6 @@
 package spring.backend.domain.chat.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
@@ -17,8 +16,7 @@ import spring.backend.domain.chat.dto.request.ChatSaveRequest;
 import spring.backend.domain.chat.dto.request.ChatSendRequest;
 import spring.backend.domain.chat.dto.response.SseMessageResponse;
 import spring.backend.domain.chat.mapper.RedisMessageMapper;
-import spring.backend.domain.chat.model.entity.ChatMessage;
-import spring.backend.domain.chat.model.entity.ChatMessageContent;
+import spring.backend.domain.chat.messaging.ChatMessageProducer;
 import spring.backend.domain.chat.repository.spec.ChatMessageRepository;
 import spring.backend.domain.chat.service.spec.ChatRedisService;
 import spring.backend.domain.chat.service.spec.ChatService;
@@ -41,6 +39,7 @@ public class ChatServiceImpl implements ChatService {
     private final UserRepository userRepository;
     private final RedisMessageMapper redisMessageMapper;
     private final ChatMessageRepository chatMessageRepository;
+    private final ChatMessageProducer chatMessageProducer;
 
     @Qualifier("chatRedisTemplate")
     private final StringRedisTemplate redisTemplate;
@@ -138,8 +137,6 @@ public class ChatServiceImpl implements ChatService {
         chatRedisService.saveMessage(sessionId, msg);
     }
 
-    @Async
-    @Transactional
     @Override
     public void saveMessagesAsync(ChatSaveRequest req, UUID userId) {
 
@@ -156,20 +153,9 @@ public class ChatServiceImpl implements ChatService {
         // 권한 검증
         chatRedisService.validateSessionOwner(sessionId, userId);
 
-        // Redis에서 세션 메시지 조회
-        List<MessageDto> messageDtos = chatRedisService.getSessionMessages(sessionId);
-
-        // 메시지가 없으면 저장하지 않음
-        if (messageDtos == null || messageDtos.isEmpty()) {
-            throw new BusinessException(ErrorCode.NO_MESSAGE_STORED);
-        }
-
-        // MessageDto 리스트를 ChatMessageContent 리스트로 변환
-        List<ChatMessageContent> messageContents = redisMessageMapper.toEntityList(messageDtos);
-
-        // ChatMessage 엔티티 생성 및 저장
-        ChatMessage chatMessage = ChatMessage.createFromSession(messageContents);
-        chatMessageRepository.save(chatMessage);
+        // RabbitMQ를 통해 메시지 저장 이벤트 발행
+        // 실제 저장은 ChatMessageConsumer에서 비동기로 처리
+        chatMessageProducer.publishSaveMessageEvent(sessionId, userId);
     }
 
     /**
