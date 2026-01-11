@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import spring.backend.domain.chat.dto.request.ChatSaveRequest;
 import spring.backend.domain.chat.dto.request.ChatSendRequest;
 import spring.backend.domain.chat.service.spec.ChatService;
 import spring.backend.shared.infrastructure.security.dto.AuthUser;
@@ -34,7 +35,8 @@ public class ChatController {
     // 메시지 전송 (사용자 → 서버) POST /api/chat/send
     @PostMapping("/message")
     public ResponseEntity<Void> sendMessage(
-            @RequestBody ChatSendRequest req, @AuthenticationPrincipal AuthUser authUser) {
+            @RequestBody ChatSendRequest req,
+            @AuthenticationPrincipal AuthUser authUser) {
 
         chatService.processUserMessageAsync(req, authUser.id());
 
@@ -44,10 +46,10 @@ public class ChatController {
     // 대화 저장 (Redis → PostgreSQL) POST /api/chat/conversations/{sessionId}/save
     @PostMapping("/save-message/{sessionId}")
     public ResponseEntity<Void> saveConversation(
-            @PathVariable Long sessionId,
+            @PathVariable ChatSaveRequest req,
             @AuthenticationPrincipal AuthUser authUser) {
 
-        chatService.saveMessagesAsync(sessionId, authUser.id());
+        chatService.saveMessagesAsync(req, authUser.id());
 
         return null;
     }
