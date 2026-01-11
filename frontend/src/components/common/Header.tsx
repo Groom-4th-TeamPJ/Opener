@@ -2,11 +2,11 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import Button from './Button'
-import { useRouter, usePathname } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import useLogout from '@/hooks/auth/use-logout'
 import { useState } from 'react'
 import cn from '@/utils/cn'
-import SolidCanIcon from '../icons/SolidCanIcon'
+import SolidCanIcon from '@/components/icons/SolidCanIcon'
 
 const MENU = [
   { label: '대시보드', href: '/' },
@@ -16,17 +16,9 @@ const MENU = [
 ]
 
 export default function Header() {
-  const router = useRouter()
   const pathName = usePathname()
   const { mutate: logout } = useLogout()
   const [isOpen, setIsOpen] = useState(false)
-
-  const handleLogout = () => {
-    // 백엔드 로그아웃 API 호출 및 토큰 삭제 로직 추가 예정
-    logout(undefined, {
-      onSettled: () => router.replace('/login'),
-    })
-  }
 
   const toggleMenu = () => {
     setIsOpen((prev) => !prev)
@@ -97,7 +89,7 @@ export default function Header() {
             variant="ghost"
             size="sm"
             className="w-16 p-0 border border-neutral-200"
-            onClick={handleLogout}
+            onClick={() => logout()}
           >
             로그아웃
           </Button>

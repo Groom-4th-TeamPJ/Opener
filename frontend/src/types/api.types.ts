@@ -11,7 +11,20 @@ export type ApiFail = {
   code: number
   message: string
   data: null
-  error: unknown
+  error: ApiError
+}
+
+export type ApiError = {
+  field: string | null
+  rejectedValue: null
+  reason: string
+  code: string
 }
 
 export type ApiEnvelope<T> = ApiSuccess<T> | ApiFail
+
+export type UiError = {
+  code: number
+  errorCode: string | null
+  message: string
+}
