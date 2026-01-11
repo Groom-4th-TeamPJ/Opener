@@ -1,6 +1,7 @@
 package spring.backend.domain.chat.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
@@ -12,8 +13,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import spring.backend.domain.chat.dto.redis_dto.MessageDto;
+import spring.backend.domain.chat.dto.request.ChatSaveRequest;
 import spring.backend.domain.chat.dto.request.ChatSendRequest;
+import spring.backend.domain.chat.dto.response.SseMessageResponse;
 import spring.backend.domain.chat.mapper.RedisMessageMapper;
+import spring.backend.domain.chat.model.entity.ChatMessage;
+import spring.backend.domain.chat.model.entity.ChatMessageContent;
+import spring.backend.domain.chat.repository.spec.ChatMessageRepository;
 import spring.backend.domain.chat.service.spec.ChatRedisService;
 import spring.backend.domain.chat.service.spec.ChatService;
 import spring.backend.domain.chat.service.spec.LlmService;
@@ -34,6 +40,7 @@ public class ChatServiceImpl implements ChatService {
     private final ObjectMapper objectMapper;
     private final UserRepository userRepository;
     private final RedisMessageMapper redisMessageMapper;
+    private final ChatMessageRepository chatMessageRepository;
 
     @Qualifier("chatRedisTemplate")
     private final StringRedisTemplate redisTemplate;
@@ -134,7 +141,9 @@ public class ChatServiceImpl implements ChatService {
     @Async
     @Transactional
     @Override
-    public void saveMessagesAsync(Long sessionId, UUID userId) {
+    public void saveMessagesAsync(ChatSaveRequest req, UUID userId) {
+
+        Long sessionId = req.sessionId();
 
         // 스프링 인메모리 힙에 sessionId로 운영중인 SSE 연결 조회
         SseEmitter sseEmitter = emitters.get(sessionId);
@@ -147,7 +156,20 @@ public class ChatServiceImpl implements ChatService {
         // 권한 검증
         chatRedisService.validateSessionOwner(sessionId, userId);
 
+        // Redis에서 세션 메시지 조회
+        List<MessageDto> messageDtos = chatRedisService.getSessionMessages(sessionId);
 
+        // 메시지가 없으면 저장하지 않음
+        if (messageDtos == null || messageDtos.isEmpty()) {
+            throw new BusinessException(ErrorCode.NO_MESSAGE_STORED);
+        }
+
+        // MessageDto 리스트를 ChatMessageContent 리스트로 변환
+        List<ChatMessageContent> messageContents = redisMessageMapper.toEntityList(messageDtos);
+
+        // ChatMessage 엔티티 생성 및 저장
+        ChatMessage chatMessage = ChatMessage.createFromSession(messageContents);
+        chatMessageRepository.save(chatMessage);
     }
 
     /**
