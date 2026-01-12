@@ -32,15 +32,15 @@ public class ChatController {
         return chatService.connectSession(sessionId, authUser.id());
     }
 
-    // 메시지 전송 (사용자 → 서버) POST /api/chat/send
+    // 메시지 전송 (사용자 → 서버) POST /api/chat/message
     @PostMapping("/message")
     public ResponseEntity<Void> sendMessage(
             @RequestBody ChatSendRequest req,
             @AuthenticationPrincipal AuthUser authUser) {
 
-        chatService.processUserMessageAsync(req, authUser.id());
+        chatService.processMessageAsync(req, authUser.id());
 
-        return null;
+        return ResponseEntity.ok().build();
     }
 
     // 대화 저장 (Redis → PostgreSQL) POST /api/chat/conversations/{sessionId}/save
@@ -51,7 +51,7 @@ public class ChatController {
 
         chatService.saveMessagesAsync(req, authUser.id());
 
-        return null;
+        return ResponseEntity.ok().build();
     }
 
     /**
