@@ -4,14 +4,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-import spring.backend.domain.chat.dto.redis_dto.MessageDto;
+import spring.backend.domain.chat.dto.redis_dto.RedisMessageDto;
 import spring.backend.domain.chat.dto.request.ChatSaveRequest;
 import spring.backend.domain.chat.dto.request.ChatSendRequest;
 import spring.backend.domain.chat.dto.response.SseMessageResponse;
@@ -26,7 +25,6 @@ import spring.backend.domain.user.repository.spec.UserRepository;
 import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ChatServiceImpl implements ChatService {
@@ -116,9 +114,10 @@ public class ChatServiceImpl implements ChatService {
 
     @Async
     @Override
-    public void processUserMessageAsync(ChatSendRequest req, UUID userId) {
+    public void processMessageAsync(ChatSendRequest req, UUID userId) {
 
         Long sessionId = req.sessionId();
+        String userMessage = req.message();
 
         // 스프링 인메모리 힙에 sessionId로 운영중인 SSE 연결 조회
         SseEmitter sseEmitter = emitters.get(sessionId);
@@ -131,12 +130,41 @@ public class ChatServiceImpl implements ChatService {
         // 권한 검증
         chatRedisService.validateSessionOwner(sessionId, userId);
 
-        MessageDto msg = redisMessageMapper.toDtoUser(req);
+        try {
+            // 사용자 메시지를 Redis에 저장
+            RedisMessageDto userRedisMessageDto = redisMessageMapper.toDtoUser(req);
+            chatRedisService.saveMessage(sessionId, userRedisMessageDto);
 
-        // redis 적재
-        chatRedisService.saveMessage(sessionId, msg);
+            // LLM 응답을 수집할 StringBuilder
+            StringBuilder llmResponseBuilder = new StringBuilder();
+
+            // LLM 스트리밍 호출
+            llmService.chatStream(
+                    sessionId.toString(),
+                    userMessage,
+                    chunk -> {
+                        // 각 청크를 SSE로 전송
+                        sendSseChunk(sseEmitter, sessionId.toString(), chunk);
+
+                        // 전체 응답 수집
+                        llmResponseBuilder.append(chunk);
+                    }
+            );
+
+            // 완전한 LLM 응답을 Redis에 저장
+            String fullLlmResponse = llmResponseBuilder.toString();
+            RedisMessageDto llmRedisMessageDto = redisMessageMapper.toDtoLlm(fullLlmResponse);
+            chatRedisService.saveMessage(sessionId, llmRedisMessageDto);
+
+            // 완료 이벤트 전송
+            sendSseComplete(sseEmitter, sessionId.toString());
+
+        } catch (Exception e) {
+            sendSseError(sseEmitter, sessionId.toString(), e.getMessage());
+        }
     }
 
+    // 대화내용 redis 적재
     @Override
     public void saveMessagesAsync(ChatSaveRequest req, UUID userId) {
 
@@ -158,9 +186,7 @@ public class ChatServiceImpl implements ChatService {
         chatMessageProducer.publishSaveMessageEvent(sessionId, userId);
     }
 
-    /**
-     * SSE 청크 전송
-     */
+    // sse 청크 전송
     private void sendSseChunk(SseEmitter emitter, String sessionId, String chunk) {
         try {
             SseMessageResponse message =
@@ -170,35 +196,26 @@ public class ChatServiceImpl implements ChatService {
                     SseEmitter.event().name("message").data(objectMapper.writeValueAsString(message)));
 
         } catch (Exception e) {
-            log.error("Failed to send SSE chunk: {}", e.getMessage());
         }
     }
 
-    /**
-     * SSE 완료 이벤트 전송
-     */
-    private void sendSseComplete(SseEmitter emitter, String sessionId, int totalTokens) {
+    // sse 완료 알림
+    private void sendSseComplete(SseEmitter emitter, String sessionId) {
         try {
             SseMessageResponse message =
                     SseMessageResponse.builder()
                             .type("complete")
                             .sessionId(sessionId)
-                            .totalTokens(totalTokens)
                             .build();
 
             emitter.send(
                     SseEmitter.event().name("complete").data(objectMapper.writeValueAsString(message)));
 
-            emitter.complete(); // SSE 연결 종료
-
         } catch (Exception e) {
-            log.error("Failed to send SSE complete: {}", e.getMessage());
         }
     }
 
-    /**
-     * SSE 에러 전송
-     */
+    // sse 에러 알림
     private void sendSseError(SseEmitter emitter, String sessionId, String error) {
         try {
             SseMessageResponse message =
@@ -207,10 +224,7 @@ public class ChatServiceImpl implements ChatService {
             emitter.send(
                     SseEmitter.event().name("error").data(objectMapper.writeValueAsString(message)));
 
-            emitter.completeWithError(new RuntimeException(error));
-
         } catch (Exception e) {
-            log.error("Failed to send SSE error: {}", e.getMessage());
         }
     }
 }

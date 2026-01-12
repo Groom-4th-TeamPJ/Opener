@@ -9,7 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
-import spring.backend.domain.chat.dto.redis_dto.MessageDto;
+import spring.backend.domain.chat.dto.redis_dto.RedisMessageDto;
 import spring.backend.domain.chat.service.spec.ChatRedisService;
 import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
@@ -51,7 +51,7 @@ public class ChatRedisServiceImpl implements ChatRedisService {
     }
 
     @Override
-    public void saveMessage(Long sessionId, MessageDto message) {
+    public void saveMessage(Long sessionId, RedisMessageDto message) {
 
         // 레디스 접근 키 (message)
         String key = SESSION_KEY_PREFIX + sessionId + ":messages";
@@ -72,7 +72,7 @@ public class ChatRedisServiceImpl implements ChatRedisService {
     }
 
     @Override
-    public List<MessageDto> getSessionMessages(Long sessionId) {
+    public List<RedisMessageDto> getSessionMessages(Long sessionId) {
         String messageKey = SESSION_KEY_PREFIX + sessionId + ":messages";
 
         try {
@@ -88,7 +88,7 @@ public class ChatRedisServiceImpl implements ChatRedisService {
             return jsonMessages.stream()
                     .map(json -> {
                         try {
-                            return objectMapper.readValue(json, MessageDto.class);
+                            return objectMapper.readValue(json, RedisMessageDto.class);
                         } catch (Exception e) {
                             return null;
                         }
