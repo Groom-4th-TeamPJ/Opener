@@ -1,28 +1,3 @@
-import type { Level } from '@/types/exam'
-
-interface LevelConfig {
-  label: string
-  className: string
-}
-
-export const getLevelConfig = (level: Level): LevelConfig => {
-  const configs: Record<Level, LevelConfig> = {
-    EASY: {
-      label: '쉬움',
-      className: 'bg-warning-600/10 text-warning-600 border-warning-600/20',
-    },
-    MEDIUM: {
-      label: '보통',
-      className: 'bg-success-600/10 text-success-600 border-success-600/20',
-    },
-    HARD: {
-      label: '어려움',
-      className: 'bg-danger-600/10 text-danger-600 border-danger-600/20',
-    },
-  }
-  return configs[level]
-}
-
 interface ChoiceStyleParams {
   index: number
   selectedChoice: number | null
