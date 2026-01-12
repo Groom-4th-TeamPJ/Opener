@@ -29,6 +29,11 @@ spring:
       root: INFO
       spring.backend: DEBUG # 프로젝트 패키지 로그 레벨
 
+  # SSE 및 Async 설정
+  mvc:
+    async:
+      request-timeout: 300000  # 5분 (SSE 타임아웃)
+
 server:
   servlet:
     context-path: /api
@@ -38,3 +43,17 @@ security:
   account-lock:
     max-attempts: 5            # 최대 로그인 실패 허용 횟수
     lock-duration-minutes: 5   # 계정 잠금 시간(분)
+
+# LLM 설정
+llm:
+  api-key: ${LLM_API_KEY:}
+  model: ${LLM_MODEL:gpt-4-turbo-preview}
+  timeout: 60s
+
+# Async 설정
+task:
+  execution:
+    pool:
+      core-size: 10
+      max-size: 20
+      queue-capacity: 100

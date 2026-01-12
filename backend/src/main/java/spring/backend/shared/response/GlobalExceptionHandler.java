@@ -25,21 +25,21 @@ public class GlobalExceptionHandler {
 
     // 단일 error 객체 생성
     ErrorDetailFormat error = new ErrorDetailFormat(
-        null,
-        null,
-        e.getMessage(),
-        errorCode.getCode()
+            null,
+            null,
+            e.getMessage(),
+            errorCode.getCode()
     );
 
     ApiResponseFormat<Void> response = ApiResponseFormat.error(
-        errorCode.getStatus(),
-        errorCode.getMessage(),
-        error
+            errorCode.getStatus(),
+            errorCode.getMessage(),
+            error
     );
 
     return ResponseEntity
-        .status(errorCode.getStatus())
-        .body(response);
+            .status(errorCode.getStatus())
+            .body(response);
   }
 
   /**
@@ -54,29 +54,29 @@ public class GlobalExceptionHandler {
     if (!e.getBindingResult().getFieldErrors().isEmpty()) {
       var fieldError = e.getBindingResult().getFieldErrors().get(0);
       error = new ErrorDetailFormat(
-          fieldError.getField(),
-          fieldError.getRejectedValue(),
-          fieldError.getDefaultMessage(),
-          "C_001"  // 클라이언트 입력 에러 코드
+              fieldError.getField(),
+              fieldError.getRejectedValue(),
+              fieldError.getDefaultMessage(),
+              "C_001"  // 클라이언트 입력 에러 코드
       );
     } else {
       error = new ErrorDetailFormat(
-          null,
-          null,
-          e.getMessage(),
-          "C_001"
+              null,
+              null,
+              e.getMessage(),
+              "C_001"
       );
     }
 
     ApiResponseFormat<Void> response = ApiResponseFormat.error(
-        400,
-        "입력값이 올바르지 않습니다",
-        error
+            400,
+            "입력값이 올바르지 않습니다",
+            error
     );
 
     return ResponseEntity
-        .status(400)
-        .body(response);
+            .status(400)
+            .body(response);
   }
 
   /**
@@ -87,20 +87,20 @@ public class GlobalExceptionHandler {
     log.error("Unexpected error occurred: {}", e.getMessage(), e);
 
     ErrorDetailFormat error = new ErrorDetailFormat(
-        null,
-        null,
-        e.getMessage(),
-        "S_001"  // 서버 에러 코드
+            null,
+            null,
+            e.getMessage(),
+            "S_001"  // 서버 에러 코드
     );
 
     ApiResponseFormat<Void> response = ApiResponseFormat.error(
-        500,
-        "서버 내부 오류가 발생했습니다",
-        error
+            500,
+            "서버 내부 오류가 발생했습니다",
+            error
     );
 
     return ResponseEntity
-        .status(500)
-        .body(response);
+            .status(500)
+            .body(response);
   }
 }
