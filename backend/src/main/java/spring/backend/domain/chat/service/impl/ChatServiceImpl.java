@@ -190,10 +190,16 @@ public class ChatServiceImpl implements ChatService {
     private void sendSseChunk(SseEmitter emitter, String sessionId, String chunk) {
         try {
             SseMessageResponse message =
-                    SseMessageResponse.builder().type("chunk").sessionId(sessionId).chunk(chunk).build();
+                    SseMessageResponse.builder()
+                            .type("chunk")
+                            .sessionId(sessionId)
+                            .chunk(chunk)
+                            .build();
 
             emitter.send(
-                    SseEmitter.event().name("message").data(objectMapper.writeValueAsString(message)));
+                    SseEmitter.event()
+                            .name("message")
+                            .data(objectMapper.writeValueAsString(message)));
 
         } catch (Exception e) {
         }
@@ -209,7 +215,9 @@ public class ChatServiceImpl implements ChatService {
                             .build();
 
             emitter.send(
-                    SseEmitter.event().name("complete").data(objectMapper.writeValueAsString(message)));
+                    SseEmitter.event()
+                            .name("complete")
+                            .data(objectMapper.writeValueAsString(message)));
 
         } catch (Exception e) {
         }
@@ -219,10 +227,16 @@ public class ChatServiceImpl implements ChatService {
     private void sendSseError(SseEmitter emitter, String sessionId, String error) {
         try {
             SseMessageResponse message =
-                    SseMessageResponse.builder().type("error").sessionId(sessionId).error(error).build();
+                    SseMessageResponse.builder()
+                            .type("error")
+                            .sessionId(sessionId)
+                            .error(error)
+                            .build();
 
             emitter.send(
-                    SseEmitter.event().name("error").data(objectMapper.writeValueAsString(message)));
+                    SseEmitter.event()
+                            .name("error")
+                            .data(objectMapper.writeValueAsString(message)));
 
         } catch (Exception e) {
         }
