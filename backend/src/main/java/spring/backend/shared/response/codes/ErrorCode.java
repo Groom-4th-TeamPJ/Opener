@@ -42,7 +42,7 @@ public enum ErrorCode {
     SESSION_EXPIRED(401, "C_003", "만료된 세션입니다."),
     MESSAGE_INPUT_FAIL(401, "C_004", "Redis 메세지 적재에 실패했습니다."),
     NO_MESSAGE_STORED(401, "C_005", "저장할 채팅 내용이 없습니다."),
-    LLM_RESPONSE_FAIL(401, "C_006", "LLM 응답에 실패하였습니다.");
+    LLM_RESPONSE_FAIL(401, "C_006", "LLM 응답에 실패하였습니다."),
 
     // Exam 관련 에러 (E_xxx)
     EXAM_NOT_FOUND(404, "E_001", "시험을 찾을 수 없습니다"),
@@ -53,9 +53,9 @@ public enum ErrorCode {
 
     // Question 관련 에러 (Q_xxx)
     QUESTION_NOT_FOUND(404, "Q_001", "문제를 찾을 수 없습니다"),
-    QUESTION_NOT_IN_EXAM(400, "Q_002", "문제가 해당 시험에 속하지 않습니다"),
+    QUESTION_NOT_IN_EXAM(400, "Q_002", "문제가 해당 시험에 속하지 않습니다");
 
-  private final int status;
-  private final String code;
-  private final String message;
+    private final int status;
+    private final String code;
+    private final String message;
 }
