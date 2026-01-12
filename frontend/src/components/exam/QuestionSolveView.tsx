@@ -15,6 +15,7 @@ import InactivityModal from '@/components/shared/InactivityModal'
 import NewQuestionModal from '@/components/new-question/NewQuestionModal'
 import ExamExitModal from './ExamExitModal'
 import ExamResultModal from './ExamResultModal'
+import { useSSEChat } from '@/hooks/exam/use-sse-chat'
 
 interface QuestionSolveProps {
   data: ExamResponse
@@ -24,9 +25,15 @@ interface QuestionSolveProps {
 // 비활성 타임아웃
 const INACTIVITY_TIMEOUT = 60 * 60 * 1000
 
+// 임시 sessionId
+const STATIC_SESSION_ID = Math.floor(Math.random() * 1000000)
+
 export default function QuestionSolveView({ data, onClose }: QuestionSolveProps) {
   const router = useRouter()
   const { exam, questions } = data
+
+  // SSE 연결 테스트 (콘솔 로그 확인용)
+  useSSEChat({ sessionId: STATIC_SESSION_ID })
 
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null)
