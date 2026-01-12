@@ -10,6 +10,7 @@ import java.util.List;
 @AllArgsConstructor
 @ToString
 public class ExamResponse {
+    private Long examResultId;
     private ExamInfo exam;
     private List<QuestionResponse> questions;
 }

@@ -3,7 +3,11 @@ package spring.backend.domain.exam.model.entity;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import spring.backend.domain.exam.model.converter.OptionsConverter;
 import spring.backend.domain.exam.model.converter.PassagesConverter;
 import spring.backend.domain.exam.model.dto.Option;
@@ -17,10 +21,7 @@ import java.util.List;
 @Entity
 @Table(name = "questions")
 @Getter
-@Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
-@Builder
 public class Question extends BaseEntity {
 
     @Id
@@ -42,10 +43,12 @@ public class Question extends BaseEntity {
     private QuestionType questionType; // "MCQ" / "FRQ" 등
 
     // JSONB 저장 (Postgres 사용 시 columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "passages", columnDefinition = "jsonb")
     @Convert(converter = PassagesConverter.class)
     private List<Passage> passages;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "options", columnDefinition = "jsonb")
     @Convert(converter = OptionsConverter.class)
     private List<Option> options;

@@ -1,0 +1,13 @@
+package spring.backend.domain.exam.service.spec;
+
+import spring.backend.domain.exam.dto.request.SubmitAnswerRequest;
+import spring.backend.domain.exam.dto.response.SubmitAnswerResponse;
+
+import java.util.UUID;
+
+public interface ExamResultService {
+
+    Long startExam(UUID userId, Long examId);
+
+    SubmitAnswerResponse submitAnswers(Long examResultId, Long questionId, UUID userId, SubmitAnswerRequest request);
+}

@@ -5,9 +5,9 @@ import spring.backend.domain.exam.dto.response.ExamResponse;
 import spring.backend.domain.exam.model.enums.Category;
 import spring.backend.domain.exam.model.enums.ExamType;
 
-import java.util.Optional;
+import java.util.UUID;
 
 public interface ExamService {
 
-    Optional<ExamResponse> findExamWithQuestions(Integer examYear, ExamType examType, Category category);
+    ExamResponse findExamWithQuestions(UUID userId, Integer examYear, ExamType examType, Category category);
 }
