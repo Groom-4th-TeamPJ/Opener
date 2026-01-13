@@ -5,6 +5,7 @@ import { LoginFormValues } from '@/types/auth.types'
 import AuthInput from '@/components/auth/AuthInput'
 import Link from 'next/link'
 import cn from '@/utils/cn'
+import { API_PATHS } from '@/constants/api-path'
 
 interface LoginFormViewProps {
   control: Control<LoginFormValues>
@@ -12,6 +13,9 @@ interface LoginFormViewProps {
   errors: FieldErrors<LoginFormValues>
   isSubmitting: boolean
 }
+
+const OAUTH_URL =
+  (process.env.NEXT_PUBLIC_URL ?? 'https://opener.deving.xyz/api') + API_PATHS.AUTH.OAUTH_LOGIN
 
 export default function LoginFormView({
   control,
@@ -50,7 +54,7 @@ export default function LoginFormView({
       </Button>
       <Link
         // TODO: 링크 경로 서버 주소에 맞춰 변경
-        href={'/'}
+        href={OAUTH_URL}
         onClick={(e) => isSubmitting && e.preventDefault()}
         className={cn(
           'inline-flex items-center justify-center gap-2',
@@ -59,7 +63,7 @@ export default function LoginFormView({
           'leading-0 transition-colors duration-200 hover:bg-[#F2D700]'
         )}
       >
-        <Image src={'/kakao/kakao.svg'} alt="카카오 로그인" width={18} height={18} />
+        <Image src={'/icons/kakao.svg'} alt="카카오 로그인" width={18} height={18} />
         <span className="text-black/85">카카오 로그인</span>
       </Link>
     </form>
