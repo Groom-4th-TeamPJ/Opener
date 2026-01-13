@@ -1,7 +1,7 @@
 'use client'
 import { Card, CardContent, CardHeader } from '@/components/common/Card'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ScrapBookListMocks } from '@/mocks/scrap-book-list-mocks'
+import { ScrapBookListMocks } from '@/mocks/scrapbook-list-mocks'
 import Image from 'next/image'
 import Button from '@/components/common/Button'
 import useScrapBookPagination from '@/hooks/scrapbook/use-scrap-book-pagination'
