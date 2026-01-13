@@ -3,9 +3,9 @@
 import React, { useState, useRef, ComponentPropsWithoutRef } from 'react'
 import { useController, Control, Path, FieldValues } from 'react-hook-form'
 import Input from '@/components/common/Input'
-import { Eye, EyeOff, X } from 'lucide-react'
 import cn from '@/utils/cn'
 import Button from '@/components/common/Button'
+import Image from 'next/image'
 
 type InputProps = ComponentPropsWithoutRef<typeof Input>
 
@@ -88,7 +88,16 @@ export default function AuthInput<T extends FieldValues>({
                 onClick={togglePassword}
                 className="px-1"
               >
-                {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+                {showPassword ? (
+                  <Image
+                    src={'icons/eye_off-outline.svg'}
+                    alt="비밀번호 숨기기"
+                    width={20}
+                    height={20}
+                  />
+                ) : (
+                  <Image src={'icons/eye_outline.svg'} alt="비밀번호 보기" width={20} height={20} />
+                )}
               </Button>
             )}
 
@@ -101,9 +110,12 @@ export default function AuthInput<T extends FieldValues>({
                 className="p-1 hover:bg-transparent"
                 tabIndex={-1}
               >
-                <X
-                  className="size-4 rounded-full bg-neutral-200 text-white p-0.5"
-                  strokeWidth={4}
+                <Image
+                  src={'icons/close_white.svg'}
+                  alt="리셋"
+                  width={16}
+                  height={16}
+                  className="rounded-full bg-neutral-200 text-white p-0.5"
                 />
               </Button>
             )}

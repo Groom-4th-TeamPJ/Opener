@@ -1,11 +1,11 @@
 'use client'
 
 import cn from '@/utils/cn'
-import { ChevronDown } from 'lucide-react'
 import { Dispatch, SetStateAction, useState } from 'react'
 import { Term, TermKey } from '@/types/auth.types'
 import TermItem from '@/components/register/TermItem'
 import CircleCheckbox from './CircleCheckBox'
+import Image from 'next/image'
 
 const REQUIRED_TERMS: { key: TermKey; label: string; content?: string }[] = [
   {
@@ -93,12 +93,15 @@ export default function TermsAgreementSection({
             label="필수 및 선택 항목 모두 포함 동의"
           />
 
-          <ChevronDown
-            className={`
-              h-4 w-4 text-muted-foreground
-              transition-transform duration-200
+          <Image
+            src={'icons/chevron_compact-down_gray.svg'}
+            alt="자세히 보기"
+            width={10}
+            height={10}
+            className="
+            transition-transform duration-200
               group-open/root:rotate-180
-            `}
+          "
           />
         </summary>
 

@@ -1,7 +1,7 @@
 import { TermKey } from '@/types/auth.types'
 import cn from '@/utils/cn'
-import { ChevronDown } from 'lucide-react'
 import CircleCheckbox from './CircleCheckBox'
+import Image from 'next/image'
 
 export default function TermItem({
   termKey,
@@ -49,9 +49,12 @@ export default function TermItem({
         />
 
         {content && (
-          <ChevronDown
+          <Image
+            src={'icons/chevron_compact-down_gray.svg'}
+            alt="자세히 보기"
+            width={10}
+            height={10}
             className="
-            h-4 w-4 text-muted-foreground
             transition-transform duration-200
             group-open/term:rotate-180
           "
