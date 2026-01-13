@@ -5,7 +5,7 @@ export interface CodeName {
 
 export interface Passage {
   order: number
-  type: 'text' | 'image'
+  type: 'TEXT' | 'IMAGE'
   text: string | null
   url: string | null
 }
@@ -15,13 +15,10 @@ export interface Option {
   text: string
 }
 
-export type Level = 'EASY' | 'MEDIUM' | 'HARD'
-
 export interface Question {
   questionId: number
-  order: number
-  category: CodeName
-  level: Level
+  questionNo: number
+  category?: CodeName
   point: number
   type: 'MCQ' | 'FRQ'
   passages: Passage[]
@@ -31,7 +28,7 @@ export interface Question {
 
 export interface Exam {
   examId: number
-  year: number
+  examYear: number
   examType: CodeName
 }
 
@@ -42,10 +39,25 @@ export interface ExamResponse {
 
 export interface ChatMessage {
   id: number
-  role: 'user' | 'assistant'
+  role: 'USER' | 'ASSISTANT'
   content: string
   timestamp: string
   highlight?: string
+}
+
+export interface ScrapbookChatMessage {
+  order: number
+  role: 'USER' | 'ASSISTANT'
+  content: string
+  timestamp: string
+}
+
+export interface ScrapbookQuestion extends Question {
+  examYear: number
+  examType: CodeName
+  createdAt: string
+  select: number
+  chat: ScrapbookChatMessage[]
 }
 
 export type ResultData = {
