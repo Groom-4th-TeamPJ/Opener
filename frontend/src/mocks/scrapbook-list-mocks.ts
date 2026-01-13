@@ -1,6 +1,6 @@
-import { ScrapBookListData } from '@/types/scrapbook.type'
+import { ScrapBookListResponse } from '@/types/scrapbook.type'
 
-export const ScrapBookListMocks: ScrapBookListData = {
+export const ScrapBookListMocks: ScrapBookListResponse = {
   status: 'success',
   code: 200,
   message: '성공',
