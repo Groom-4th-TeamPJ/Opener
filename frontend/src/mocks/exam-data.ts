@@ -3,20 +3,20 @@ import type { ExamResponse } from '@/types/exam'
 export const mockExamData: ExamResponse = {
   exam: {
     examId: 1,
-    year: 2025,
+    examYear: 2025,
     examType: { code: 'CSAT', name: '수능' },
   },
   questions: [
     {
       questionId: 31,
-      order: 1,
+      questionNo: 1,
       category: { code: 'CALC', name: '미적분' },
       point: 2,
       type: 'MCQ',
       passages: [
         {
           order: 1,
-          type: 'text',
+          type: 'TEXT',
           text: '다음 극한값을 구하시오.',
           url: null,
         },
@@ -32,14 +32,14 @@ export const mockExamData: ExamResponse = {
     },
     {
       questionId: 32,
-      order: 2,
+      questionNo: 2,
       category: { code: 'GEO', name: '기하' },
       point: 3,
       type: 'FRQ',
       passages: [
         {
           order: 1,
-          type: 'text',
+          type: 'TEXT',
           text: '좌표평면에서 두 점 A(1, 2), B(3, 4) 사이의 거리를 구하시오.',
           url: null,
         },
@@ -49,14 +49,14 @@ export const mockExamData: ExamResponse = {
     },
     {
       questionId: 33,
-      order: 3,
+      questionNo: 3,
       category: { code: 'PROB', name: '확률과 통계' },
       point: 3,
       type: 'MCQ',
       passages: [
         {
           order: 1,
-          type: 'text',
+          type: 'TEXT',
           text: '주머니에 빨간 공 3개, 파란 공 2개가 들어있다. 임의로 2개를 뽑을 때, 2개 모두 빨간 공일 확률은?',
           url: null,
         },
