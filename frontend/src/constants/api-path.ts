@@ -3,6 +3,7 @@
 export const API_PATHS = {
   AUTH: {
     FORM_LOGIN: '/auth/form-login',
+    OAUTH_LOGIN: '/auth/oauth-login',
     LOGOUT: '/auth/logout',
     FORM_REGISTER: '/auth/form-signup',
     OAUTH_REGISTER: '/auth/oauth-signup',

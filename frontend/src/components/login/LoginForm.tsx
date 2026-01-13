@@ -21,7 +21,7 @@ export default function LoginForm() {
     resetField,
   } = useForm<LoginFormValues>({ defaultValues: { email: '', password: '' } })
 
-  const { mutate: login, isPending } = useLogin()
+  const { mutateAsync: login } = useLogin()
 
   const onSubmit = async (form: LoginFormValues) => {
     clearErrors()
@@ -30,12 +30,8 @@ export default function LoginForm() {
       return
     }
     try {
-      login(form, {
+      await login(form, {
         onSuccess: () => router.replace('/'),
-        onError: () => {
-          setError('root', { message: ERROR_MSG })
-          resetField('password')
-        },
       })
     } catch {
       resetField('password')
@@ -48,7 +44,7 @@ export default function LoginForm() {
       control={control}
       onSubmit={handleSubmit(onSubmit)}
       errors={errors}
-      isSubmitting={isSubmitting || isPending}
+      isSubmitting={isSubmitting}
     />
   )
 }
