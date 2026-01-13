@@ -1,0 +1,88 @@
+import { ScrapbookData } from '@/types/scrapbook'
+
+export const SCRAPBOOK_MOCK_DATA: ScrapbookData[] = [
+  {
+    userResultId: 2,
+    year: 2022,
+    examType: { code: 'M06', name: '6모' },
+    analysisCount: 6,
+    recentDate: '2025-12-31',
+  },
+  {
+    userResultId: 55,
+    year: 2021,
+    examType: { code: 'M09', name: '9모' },
+    analysisCount: 6,
+    recentDate: '2025-12-25',
+  },
+  {
+    userResultId: 58,
+    year: 2023,
+    examType: { code: 'M09', name: '9모' },
+    analysisCount: 46,
+    recentDate: '2025-12-30',
+  },
+  {
+    userResultId: 65,
+    year: 2025,
+    examType: { code: 'M09', name: '9모' },
+    analysisCount: 1,
+    recentDate: '2025-11-31',
+  },
+  {
+    userResultId: 54,
+    year: 2024,
+    examType: { code: 'M09', name: '9모' },
+    analysisCount: 2,
+    recentDate: '2025-12-01',
+  },
+  {
+    userResultId: 795,
+    year: 2022,
+    examType: { code: 'M09', name: '9모' },
+    analysisCount: 4,
+    recentDate: '2026-01-31',
+  },
+  {
+    userResultId: 757,
+    year: 2022,
+    examType: { code: 'M09', name: '9모' },
+    analysisCount: 4,
+    recentDate: '2026-01-31',
+  },
+  {
+    userResultId: 7155,
+    year: 2022,
+    examType: { code: 'M09', name: '9모' },
+    analysisCount: 4,
+    recentDate: '2026-01-31',
+  },
+  {
+    userResultId: 756,
+    year: 2022,
+    examType: { code: 'M09', name: '9모' },
+    analysisCount: 4,
+    recentDate: '2026-01-31',
+  },
+  {
+    userResultId: 755,
+    year: 2022,
+    examType: { code: 'M09', name: '9모' },
+    analysisCount: 4,
+    recentDate: '2026-01-31',
+  },
+  {
+    userResultId: 715,
+    year: 2022,
+    examType: { code: 'M09', name: '9모' },
+    analysisCount: 4,
+    recentDate: '2026-01-31',
+  },
+  {
+    userResultId: 725,
+    year: 2022,
+    examType: { code: 'M09', name: '9모' },
+    analysisCount: 4,
+    recentDate: '2026-01-31',
+  },
+]

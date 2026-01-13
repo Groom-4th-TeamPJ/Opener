@@ -1,6 +1,6 @@
 import GreetingSection from '@/components/dashboard/GreetingSection'
 import StatsPanel from '@/components/dashboard/StatsPanel'
-import StartSolveCard from '@/components/dashboard/StartSolveCard'
+import StartSolveCard from '@/components/shared/StartSolveCard'
 
 export default function HomePage() {
   // TODO: API 연동 예정
@@ -21,7 +21,22 @@ export default function HomePage() {
 
         <section className="lg:flex justify-center gap-6 space-y-4 lg:space-y-0">
           {hasStats && <StatsPanel {...stats} />}
-          <StartSolveCard hasStats={hasStats} />
+          <StartSolveCard
+            hasStats={hasStats}
+            title={
+              <>
+                지금 바로
+                <span className="lg:block"> 문제를 풀어보세요</span>
+              </>
+            }
+            description={
+              <>
+                과목과 시험을 선택하면
+                <span className="lg:block"> 문제 풀이를 시작할 수 있어요</span>
+              </>
+            }
+            label="문제풀이 시작하기"
+          />
         </section>
       </main>
     </div>
