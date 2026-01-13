@@ -39,6 +39,32 @@ services:
       timeout: 5s
       retries: 5
 
+  # RabbitMQ with STOMP plugin
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: opener-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
+    ports:
+      - "5672:5672"    # AMQP port
+      - "15672:15672"  # Management UI
+      - "61613:61613"  # STOMP port
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - dev-network
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: >
+      bash -c "
+        rabbitmq-plugins enable rabbitmq_stomp rabbitmq_web_stomp &&
+        rabbitmq-server
+      "
+
   # Backend (Spring Boot)
   backend:
     image: ${DOCKERHUB_USERNAME}/opener-backend:dev
@@ -46,12 +72,16 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=dev
       - DB_URL=jdbc:postgresql://db:5432/postgres
-      - REDIS_HOST=redis-dev
+      - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_TIMEOUT=3000
-      - REDIS_CHAT_HOST=redis-dev
+      - REDIS_CHAT_HOST=redis
       - REDIS_CHAT_PORT=6380
       - REDIS_CHAT_TIMEOUT=3000
+      - SPRING_RABBITMQ_USERNAME=admin
+      - SPRING_RABBITMQ_PASSWORD=admin
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - SPRING_RABBITMQ_PORT=5672
       - TZ=Asia/Seoul
     ports:
       - "8080:8080"
@@ -105,3 +135,4 @@ volumes:
   postgres_data_dev:
   redis_data_dev:
   certbot-www:
+  rabbitmq_data:
