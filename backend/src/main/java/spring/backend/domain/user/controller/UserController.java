@@ -1,53 +1,35 @@
 package spring.backend.domain.user.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import spring.backend.domain.can.dto.response.CanResponse;
+import spring.backend.domain.can.service.spec.CanService;
+import spring.backend.shared.infrastructure.security.dto.AuthUser;
 import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
 
 @Slf4j
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/users")
 public class UserController {
 
-  // 간단한 응답 DTO
-  public static class TestResponse {
-    private String message;
-    private Long timestamp;
+    private final CanService canService;
 
-    public TestResponse(String message) {
-      this.message = message;
-      this.timestamp = System.currentTimeMillis();
+    public UserController(CanService canService) {
+        this.canService = canService;
     }
 
-    public String getMessage() {
-      return message;
+    @Operation
+    @GetMapping("me/cans/count")
+    public CanResponse getMyCans(@AuthenticationPrincipal AuthUser authUser) {
+        if (authUser == null || authUser.id() == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        return canService.getCurrentCan(authUser.id());
     }
-
-    public Long getTimestamp() {
-      return timestamp;
-    }
-  }
-
-  @GetMapping("/test")
-  public TestResponse test() {
-    return new TestResponse("test");
-  }
-
-  @GetMapping("/test/error")
-  public TestResponse testError() {
-    throw new BusinessException(ErrorCode.USER_NOT_FOUND);
-  }
-
-  @GetMapping("/test/error/custom")
-  public TestResponse testCustomError() {
-    throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "커스텀 에러 메시지입니다");
-  }
-
-  @GetMapping("/test/error/server")
-  public TestResponse testServerError() {
-    throw new RuntimeException("예상치 못한 서버 에러 발생");
-  }
 }
