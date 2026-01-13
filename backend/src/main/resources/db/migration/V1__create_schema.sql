@@ -253,10 +253,10 @@ CREATE INDEX IF NOT EXISTS idx_can_usage_logs_created_at ON "can_usage_logs"(cre
 CREATE INDEX IF NOT EXISTS idx_can_usage_logs_deleted_at ON "can_usage_logs"(deleted_at) WHERE deleted_at IS NULL;
 
 -- chat_message 테이블
-CREATE TABLE IF NOT EXISTS "chat_message" (
+CREATE TABLE IF NOT EXISTS "chat_messages" (
     id BIGSERIAL PRIMARY KEY,
     question_result_id BIGINT NOT NULL,
-    history JSONB NOT NULL,
+    messages JSONB NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,
     deleted_at TIMESTAMP,
@@ -267,9 +267,9 @@ CREATE TABLE IF NOT EXISTS "chat_message" (
     REFERENCES "question_results"(id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_chat_message_question_result_id ON "chat_message"(question_result_id);
-CREATE INDEX IF NOT EXISTS idx_chat_message_deleted_at ON "chat_message"(deleted_at) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_chat_message_created_at_desc ON "chat_message"(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_chat_message_question_result_id ON "chat_messages"(question_result_id);
+CREATE INDEX IF NOT EXISTS idx_chat_message_deleted_at ON "chat_messages"(deleted_at) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_chat_message_created_at_desc ON "chat_messages"(created_at DESC);
 
 -- 코멘트 추가 (선택사항)
 COMMENT ON TABLE "users" IS '사용자 정보';
@@ -281,4 +281,4 @@ COMMENT ON TABLE "question_new" IS 'AI가 생성한 신규 문제';
 COMMENT ON TABLE "credentials" IS '인증 정보';
 COMMENT ON TABLE "user_cans" IS '사용자 캔(포인트) 정보';
 COMMENT ON TABLE "can_usage_logs" IS '캔 사용 로그';
-COMMENT ON TABLE "chat_message" IS 'LLM 채팅 메세지';
+COMMENT ON TABLE "chat_messages" IS 'LLM 채팅 메세지';
