@@ -1,19 +1,13 @@
 import type { Exam, Question, StopwatchRef } from '@/types/exam'
 import Stopwatch from '@/components/shared/Stopwatch'
 import { Badge } from '@/components/common/Badge'
+import getPointVariant from '@/utils/get-point-variant'
 
 interface QuestionTitleProps {
   exam: Exam
   question: Question
   stopwatchRef?: React.Ref<StopwatchRef>
 }
-
-const getPointVariant = (point: number): 'success' | 'warning' | 'danger' => {
-  if (point === 2) return 'success'
-  if (point === 3) return 'warning'
-  return 'danger'
-}
-
 export default function QuestionTitle({ exam, question, stopwatchRef }: QuestionTitleProps) {
   const pointVariant = getPointVariant(question.point)
 
