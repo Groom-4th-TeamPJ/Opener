@@ -1,5 +1,5 @@
 import Image from 'next/image'
-import { Card, CardHeader, CardContent } from '../common/Card'
+import { Card, CardHeader, CardContent } from '@/components/common/Card'
 import ScrapbookQuestionTitle from './ScrapbookQuestionTitle'
 import type { ScrapbookQuestion } from '@/types/exam'
 import cn from '@/utils/cn'

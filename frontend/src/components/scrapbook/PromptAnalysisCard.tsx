@@ -1,5 +1,5 @@
 import { Card, CardHeader, CardContent } from '@/components/common/Card'
-import AISparklesIcon from '../icons/AISparklesIcon'
+import AISparklesIcon from '@/components/icons/AISparklesIcon'
 
 interface PromptAnalysisCardProps {
   content?: string
