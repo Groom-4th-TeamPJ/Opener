@@ -54,13 +54,12 @@ export default function RegisterForm({ signupToken }: RegisterFormProps) {
     formState: { errors, isSubmitting },
     setError,
     clearErrors,
-    reset,
   } = useForm<RegisterFormValues>({
     defaultValues: DEFAULT_SET.defaultValues,
     resolver: zodResolver(DEFAULT_SET.schema),
   })
 
-  const { mutate: handleRegister, isPending } = useRegister()
+  const { mutateAsync: register } = useRegister()
 
   const [terms, setTerms] = useState<Term>({
     service: false,
@@ -79,18 +78,15 @@ export default function RegisterForm({ signupToken }: RegisterFormProps) {
       setTermError('약관에 동의해주세요.')
     }
     try {
-      handleRegister(form, {
+      await register(form, {
         onSuccess: () => router.replace('/'),
-        onError: (e: unknown) => {
-          // TODO: 에러 코드 상수화
-          const error = e as UiError
-          if (error.code === 500 && error.errorCode === 'S_001') {
-            setError('email', { message: '이미 존재하는 계정입니다.' }, { shouldFocus: true })
-          }
-        },
       })
-    } catch {
-      reset()
+    } catch (e: unknown) {
+      // TODO: 에러 코드 상수화
+      const error = e as UiError
+      if (error.code === 500 && error.errorCode === 'S_001') {
+        setError('email', { message: '이미 존재하는 계정입니다.' }, { shouldFocus: true })
+      }
     }
   }
 
@@ -120,7 +116,7 @@ export default function RegisterForm({ signupToken }: RegisterFormProps) {
       agreed={agreed}
       termError={termError}
       setTermError={setTermError}
-      isSubmitting={isSubmitting || isPending}
+      isSubmitting={isSubmitting}
       mode={signupToken ? 'oauth' : 'form'}
     />
   )
