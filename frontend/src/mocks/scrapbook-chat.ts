@@ -20,7 +20,7 @@ export const mockScrapbookChatData: { data: ScrapbookQuestion } = {
         order: 2,
         type: 'IMAGE' as const,
         text: null,
-        url: 'https://s3.amazonaws.com/example/2026_math_p1_img2.jpg',
+        url: 'https://placehold.co/400x400/e0e0e0/666?text=Math+Graph',
       },
       {
         order: 3,
