@@ -62,6 +62,7 @@ export default function LoginFormView({
           isSubmitting ? 'bg-[#E6CC00]' : 'bg-[#fee500]',
           'leading-0 transition-colors duration-200 hover:bg-[#F2D700]'
         )}
+        prefetch={false}
       >
         <Image src={'/icons/kakao.svg'} alt="카카오 로그인" width={18} height={18} />
         <span className="text-black/85">카카오 로그인</span>

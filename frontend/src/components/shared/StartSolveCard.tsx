@@ -3,17 +3,26 @@ import Link from 'next/link'
 import { Card, CardContent } from '@/components/common/Card'
 import cn from '@/utils/cn'
 import { ROUTES } from '@/constants/routes'
+import { ReactNode } from 'react'
 
 type StartSolveCardProps = {
-  hasStats: boolean
+  title: ReactNode
+  description: ReactNode
+  hasStats?: boolean
+  label: string
 }
 
-export default function StartSolveCard({ hasStats }: StartSolveCardProps) {
+export default function StartSolveCard({
+  hasStats = false,
+  title,
+  description,
+  label,
+}: StartSolveCardProps) {
   return (
     <Card
       className={cn(
         'flex flex-col items-center justify-center flex-1 lg:py-8',
-        !hasStats && 'min-h-[70vh] lg:min-h-0'
+        !hasStats && 'min-h-[70vh]'
       )}
     >
       <CardContent className="text-center space-y-6 mx-auto">
@@ -22,14 +31,8 @@ export default function StartSolveCard({ hasStats }: StartSolveCardProps) {
         </div>
 
         <div className="lg:space-y-2">
-          <h1 className="text-lg lg:text-xl text-text-primary font-bold leading-tight">
-            지금 바로
-            <span className="lg:block"> 문제를 풀어보세요</span>
-          </h1>
-          <span className="text-xs lg:text-sm text-text-secondary">
-            과목과 시험을 선택하면
-            <span className="lg:block"> 문제 풀이를 시작할 수 있어요</span>
-          </span>
+          <h1 className="text-lg lg:text-xl text-text-primary font-bold leading-tight">{title}</h1>
+          <span className="text-xs lg:text-sm text-text-secondary">{description}</span>
         </div>
 
         <Link
@@ -40,7 +43,7 @@ export default function StartSolveCard({ hasStats }: StartSolveCardProps) {
             'bg-primary-600 text-background hover:bg-primary-500 active:bg-primary-700'
           )}
         >
-          문제풀이 시작하기
+          {label}
         </Link>
       </CardContent>
     </Card>
