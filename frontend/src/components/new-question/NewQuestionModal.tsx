@@ -68,7 +68,7 @@ export default function NewQuestionModal({ open, onClose }: NewQuestionModalProp
               </ModalContent>
 
               {/* 구분선 */}
-              <div className="border-t border-t-neutral-200 mt-4 mb-4 lg:mt-6 lg:mb-6" />
+              <div className="border-t border-t-neutral-200 my-4 lg:my-6" />
 
               <ModalContent className="flex flex-col gap-4">
                 <h3 className="font-bold text-neutral-600">답안 선택</h3>
