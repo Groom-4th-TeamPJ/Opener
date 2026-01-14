@@ -17,7 +17,7 @@ export default function ScrapBookPagination({
   pages,
 }: ScrapBookPaginationProps) {
   return (
-    <nav className="flex mt-9 gap-4 mx-auto">
+    <nav className="flex mt-4 gap-4 mx-auto">
       <ul className="flex gap-2">
         {currentPage === 1 ? (
           <li>
