@@ -4,8 +4,7 @@ import { useState } from 'react'
 import Button from '@/components/common/Button'
 import YearSelectBox from './YearSelectBox'
 import QuestionSolve from './QuestionSolveView'
-import { mockExamData } from '@/mocks/exam-data'
-import type { ExamResponse } from '@/types/exam'
+import useStartExam from '@/hooks/exam/use-start-exam'
 
 const categories = [
   { id: 'CALC', name: '미적분' },
@@ -19,37 +18,41 @@ const examTypes = [
   { id: 'CSAT', name: '수학능력시험' },
 ]
 
-const currentYear = new Date().getFullYear() - 1
+const currentYear = new Date().getFullYear()
 
 export default function ExamSelect() {
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [selectedYear, setSelectedYear] = useState<number>(currentYear)
   const [selectedExamType, setSelectedExamType] = useState<string>('')
-  const [examData, setExamData] = useState<ExamResponse | null>(null)
+  const [isExamActive, setIsExamActive] = useState(false)
 
   const canStart = !!(selectedCategory && selectedYear && selectedExamType)
 
-  const handleStartExam = () => {
+  const { mutateAsync, data: examData } = useStartExam()
+
+  const handleStartExam = async () => {
     if (!canStart) return
 
-    // const params = {
-    //   year: Number(selectedYear),
-    //   category: selectedCategory,
-    //   examType: selectedExamType,
-    // }
+    const result = await mutateAsync({
+      examYear: selectedYear,
+      category: selectedCategory,
+      examType: selectedExamType,
+    })
 
-    // TODO: GET /api/exam?year={year}&category={category}&examType={examType}
-    // TODO: Authorization: Bearer {accessToken} 헤더 추가
-
-    // Mock 데이터 로드
-    setExamData(mockExamData)
+    if (result) {
+      setIsExamActive(true)
+    }
   }
 
+  const handleClose = () => {
+    setIsExamActive(false)
+  }
+  //TODO: 새로고침 문제 복원 시 examResultId 저장 필요 & 조건문 변경
   // 문제 풀이 화면으로 전환
-  if (examData) {
+  if (isExamActive && examData) {
     return (
       <div className="fixed inset-0 z-100 bg-background">
-        <QuestionSolve data={examData} onClose={() => setExamData(null)} />
+        <QuestionSolve data={examData} onClose={handleClose} />
       </div>
     )
   }

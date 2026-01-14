@@ -11,7 +11,7 @@ interface YearSelectBoxProps {
   isSelected?: boolean
 }
 
-const currentYear = new Date().getFullYear() - 1
+const currentYear = new Date().getFullYear()
 const years = Array.from({ length: 4 }, (_, i) => currentYear - i)
 
 export default function YearSelectBox({ value, onChange, isSelected = false }: YearSelectBoxProps) {
