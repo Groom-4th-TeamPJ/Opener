@@ -10,10 +10,10 @@ export const API_PATHS = {
     REFRESH: '/auth/refresh',
   },
   EXAM: {
-    ROOT: '/exam',
-    ANALYSIS: '/exam/analysis',
-    GENERATE: '/exam/generate',
-    SAVE_CHAT: '/exam/save-chat',
+    ROOT: '/exams',
+    ANALYSIS: '/exams/analysis',
+    GENERATE: '/exams/generate',
+    SAVE_CHAT: '/exams/save-chat',
   },
   CHAT: {
     CONNECT: '/chat/connect',
