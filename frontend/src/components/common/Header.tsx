@@ -4,9 +4,10 @@ import Image from 'next/image'
 import Button from './Button'
 import { usePathname } from 'next/navigation'
 import useLogout from '@/hooks/auth/use-logout'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import cn from '@/utils/cn'
 import SolidCanIcon from '@/components/icons/SolidCanIcon'
+import { getCanCount } from '@/hooks/Header/use-can'
 
 const MENU = [
   { label: '대시보드', href: '/' },
@@ -19,13 +20,24 @@ export default function Header() {
   const pathName = usePathname()
   const { mutate: logout } = useLogout()
   const [isOpen, setIsOpen] = useState(false)
-
+  const [currentCan, setCurrentCan] = useState(0)
   const toggleMenu = () => {
     setIsOpen((prev) => !prev)
   }
   const closeMenu = () => {
     setIsOpen(false)
   }
+  useEffect(() => {
+    const fetchCan = async () => {
+      try {
+        const data = await getCanCount()
+        setCurrentCan(data?.currentCans ?? 0)
+      } catch (e) {
+        setCurrentCan(0)
+      }
+    }
+    fetchCan()
+  }, [])
 
   return (
     <header className="bg-background sticky top-0 z-50 px-4">
@@ -82,7 +94,7 @@ export default function Header() {
           <div className="flex gap-1.5 items-center px-4">
             <SolidCanIcon className="text-primary-600" />
 
-            <span className="font-bold">{/* 캔 개수 */}10</span>
+            <span className="font-bold">{currentCan}</span>
           </div>
 
           <Button

@@ -20,4 +20,7 @@ export const API_PATHS = {
     DISCONNECT: '/chat/disconnect',
     MESSAGE: '/chat/message',
   },
+  USERS: {
+    ME: '/users/me/cans/count',
+  },
 } as const
