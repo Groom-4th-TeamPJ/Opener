@@ -115,7 +115,7 @@ public class JwtUtil {
         // Access Token HttpOnly에 적재
         ResponseCookie accessCookie = ResponseCookie.from("accessToken", accessToken)
                 .httpOnly(true)
-                .secure(false)
+                .secure(true)
                 .path("/api/")
                 .sameSite("None")
                 .maxAge(Duration.ofMinutes(60)) // 수명 : 1시간
@@ -124,7 +124,7 @@ public class JwtUtil {
         // Refresh Token HttpOnly에 적재
         ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", refreshToken)
                 .httpOnly(true)
-                .secure(false)
+                .secure(true)
                 .path("/api/auth/refresh")
                 .sameSite("None")
                 .maxAge(Duration.ofDays(7)) // 수명 : 7일
