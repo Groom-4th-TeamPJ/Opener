@@ -177,3 +177,21 @@ body {
     0px 4px 30px 0px rgba(0, 179, 171, 0.08),
     0px 2px 12px 0px rgba(0, 179, 171, 0.04);
 }
+
+/* =========================
+ * KaTeX Styles
+ * ========================= */
+.katex {
+  font-size: 1.1em;
+}
+
+.katex * {
+  box-sizing: border-box;
+}
+
+/* 모바일에서 수식 크기 조정 */
+@media (max-width: 768px) {
+  .katex {
+    font-size: 0.9em;
+  }
+}

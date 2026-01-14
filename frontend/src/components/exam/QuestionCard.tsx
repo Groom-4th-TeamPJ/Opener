@@ -2,6 +2,7 @@ import { Card, CardHeader, CardContent, CardFooter } from '@/components/common/C
 import ResultBanner from '@/components/shared/ResultBanner'
 import type { Exam, Question, StopwatchRef } from '@/types/exam'
 import QuestionTitle from './QuestionTitle'
+import renderLatex from '@/utils/render-latex'
 
 interface QuestionCardProps {
   exam: Exam
@@ -30,7 +31,10 @@ export default function QuestionCard({
             key={passage.order}
             className="self-stretch flex flex-col justify-start items-start gap-1"
           >
-            <p className="leading-6">{passage.text}</p>
+            <div
+              className="leading-7"
+              dangerouslySetInnerHTML={{ __html: renderLatex(passage.text || '') }}
+            />
           </div>
         ))}
       </CardContent>
