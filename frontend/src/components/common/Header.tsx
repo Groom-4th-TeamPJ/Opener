@@ -8,12 +8,13 @@ import { useState } from 'react'
 import cn from '@/utils/cn'
 import SolidCanIcon from '@/components/icons/SolidCanIcon'
 import useCanCount from '@/hooks/Header/use-can-count'
+import { ROUTES } from '@/constants/routes'
 
 const MENU = [
-  { label: '대시보드', href: '/' },
-  { label: '문제풀이', href: '/exam' },
-  { label: '스크랩북', href: '/scrapbook' },
-  { label: '마이페이지', href: '/mypage' },
+  { label: '대시보드', href: ROUTES.DASHBOARD },
+  { label: '문제풀이', href: ROUTES.EXAM },
+  { label: '스크랩북', href: ROUTES.SCRAPBOOK },
+  { label: '마이페이지', href: ROUTES.MY_PAGE },
 ]
 
 export default function Header() {
