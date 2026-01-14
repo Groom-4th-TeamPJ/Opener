@@ -1,5 +1,5 @@
 import cn from '@/utils/cn'
-import { CSSProperties, HTMLAttributes } from 'react'
+import { CSSProperties, HTMLAttributes, ReactNode } from 'react'
 
 type BadgeType = 'outline' | 'solid' | 'solid-pastel'
 type BadgeVariant = 'primary' | 'secondary' | 'warning' | 'danger' | 'success' | 'info'
@@ -11,10 +11,11 @@ interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
   size?: BadgeSize
   pill?: boolean
   label: string
+  leftIcon?: ReactNode
 }
 
 const base: string =
-  'inline-flex items-center justify-center whitespace-nowrap select-none ' +
+  'inline-flex items-center justify-center gap-1 whitespace-nowrap select-none ' +
   'ring-1 ring-inset transition-colors'
 
 const sizeClass: Record<BadgeSize, string> = {
@@ -82,6 +83,7 @@ export function Badge({
   size = 'md',
   pill = false,
   label,
+  leftIcon,
   ...props
 }: BadgeProps) {
   const t: (typeof COLOR_TOKENS)[BadgeVariant] = COLOR_TOKENS[variant]
@@ -98,6 +100,7 @@ export function Badge({
       )}
       {...props}
     >
+      {leftIcon && <span className="shrink-0">{leftIcon}</span>}
       {label}
     </span>
   )
