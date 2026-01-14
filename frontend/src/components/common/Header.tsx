@@ -7,19 +7,21 @@ import useLogout from '@/hooks/auth/use-logout'
 import { useState } from 'react'
 import cn from '@/utils/cn'
 import SolidCanIcon from '@/components/icons/SolidCanIcon'
+import useCanCount from '@/hooks/header/use-can-count'
+import { ROUTES } from '@/constants/routes'
 
 const MENU = [
-  { label: '대시보드', href: '/' },
-  { label: '문제풀이', href: '/exam' },
-  { label: '스크랩북', href: '/scrapbook' },
-  { label: '마이페이지', href: '/mypage' },
+  { label: '대시보드', href: ROUTES.DASHBOARD },
+  { label: '문제풀이', href: ROUTES.EXAM },
+  { label: '스크랩북', href: ROUTES.SCRAPBOOK },
+  { label: '마이페이지', href: ROUTES.MY_PAGE },
 ]
 
 export default function Header() {
   const pathName = usePathname()
   const { mutate: logout } = useLogout()
   const [isOpen, setIsOpen] = useState(false)
-
+  const { data } = useCanCount()
   const toggleMenu = () => {
     setIsOpen((prev) => !prev)
   }
@@ -82,7 +84,7 @@ export default function Header() {
           <div className="flex gap-1.5 items-center px-4">
             <SolidCanIcon className="text-primary-600" />
 
-            <span className="font-bold">{/* 캔 개수 */}10</span>
+            <span className="font-bold">{data?.currentCans ?? 0}</span>
           </div>
 
           <Button
