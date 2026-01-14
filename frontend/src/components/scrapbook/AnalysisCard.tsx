@@ -18,7 +18,7 @@ export default function AnalysisCard({
   recentDate,
 }: ScrapbookData) {
   return (
-    <Link href={`${ROUTES.SCRAPBOOK}/${userResultId}`}>
+    <Link href={`${ROUTES.SCRAPBOOK}/${userResultId}`} prefetch={false}>
       <Card className="hover:shadow-2">
         <CardHeader className="py-4">
           <Badge label={year.toString()} variant="secondary" type="solid-pastel" />
