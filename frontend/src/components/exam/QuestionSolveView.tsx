@@ -40,6 +40,7 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
   const [frqAnswer, setFrqAnswer] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
+  const [correctAnswer, setCorrectAnswer] = useState<number | null>(null)
   const [isAnalysisActive, setIsAnalysisActive] = useState(false)
   const [showInactivityModal, setShowInactivityModal] = useState(false)
   const [showVariationModal, setShowVariationModal] = useState(false)
@@ -70,22 +71,18 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
   }, [currentIndex])
 
   const handleChoiceSelect = (index: number) => {
-    if (submitted || currentQuestion.type === 'FRQ') return
+    if (submitted || currentQuestion.questionType === 'FRQ') return
     setSelectedChoice(index)
   }
 
   const handleSubmit = () => {
-    if (currentQuestion.type === 'MCQ' && selectedChoice === null) return
-    if (currentQuestion.type === 'FRQ' && frqAnswer.trim() === '') return
+    if (currentQuestion.questionType === 'MCQ' && selectedChoice === null) return
+    if (currentQuestion.questionType === 'FRQ' && frqAnswer.trim() === '') return
 
     // 답안 제출 시 스탑워치 정지
     stopwatchRef.current?.stop()
 
-    const correct =
-      currentQuestion.type === 'MCQ'
-        ? selectedChoice === currentQuestion.answer
-        : Number(frqAnswer) === currentQuestion.answer
-    setIsCorrect(correct)
+    // TODO: API로 정답 확인 요청
     setSubmitted(true)
   }
 
@@ -99,6 +96,7 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
       setFrqAnswer('')
       setSubmitted(false)
       setIsCorrect(null)
+      setCorrectAnswer(null)
       setIsAnalysisActive(false)
       setHasNewQuestion(false)
     }
@@ -183,6 +181,7 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
               frqAnswer={frqAnswer}
               submitted={submitted}
               isCorrect={isCorrect}
+              correctAnswer={correctAnswer}
               onChoiceSelect={handleChoiceSelect}
               onFrqAnswerChange={setFrqAnswer}
             />
@@ -193,7 +192,7 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
                 submitted={submitted}
                 selectedChoice={selectedChoice}
                 frqAnswer={frqAnswer}
-                questionType={currentQuestion.type}
+                questionType={currentQuestion.questionType}
                 isAnalysisActive={isAnalysisActive}
                 isCorrect={isCorrect}
                 hasNewQuestion={hasNewQuestion}

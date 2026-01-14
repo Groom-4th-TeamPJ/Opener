@@ -25,7 +25,7 @@ export default function ScrapbookQuestionCard({ data }: ScrapbookQuestionCardPro
         {/* 임시 이미지 추후 변경 */}
         {data.passages.map((passage) => (
           <div key={passage.order} className="flex flex-col justify-start items-start">
-            {passage.type === 'TEXT' && <p className="leading-6">{passage.text}</p>}
+            {passage.type === 'TEXT' && <p className="leading-6">{passage.content}</p>}
             {passage.type === 'IMAGE' && passage.url && (
               <Image
                 src={passage.url}
@@ -44,7 +44,7 @@ export default function ScrapbookQuestionCard({ data }: ScrapbookQuestionCardPro
         <div className="flex flex-col gap-3">
           <p className="text-sm 2xl:text-base font-bold text-text-secondary">답안 영역</p>
 
-          {data.type === 'MCQ' && data.options ? (
+          {data.questionType === 'MCQ' && data.options ? (
             // 객관식
             <>
               {data.options.map((option) => {
@@ -76,7 +76,7 @@ export default function ScrapbookQuestionCard({ data }: ScrapbookQuestionCardPro
                       isWrong={isWrongSelected}
                       isCorrect={isAnswer}
                       name="answer"
-                      optionText={option.text}
+                      optionText={option.content}
                     />
                   </FRQAnswer>
                 )

@@ -46,7 +46,7 @@ export default function AIChatbot({
 
   useEffect(() => {
     if (isActive && messages.length === 0 && !initialMessages) {
-      const userAnswer = question.type === 'MCQ' ? `${selectedChoice}번` : frqAnswer
+      const userAnswer = question.questionType === 'MCQ' ? `${selectedChoice}번` : frqAnswer
       const highlightText = `${userAnswer}을 선택했네요.`
       const contentText = `왜 ${userAnswer}이 정답이라고 생각하셨나요?\n어떤 근거로 그렇게 판단하셨는지 설명해주세요!`
 
@@ -60,7 +60,7 @@ export default function AIChatbot({
         },
       ])
     }
-  }, [isActive, messages.length, question.type, selectedChoice, frqAnswer, initialMessages])
+  }, [isActive, messages.length, question.questionType, selectedChoice, frqAnswer, initialMessages])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })

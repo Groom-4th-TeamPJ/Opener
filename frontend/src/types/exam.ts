@@ -6,13 +6,13 @@ export interface CodeName {
 export interface Passage {
   order: number
   type: 'TEXT' | 'IMAGE'
-  text: string | null
-  url: string | null
+  content: string
+  url?: string
 }
 
 export interface Option {
   order: number
-  text: string
+  content: string
 }
 
 export interface Question {
@@ -20,21 +20,29 @@ export interface Question {
   questionNo: number
   category?: CodeName
   point: number
-  type: 'MCQ' | 'FRQ'
+  questionType: 'MCQ' | 'FRQ'
   passages: Passage[]
   options: Option[] | null
-  answer: number
 }
 
 export interface Exam {
   examId: number
   examYear: number
   examType: CodeName
+  name: string
+  quantity: number
 }
 
 export interface ExamResponse {
+  examResultId: number
   exam: Exam
   questions: Question[]
+}
+
+export interface SubmitAnswerResponse {
+  questionResultId: number
+  isCorrect: boolean
+  answer: number
 }
 
 export interface ChatMessage {
@@ -57,6 +65,7 @@ export interface ScrapbookQuestion extends Question {
   examType: CodeName
   createdAt: string
   select: number
+  answer: number
   chat: ScrapbookChatMessage[]
 }
 
