@@ -32,7 +32,7 @@ export default function Header() {
       try {
         const data = await getCanCount()
         setCurrentCan(data?.currentCans ?? 0)
-      } catch (e) {
+      } catch {
         setCurrentCan(0)
       }
     }
