@@ -26,7 +26,6 @@ import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
 
 @Service
-@RequiredArgsConstructor
 public class ChatServiceImpl implements ChatService {
 
     // SSE 타임아웃 (5분)
@@ -38,12 +37,30 @@ public class ChatServiceImpl implements ChatService {
     private final RedisMessageMapper redisMessageMapper;
     private final ChatMessageRepository chatMessageRepository;
     private final ChatMessageProducer chatMessageProducer;
-
-    @Qualifier("chatRedisTemplate")
     private final StringRedisTemplate redisTemplate;
 
     // SSE 연결 관리 (sessionId → SseEmitter)
     private final ConcurrentHashMap<Long, SseEmitter> emitters = new ConcurrentHashMap<>();
+
+    public ChatServiceImpl(
+            ChatRedisService chatRedisService,
+            LlmService llmService,
+            ObjectMapper objectMapper,
+            UserRepository userRepository,
+            RedisMessageMapper redisMessageMapper,
+            ChatMessageRepository chatMessageRepository,
+            ChatMessageProducer chatMessageProducer,
+            @Qualifier("chatRedisTemplate") StringRedisTemplate redisTemplate
+    ) {
+        this.chatRedisService = chatRedisService;
+        this.llmService = llmService;
+        this.objectMapper = objectMapper;
+        this.userRepository = userRepository;
+        this.redisMessageMapper = redisMessageMapper;
+        this.chatMessageRepository = chatMessageRepository;
+        this.chatMessageProducer = chatMessageProducer;
+        this.redisTemplate = redisTemplate;
+    }
 
     @Override
     @Transactional

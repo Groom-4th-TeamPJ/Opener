@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -16,15 +15,20 @@ import spring.backend.shared.response.exception.BusinessException;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ChatRedisServiceImpl implements ChatRedisService {
 
     private static final String SESSION_KEY_PREFIX = "chat:session:";
     private static final Duration SESSION_TTL = Duration.ofMinutes(5);
     private final ObjectMapper objectMapper;
-
-    @Qualifier("chatRedisTemplate")
     private final StringRedisTemplate redisTemplate;
+
+    public ChatRedisServiceImpl(
+            ObjectMapper objectMapper,
+            @Qualifier("chatRedisTemplate") StringRedisTemplate redisTemplate
+    ) {
+        this.objectMapper = objectMapper;
+        this.redisTemplate = redisTemplate;
+    }
 
     @Override
     public void initializeSession(Long sessionId, UUID userId) {
@@ -42,10 +46,16 @@ public class ChatRedisServiceImpl implements ChatRedisService {
             // 세션 메타데이터 저장 (HASH)
             redisTemplate.opsForHash().put(sessionKey, "userId", userId.toString());
 
-            // TTL 설정
-            redisTemplate.expire(sessionKey, SESSION_TTL);
+            // TTL 설정 및 검증
+            Boolean ttlSet = redisTemplate.expire(sessionKey, SESSION_TTL);
+            if (!Boolean.TRUE.equals(ttlSet)) {
+                log.warn("Failed to set TTL for session: {}", sessionId);
+            } else {
+                log.debug("Session initialized successfully: {} with TTL: {}", sessionId, SESSION_TTL);
+            }
 
         } catch (Exception e) {
+            log.error("Failed to initialize session: {}", sessionId, e);
             throw new BusinessException(ErrorCode.SESSION_INITIALIZE_FAIL);
         }
     }
@@ -54,19 +64,27 @@ public class ChatRedisServiceImpl implements ChatRedisService {
     public void saveMessage(Long sessionId, RedisMessageDto message) {
 
         // 레디스 접근 키 (message)
-        String key = SESSION_KEY_PREFIX + sessionId + ":messages";
+        String messageKey = SESSION_KEY_PREFIX + sessionId + ":messages";
 
         try {
             // 메시지를 JSON 문자열로 변환
             String json = objectMapper.writeValueAsString(message);
 
             // Redis List에 메시지 추가 (순서 보장)
-            redisTemplate.opsForList().rightPush(key, json);
+            redisTemplate.opsForList().rightPush(messageKey, json);
 
-            // TTL 설정
-            redisTemplate.expire(key, SESSION_TTL);
+            // TTL 설정 및 검증
+            Boolean ttlSet = redisTemplate.expire(messageKey, SESSION_TTL);
+            if (!Boolean.TRUE.equals(ttlSet)) {
+                log.warn("Failed to set TTL for messages: {}", sessionId);
+            }
+
+            // 세션 키의 TTL도 갱신 (메시지 저장 시 세션도 연장)
+            String sessionKey = SESSION_KEY_PREFIX + sessionId;
+            redisTemplate.expire(sessionKey, SESSION_TTL);
 
         } catch (Exception e) {
+            log.error("Failed to save message for session: {}", sessionId, e);
             throw new BusinessException(ErrorCode.MESSAGE_INPUT_FAIL);
         }
     }
@@ -113,8 +131,9 @@ public class ChatRedisServiceImpl implements ChatRedisService {
     // 세션 주인 확인 (권한 없으면 예외 throw)
     @Override
     public void validateSessionOwner(Long sessionId, UUID userId) {
+        String storedUserId = (String) redisTemplate.opsForHash().get(SESSION_KEY_PREFIX + sessionId, "userId");
 
-        if (redisTemplate.opsForHash().get(SESSION_KEY_PREFIX + sessionId, "userId") != userId.toString()) {
+        if (storedUserId == null || !storedUserId.equals(userId.toString())) {
             throw new BusinessException(ErrorCode.INVALID_SESSION);
         }
     }

@@ -28,7 +28,7 @@ public class AuthRedisConfig {
           RedisConnectionFactory factory) {
 
     StringRedisTemplate template = new StringRedisTemplate();
-    template.setConnectionFactory(authRedisConnectionFactory());
+    template.setConnectionFactory(factory);
 
     // 명시적 Serializer 설정
     template.setKeySerializer(new StringRedisSerializer());
