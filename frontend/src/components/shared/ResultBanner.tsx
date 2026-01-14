@@ -1,7 +1,7 @@
 import type { ResultBannerProps } from '@/types/exam-variant'
 import WrongAnswerIcon from '@/components/icons/WrongAnswerIcon'
 import CorrectAnswerIcon from '@/components/icons/CorrectAnswerIcon'
-import { Badge } from '../common/Badge'
+import { Badge } from '@/components/common/Badge'
 import cn from '@/utils/cn'
 
 const RESULT_CONFIG = {
