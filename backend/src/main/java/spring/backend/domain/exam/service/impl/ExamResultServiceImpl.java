@@ -87,7 +87,7 @@ public class ExamResultServiceImpl implements ExamResultService {
         examResult.addTimeSpent(request.getTimeSpent()); // ExamResult 소요 시간 갱신
         examResultRepository.save(examResult);           // ExamResult 저장
 
-        return new SubmitAnswerResponse(saved.getId(), isCorrect);
+        return new SubmitAnswerResponse(saved.getId(), isCorrect, question.getAnswer());
     }
 
     // 정답 확인 메서드
