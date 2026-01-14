@@ -29,6 +29,6 @@ export default function ResultBanner({ result }: ResultBannerProps) {
       label={label}
       leftIcon={leftIcon}
       className={cn('h-8', bgClass, textClass)}
-    ></Badge>
+    />
   )
 }
