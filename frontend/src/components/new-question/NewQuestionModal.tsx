@@ -61,17 +61,19 @@ export default function NewQuestionModal({ open, onClose }: NewQuestionModalProp
             <div className="flex-1 min-h-0 overflow-y-auto">
               <ModalContent className="flex flex-col gap-4 ">
                 <NewQuestionExam passage={data.passage} />
-                {/* 정오답 표시 배너 */}
-                {isSubmitted && isCorrect !== null && (
-                  <ResultBanner result={isCorrect ? 'correct' : 'wrong'} />
-                )}
               </ModalContent>
 
               {/* 구분선 */}
               <div className="border-t border-t-neutral-200 mt-4 mb-4 lg:mt-6 lg:mb-6" />
 
               <ModalContent className="flex flex-col gap-4">
-                <h3 className="font-bold text-neutral-600">답안 선택</h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-neutral-600">답안 선택</h3>
+                  {/* 정오답 표시 */}
+                  {isSubmitted && isCorrect !== null && (
+                    <ResultBanner result={isCorrect ? 'correct' : 'wrong'} />
+                  )}
+                </div>
                 {/* 답안 선택지 */}
                 <NewQuestionAnswer
                   type={data.type}
