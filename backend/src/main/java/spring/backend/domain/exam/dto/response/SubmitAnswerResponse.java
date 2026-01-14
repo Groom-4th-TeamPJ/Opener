@@ -16,4 +16,7 @@ public class SubmitAnswerResponse {
 
     @Schema(description = "정답 여부", example = "true")
     boolean isCorrect;
+
+    @Schema(description = "정답", example = "4")
+    int answer;
 }
