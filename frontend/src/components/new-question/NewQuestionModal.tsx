@@ -58,41 +58,38 @@ export default function NewQuestionModal({ open, onClose }: NewQuestionModalProp
               <NewQuestionHeader />
             </ModalHeader>
             {/* 문제 */}
-            <div className="flex-1 min-h-0 overflow-y-auto">
-              <ModalContent className="flex flex-col gap-4 ">
-                <NewQuestionExam passage={data.passage} />
-              </ModalContent>
+            <ModalContent className="flex flex-col gap-4 ">
+              <NewQuestionExam passage={data.passage} />
+              {/* 정오답 표시 배너 */}
+              {isSubmitted && isCorrect !== null && (
+                <ResultBanner result={isCorrect ? 'correct' : 'wrong'} />
+              )}
+            </ModalContent>
 
-              {/* 구분선 */}
-              <div className="border-t border-t-neutral-200 mt-4 mb-4 lg:mt-6 lg:mb-6" />
+            {/* 구분선 */}
+            <div className="border-t border-t-neutral-200" />
 
-              <ModalContent className="flex flex-col gap-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-neutral-600">답안 선택</h3>
-                  {/* 정오답 표시 */}
-                  {isSubmitted && isCorrect !== null && (
-                    <ResultBanner result={isCorrect ? 'correct' : 'wrong'} />
-                  )}
-                </div>
-                {/* 답안 선택지 */}
-                <NewQuestionAnswer
-                  type={data.type}
-                  options={data.options ?? []}
-                  answer={data.answer}
-                  selected={selected}
-                  frqAnswer={frqAnswer}
-                  isSubmitted={isSubmitted}
-                  onSelect={setIsSelected}
-                  onFrqChange={handleChange}
-                />
-                {/* 오답 해설 */}
-                <NewQuestionAnalysis
-                  analysis={data.analysis}
-                  isSubmitted={isSubmitted}
-                  isCorrect={isCorrect}
-                />
-              </ModalContent>
-            </div>
+            <ModalContent className="flex flex-col gap-4">
+              <h3 className="font-bold text-neutral-600">답안 선택</h3>
+              {/* 답안 선택지 */}
+              <NewQuestionAnswer
+                type={data.type}
+                options={data.options ?? []}
+                answer={data.answer}
+                selected={selected}
+                frqAnswer={frqAnswer}
+                isSubmitted={isSubmitted}
+                onSelect={setIsSelected}
+                onFrqChange={handleChange}
+              />
+              {/* 오답 해설 */}
+              <NewQuestionAnalysis
+                analysis={data.analysis}
+                isSubmitted={isSubmitted}
+                isCorrect={isCorrect}
+              />
+            </ModalContent>
+
             {/* 제출버튼 및 원래 페이지로 돌아가기 */}
             <ModalFooter>
               <NewQuestionAction
