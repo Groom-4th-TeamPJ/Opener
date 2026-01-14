@@ -18,11 +18,10 @@ export function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // TODO: 인증 상태 api 연동 후 주석 제거
   // 토큰이 없다면 로그인 페이지로 리다이렉트
-  // if (!hasToken) {
-  //   return NextResponse.redirect(new URL('/login', request.url))
-  // }
+  if (!hasToken) {
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
 
   // 그 외의 경우 정상 진행
   return NextResponse.next()
