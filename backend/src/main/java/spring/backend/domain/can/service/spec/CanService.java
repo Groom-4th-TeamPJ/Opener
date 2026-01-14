@@ -10,5 +10,11 @@ public interface CanService {
 
     CanResponse createUserCan(UUID userId);
 
+    CanResponse updateUserCan(UUID userId, int cansToAdd);
+
+    CanResponse useUserCan(UUID userId, int cansToUse);
+
+    CanResponse recoverUserCan(UUID userId, int cansToRecover);
+
 
 }
