@@ -49,7 +49,7 @@ public class CanServiceImpl implements CanService {
 
     @Transactional
     @Override
-    public CanResponse updateUserCan(UUID userId, int cansToAdd) {
+    public CanResponse addUserCan(UUID userId, int cansToAdd) {
         log.info("캔 추가 시도 - userId: {}, cansToAdd: {}", userId, cansToAdd);
 
         return modifyAndSaveCan(userId, can -> can.addCans(cansToAdd));
