@@ -7,7 +7,7 @@ import useLogout from '@/hooks/auth/use-logout'
 import { useState } from 'react'
 import cn from '@/utils/cn'
 import SolidCanIcon from '@/components/icons/SolidCanIcon'
-import useCanCount from '@/hooks/Header/use-can-count'
+import useCanCount from '@/hooks/header/use-can-count'
 import { ROUTES } from '@/constants/routes'
 
 const MENU = [
