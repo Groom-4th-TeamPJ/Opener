@@ -5,6 +5,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import spring.backend.shared.entity.BaseEntity;
+import spring.backend.shared.response.codes.ErrorCode;
+import spring.backend.shared.response.exception.BusinessException;
 
 import java.util.UUID;
 
@@ -33,5 +35,26 @@ public class Can extends BaseEntity {
         can.currentCans = initialCans;
         can.maxCans = initialCans;
         return can;
+    }
+
+    public void addCans(int cansToAdd) {
+        this.currentCans += cansToAdd;
+        if (this.currentCans > this.maxCans) {
+            this.currentCans = this.maxCans;
+        }
+    }
+
+    public void useCans(int cansToUse) {
+        if (cansToUse > this.currentCans) {
+            throw new BusinessException(ErrorCode.INSUFFICIENT_CANS);
+        }
+        this.currentCans -= cansToUse;
+    }
+
+    public void recoverCans(int cansToRecover) {
+        this.currentCans += cansToRecover;
+        if (this.currentCans > this.maxCans) {
+            this.currentCans = this.maxCans;
+        }
     }
 }

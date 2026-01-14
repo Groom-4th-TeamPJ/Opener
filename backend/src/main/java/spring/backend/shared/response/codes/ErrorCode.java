@@ -44,6 +44,10 @@ public enum ErrorCode {
     NO_MESSAGE_STORED(401, "C_005", "저장할 채팅 내용이 없습니다."),
     LLM_RESPONSE_FAIL(401, "C_006", "LLM 응답에 실패하였습니다."),
 
+    // Can 관련 에러 (N_xxx)
+    INSUFFICIENT_CANS(400, "N_001", "CAN이 부족합니다"),
+    CAN_NOT_FOUND(404, "N_002", "사용자의 CAN 정보를 찾을 수 없습니다"),
+
     // Exam 관련 에러 (E_xxx)
     EXAM_NOT_FOUND(404, "E_001", "시험을 찾을 수 없습니다"),
 

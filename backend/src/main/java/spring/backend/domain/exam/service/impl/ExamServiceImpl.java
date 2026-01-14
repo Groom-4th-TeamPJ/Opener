@@ -58,14 +58,7 @@ public class ExamServiceImpl implements ExamService {
             throw new BusinessException(ErrorCode.EXAM_NOT_FOUND);
         }
 
-        // TODO :: 유저 캔 차감
-        deductUserCan(userId);
-
         return response;
-    }
-
-    private void deductUserCan(UUID userId) {
-        // TODO :: 유저 캔 차감 로직 구현
     }
 
     private Long startExamResult(UUID userId, Long examId) {
