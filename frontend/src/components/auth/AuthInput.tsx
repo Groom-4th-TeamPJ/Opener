@@ -94,9 +94,16 @@ export default function AuthInput<T extends FieldValues>({
                     alt="비밀번호 숨기기"
                     width={20}
                     height={20}
+                    className="shrink-0"
                   />
                 ) : (
-                  <Image src={'icons/eye_outline.svg'} alt="비밀번호 보기" width={20} height={20} />
+                  <Image
+                    src={'icons/eye_outline.svg'}
+                    alt="비밀번호 보기"
+                    width={20}
+                    height={20}
+                    className="shrink-0"
+                  />
                 )}
               </Button>
             )}
@@ -115,7 +122,7 @@ export default function AuthInput<T extends FieldValues>({
                   alt="리셋"
                   width={16}
                   height={16}
-                  className="rounded-full bg-neutral-200 text-white p-0.5"
+                  className="shrink-0 rounded-full bg-neutral-200 text-white p-0.5"
                 />
               </Button>
             )}
