@@ -54,21 +54,22 @@ public class ChatController {
         return ResponseEntity.ok().build();
     }
 
-    /**
-     * 저장된 대화 목록 조회 GET /api/chat/conversations
-     */
-    @GetMapping("/conversations")
-    public ResponseEntity<?> getConversations(@AuthenticationPrincipal AuthUser authUser) {
-        // TODO: 구현
-        return ResponseEntity.ok().build();
-    }
-
     // 명시적 세션 해제
     @PostMapping("/disconnect/{sessionId}")
     public ResponseEntity<Void> disconnectSession(
             @PathVariable Long sessionId,
             @AuthenticationPrincipal AuthUser authUser) {
         chatService.disconnectSession(sessionId, authUser.id());
+
+        return null;
+    }
+
+    // 오프너 분석
+    @PostMapping("/opener-analysis/{questionId}")
+    public ResponseEntity<Void> openerAnalysis(
+            @RequestBody OpenerAnalysisRequest req
+    ) {
+        chatService.openerAnalysis(req);
 
         return null;
     }
