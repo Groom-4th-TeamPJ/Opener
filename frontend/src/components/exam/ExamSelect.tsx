@@ -5,7 +5,8 @@ import Button from '@/components/common/Button'
 import YearSelectBox from './YearSelectBox'
 import QuestionSolveView from './QuestionSolveView'
 import { useStartExam } from '@/hooks/exam/use-start-exam'
-import { useSSEChat } from '@/hooks/exam/use-sse-chat'
+import ExamLoading from './ExamLoading'
+import { toast } from 'sonner'
 
 const categories = [
   { id: 'CALC', name: '미적분' },
@@ -26,34 +27,39 @@ export default function ExamSelect() {
   const [selectedYear, setSelectedYear] = useState<number>(currentYear)
   const [selectedExamType, setSelectedExamType] = useState<string>('')
   const [isExamActive, setIsExamActive] = useState(false)
-  const [examResultId, setExamResultId] = useState<number | null>(null)
 
   const canStart = !!(selectedCategory && selectedYear && selectedExamType)
 
-  const { mutateAsync } = useStartExam()
-
-  // SSE 연결 (examResultId가 있을 때만 연결)
-  useSSEChat({ sessionId: examResultId ?? 0, enabled: !!examResultId })
+  const { mutateAsync, isPending } = useStartExam()
 
   const handleStartExam = async () => {
     if (!canStart) return
 
-    const result = await mutateAsync({
-      examYear: selectedYear,
-      category: selectedCategory,
-      examType: selectedExamType,
-    })
+    try {
+      const result = await mutateAsync({
+        examYear: selectedYear,
+        category: selectedCategory,
+        examType: selectedExamType,
+      })
 
-    if (result) {
-      setExamResultId(result.examResultId)
-      setIsExamActive(true)
+      if (result) {
+        setIsExamActive(true)
+      }
+    } catch (error) {
+      console.error('[ERROR] 문제 풀이 요청', error)
+      toast.error('문제를 불러오지 못했습니다. 다시 시도해주세요.', { duration: 3000 })
     }
   }
 
   const handleClose = () => {
     setIsExamActive(false)
   }
-  //TODO: 새로고침 문제 복원 시 examResultId localStorage 저장 필요 & 조건문 변경
+
+  // 문제 풀이 요청 로딩
+  if (isPending) {
+    return <ExamLoading />
+  }
+
   // 문제 풀이 화면으로 전환
   if (isExamActive) {
     return (
