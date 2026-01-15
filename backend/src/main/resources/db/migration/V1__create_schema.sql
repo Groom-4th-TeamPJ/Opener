@@ -117,6 +117,7 @@ CREATE TABLE IF NOT EXISTS "exam_results" (
     correct_count INT NOT NULL,
     incorrect_count INT NOT NULL,
     opener_usage_count INT NOT NULL,
+    category TEXT NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,
     deleted_at TIMESTAMP,

@@ -8,6 +8,7 @@ import spring.backend.domain.exam.model.entity.Exam;
 import spring.backend.domain.exam.model.entity.ExamResult;
 import spring.backend.domain.exam.model.entity.Question;
 import spring.backend.domain.exam.model.entity.QuestionResult;
+import spring.backend.domain.exam.model.enums.Category;
 import spring.backend.domain.exam.repository.spec.ExamRepository;
 import spring.backend.domain.exam.repository.spec.ExamResultRepository;
 import spring.backend.domain.exam.repository.spec.QuestionResultRepository;
@@ -32,7 +33,7 @@ public class ExamResultServiceImpl implements ExamResultService {
 
     @Transactional
     @Override
-    public Long startExam(UUID userId, Long examId) {
+    public Long startExam(UUID userId, Long examId, Category category) {
         if (userId == null || examId == null) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
@@ -40,7 +41,7 @@ public class ExamResultServiceImpl implements ExamResultService {
         Exam exam = examRepository.findById(examId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.EXAM_NOT_FOUND));
 
-        ExamResult examResult = ExamResult.of(userId, exam);
+        ExamResult examResult = ExamResult.of(userId, exam, category);
         ExamResult saved = examResultRepository.save(examResult);
 
         return saved.getId();

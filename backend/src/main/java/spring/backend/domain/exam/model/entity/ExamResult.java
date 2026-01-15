@@ -2,6 +2,7 @@ package spring.backend.domain.exam.model.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import spring.backend.domain.exam.model.enums.Category;
 import spring.backend.shared.entity.BaseEntity;
 
 import java.util.UUID;
@@ -47,7 +48,11 @@ public class ExamResult extends BaseEntity {
     @Column(name = "opener_usage_count", nullable = false)
     private Integer openerUsageCount;
 
-    public static ExamResult of(UUID userId, Exam exam) {
+    @Enumerated(EnumType.STRING)
+    @Column(name = "category")
+    private Category category;
+
+    public static ExamResult of(UUID userId, Exam exam, Category category) {
         ExamResult er = new ExamResult();
         er.userId = userId;
         er.exam = exam;
@@ -56,6 +61,7 @@ public class ExamResult extends BaseEntity {
         er.correctCount = 0;
         er.incorrectCount = 0;
         er.openerUsageCount = 0;
+        er.category = category;
         return er;
     }
 
