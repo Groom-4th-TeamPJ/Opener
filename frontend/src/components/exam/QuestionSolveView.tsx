@@ -70,19 +70,19 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
   }, [currentIndex])
 
   const handleChoiceSelect = (index: number) => {
-    if (submitted || currentQuestion.type === 'FRQ') return
+    if (submitted || currentQuestion.questionType === 'FRQ') return
     setSelectedChoice(index)
   }
 
   const handleSubmit = () => {
-    if (currentQuestion.type === 'MCQ' && selectedChoice === null) return
-    if (currentQuestion.type === 'FRQ' && frqAnswer.trim() === '') return
+    if (currentQuestion.questionType === 'MCQ' && selectedChoice === null) return
+    if (currentQuestion.questionType === 'FRQ' && frqAnswer.trim() === '') return
 
     // 답안 제출 시 스탑워치 정지
     stopwatchRef.current?.stop()
 
     const correct =
-      currentQuestion.type === 'MCQ'
+      currentQuestion.questionType === 'MCQ'
         ? selectedChoice === currentQuestion.answer
         : Number(frqAnswer) === currentQuestion.answer
     setIsCorrect(correct)
@@ -193,7 +193,7 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
                 submitted={submitted}
                 selectedChoice={selectedChoice}
                 frqAnswer={frqAnswer}
-                questionType={currentQuestion.type}
+                questionType={currentQuestion.questionType}
                 isAnalysisActive={isAnalysisActive}
                 isCorrect={isCorrect}
                 hasNewQuestion={hasNewQuestion}

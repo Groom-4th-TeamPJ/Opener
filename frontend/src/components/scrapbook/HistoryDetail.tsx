@@ -34,7 +34,7 @@ export default function HistoryDetail() {
         <AIChatbot
           isActive={true}
           question={data}
-          selectedChoice={data.select}
+          selectedChoice={data.selected}
           frqAnswer=""
           initialMessages={chatMessages}
           placeholder="대화가 종료되었습니다."

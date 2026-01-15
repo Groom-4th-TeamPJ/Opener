@@ -20,7 +20,7 @@ export interface Question {
   questionNo: number
   category?: CodeName
   point: number
-  type: 'MCQ' | 'FRQ'
+  questionType: 'MCQ' | 'FRQ'
   passages: Passage[]
   options: Option[] | null
   answer: number
@@ -56,7 +56,7 @@ export interface ScrapbookQuestion extends Question {
   examYear: number
   examType: CodeName
   createdAt: string
-  select: number
+  selected: number
   chat: ScrapbookChatMessage[]
 }
 

@@ -13,7 +13,7 @@ interface ScrapbookQuestionCardProps {
 }
 
 export default function ScrapbookQuestionCard({ data }: ScrapbookQuestionCardProps) {
-  const isCorrect = data.select === data.answer
+  const isCorrect = data.selected === data.answer
 
   return (
     <Card className="flex flex-col h-full overflow-hidden">
@@ -44,12 +44,12 @@ export default function ScrapbookQuestionCard({ data }: ScrapbookQuestionCardPro
         <div className="flex flex-col gap-3">
           <p className="text-sm 2xl:text-base font-bold text-text-secondary">답안 영역</p>
 
-          {data.type === 'MCQ' && data.options ? (
+          {data.questionType === 'MCQ' && data.options ? (
             // 객관식
             <>
               {data.options.map((option) => {
                 const isAnswer = option.order === data.answer
-                const isSelected = option.order === data.select
+                const isSelected = option.order === data.selected
                 const isCorrectSelected = isSelected && isAnswer
                 const isWrongSelected = isSelected && !isAnswer
 
@@ -88,7 +88,7 @@ export default function ScrapbookQuestionCard({ data }: ScrapbookQuestionCardPro
               {!isCorrect && (
                 <FRQAnswer variant="wrong" className="h-12 2xl:h-15">
                   <WrongAnswerIcon />
-                  {data.select}
+                  {data.selected}
                 </FRQAnswer>
               )}
               <FRQAnswer variant="correct" className="h-12 2xl:h-15">

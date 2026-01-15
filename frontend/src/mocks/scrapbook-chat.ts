@@ -8,7 +8,7 @@ export const mockScrapbookChatData: { data: ScrapbookQuestion } = {
     examType: { code: 'CSAT', name: '수학능력시험' },
     createdAt: '2025-01-13T14:30:00Z',
     point: 2,
-    type: 'MCQ' as const,
+    questionType: 'MCQ' as const,
     passages: [
       {
         order: 1,
@@ -52,7 +52,7 @@ export const mockScrapbookChatData: { data: ScrapbookQuestion } = {
       },
     ],
     answer: 3,
-    select: 2,
+    selected: 2,
     chat: [
       {
         order: 1,
