@@ -95,7 +95,11 @@ export default function QuestionSolveView({ params, onClose }: QuestionSolveView
     // 답안 제출 시 스탑워치 정지
     stopwatchRef.current?.stop()
 
-    // TODO: 답안 제출 API로 정답 확인 요청
+    const correct =
+      currentQuestion.questionType === 'MCQ'
+        ? selectedChoice === currentQuestion.answer
+        : Number(frqAnswer) === currentQuestion.answer
+    setIsCorrect(correct)
     setSubmitted(true)
   }
 

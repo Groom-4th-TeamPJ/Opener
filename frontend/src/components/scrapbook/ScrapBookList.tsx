@@ -11,7 +11,7 @@ import ScrapBookListItem from './ScrapBookListItem'
 export default function ScrapBookList() {
   const router = useRouter()
   const pageSize = 8
-  const totalCount = ScrapBookListMocks.data.examHistories.length
+  const totalCount = ScrapBookListMocks.data.questionResults.length
   const search = useSearchParams()
 
   const { currentPage, totalPages, previousPage, nextPage, startIndex, endIndex, pages } =
@@ -27,7 +27,7 @@ export default function ScrapBookList() {
           <Image src="/icons/chevron-left.svg" alt="뒤로 가기" width={24} height={24} />
         </Button>
         <h1 className="text-text-primary text-[23px] font-bold">
-          {ScrapBookListMocks.data.year}년 {ScrapBookListMocks.data.examType.name}
+          {ScrapBookListMocks.data.examYear}년 {ScrapBookListMocks.data.examType.name}
         </h1>
       </div>
       <Card>
@@ -40,10 +40,10 @@ export default function ScrapBookList() {
         </CardHeader>
 
         <CardContent className="pt-0">
-          {ScrapBookListMocks.data.examHistories.slice(startIndex, endIndex).map((history) => (
+          {ScrapBookListMocks.data.questionResults.slice(startIndex, endIndex).map((history) => (
             <ScrapBookListItem
-              key={history.examHistoryId}
-              id={history.examHistoryId}
+              key={history.questionResultId}
+              id={history.questionResultId}
               categoryName={history.category.name}
               passage={history.passage}
               createdAt={history.createdAt}
