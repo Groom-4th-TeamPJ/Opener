@@ -16,6 +16,8 @@ import NewQuestionModal from '@/components/new-question/NewQuestionModal'
 import ExamExitModal from './ExamExitModal'
 import ExamResultModal from './ExamResultModal'
 import { useExamCurrent } from '@/hooks/exam/use-exam-current'
+import usePreventRefresh from '@/hooks/exam/use-prevent-refresh'
+import { useSSEChat } from '@/hooks/exam/use-sse-chat'
 
 interface QuestionSolveViewProps {
   params: ExamRequestParams
@@ -43,6 +45,9 @@ export default function QuestionSolveView({ params, onClose }: QuestionSolveView
   const router = useRouter()
   const { data: examData } = useExamCurrent(params)
 
+  // SSE 연결 (examResultId가 있을 때만 연결)
+  useSSEChat({ sessionId: examData?.examResultId ?? 0, enabled: !!examData?.examResultId })
+
   // 비활성 감지
   useInactivityDetection({
     timeout: INACTIVITY_TIMEOUT,
@@ -54,6 +59,14 @@ export default function QuestionSolveView({ params, onClose }: QuestionSolveView
     },
   })
 
+  // 새로고침 감지
+  usePreventRefresh({
+    enabled: !!examData && !showResultModal,
+    onPrevent: () => {
+      setShowExitModal(true)
+    },
+  })
+
   // 문제 변경 시 타이머 리셋
   useEffect(() => {
     if (!examData) return
@@ -61,7 +74,6 @@ export default function QuestionSolveView({ params, onClose }: QuestionSolveView
   }, [currentIndex, examData])
 
   // 캐시에 데이터가 없으면 선택 화면으로 복귀
-  // TODO: 문제 복원 기능 구현 시 세션 스토리지에서 examResultId를 확인하여 복원 처리
   if (!examData) {
     onClose()
     return null
