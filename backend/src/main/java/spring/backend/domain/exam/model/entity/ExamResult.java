@@ -28,8 +28,9 @@ public class ExamResult extends BaseEntity {
     @Column(name = "user_id", nullable = false, columnDefinition = "uuid")
     private UUID userId;
 
-    @Column(name = "exam_id", nullable = false)
-    private Long examId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "exam_id", nullable = false)
+    private Exam exam;
 
     @Column(name = "total_score", nullable = false)
     private Integer totalScore;
@@ -46,10 +47,10 @@ public class ExamResult extends BaseEntity {
     @Column(name = "opener_usage_count", nullable = false)
     private Integer openerUsageCount;
 
-    public static ExamResult of(UUID userId, Long examId) {
+    public static ExamResult of(UUID userId, Exam exam) {
         ExamResult er = new ExamResult();
         er.userId = userId;
-        er.examId = examId;
+        er.exam = exam;
         er.totalScore = 0;
         er.totalTimeSpent = 0;
         er.correctCount = 0;

@@ -18,17 +18,20 @@ public class ExamRepositoryImpl implements ExamRepository {
 
     private final JpaExamRepository jpaExamRepository;
     private final JpaQuestionRepository jpaQuestionRepository;
-    private final ExamMapper examMapper;
 
-    public ExamRepositoryImpl(JpaExamRepository jpaExamRepository, JpaQuestionRepository jpaQuestionRepository, ExamMapper examMapper) {
+    public ExamRepositoryImpl(JpaExamRepository jpaExamRepository, JpaQuestionRepository jpaQuestionRepository) {
         this.jpaExamRepository = jpaExamRepository;
         this.jpaQuestionRepository = jpaQuestionRepository;
-        this.examMapper = examMapper;
     }
 
     @Override
     public List<Question> findByExamIdAndCategoryInOrderByQuestionNoAsc(Long examId, List<Category> categories) {
         return jpaQuestionRepository.findByExamIdAndCategoryInOrderByQuestionNoAsc(examId, categories);
+    }
+
+    @Override
+    public Optional<Exam> findById(Long id) {
+        return jpaExamRepository.findById(id);
     }
 
     @Override
