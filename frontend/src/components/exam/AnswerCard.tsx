@@ -13,6 +13,7 @@ interface AnswerCardProps {
   frqAnswer: string
   submitted: boolean
   isCorrect: boolean | null
+  correctAnswer: number | null
   onChoiceSelect: (index: number) => void
   onFrqAnswerChange: (value: string) => void
 }
@@ -23,6 +24,7 @@ export default function AnswerCard({
   frqAnswer,
   submitted,
   isCorrect,
+  correctAnswer,
   onChoiceSelect,
   onFrqAnswerChange,
 }: AnswerCardProps) {
@@ -34,11 +36,11 @@ export default function AnswerCard({
 
       <CardContent className="flex flex-col gap-3 lg:gap-4 -mt-6">
         {/* Choices - Only for MCQ */}
-        {question.type === 'MCQ' && question.options && (
+        {question.questionType === 'MCQ' && question.options && (
           <>
             {question.options.map((option) => {
               const isChecked = selectedChoice === option.order
-              const isAnswer = option.order === question.answer
+              const isAnswer = option.order === correctAnswer
               const isCorrectChecked = submitted && isAnswer
               const isWrongChecked = submitted && isChecked && !isAnswer
 
@@ -59,7 +61,7 @@ export default function AnswerCard({
                     isWrong={isWrongChecked}
                     isCorrect={isCorrectChecked}
                     name="answer"
-                    optionText={option.text}
+                    optionText={option.content}
                   />
                 </FRQAnswer>
               )
@@ -68,7 +70,7 @@ export default function AnswerCard({
         )}
 
         {/* FRQ Answer Input */}
-        {question.type === 'FRQ' && (
+        {question.questionType === 'FRQ' && (
           <>
             {!submitted && (
               <Input
@@ -94,7 +96,7 @@ export default function AnswerCard({
             {submitted && isCorrect && (
               <FRQAnswer variant="correct" className="md:h-12 lg:h-15">
                 <CorrectAnswerIcon />
-                {question.answer}
+                {correctAnswer}
               </FRQAnswer>
             )}
             {/* 오답 시 사용자가 입력한 답과 정답 */}
@@ -107,7 +109,7 @@ export default function AnswerCard({
 
                 <FRQAnswer variant="correct" className="md:h-12 lg:h-15">
                   <CorrectAnswerIcon />
-                  {question.answer}
+                  {correctAnswer}
                 </FRQAnswer>
               </>
             )}
