@@ -1,7 +1,7 @@
 import { CodeName } from './exam'
 
 export interface ScrapbookData {
-  userResultId: number
+  examResultId: number
   year: number
   examType: CodeName
   analysisCount: number
