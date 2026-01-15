@@ -1,3 +1,3 @@
 export type canCount = {
-  currentCans: number
+  currentCan: number
 }

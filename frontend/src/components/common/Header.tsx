@@ -84,7 +84,7 @@ export default function Header() {
           <div className="flex gap-1.5 items-center px-4">
             <SolidCanIcon className="text-primary-600" />
 
-            <span className="font-bold">{data?.currentCans ?? 0}</span>
+            <span className="font-bold">{data?.currentCan ?? 0}</span>
           </div>
 
           <Button
