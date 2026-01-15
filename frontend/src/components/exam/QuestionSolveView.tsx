@@ -17,6 +17,7 @@ import ExamExitModal from './ExamExitModal'
 import ExamResultModal from './ExamResultModal'
 import { useExamCurrent } from '@/hooks/exam/use-exam-current'
 import usePreventRefresh from '@/hooks/exam/use-prevent-refresh'
+import { useSSEChat } from '@/hooks/exam/use-sse-chat'
 
 interface QuestionSolveViewProps {
   params: ExamRequestParams
@@ -43,6 +44,9 @@ export default function QuestionSolveView({ params, onClose }: QuestionSolveView
 
   const router = useRouter()
   const { data: examData } = useExamCurrent(params)
+
+  // SSE 연결 (examResultId가 있을 때만 연결)
+  useSSEChat({ sessionId: examData?.examResultId ?? 0, enabled: !!examData?.examResultId })
 
   // 비활성 감지
   useInactivityDetection({
