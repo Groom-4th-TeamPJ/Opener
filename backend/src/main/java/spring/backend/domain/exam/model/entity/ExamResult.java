@@ -37,12 +37,24 @@ public class ExamResult extends BaseEntity {
     @Column(name = "total_time_spent", nullable = false)
     private Integer totalTimeSpent;
 
+    @Column(name = "correct_count", nullable = false)
+    private Integer correctCount;
+
+    @Column(name = "incorrect_count", nullable = false)
+    private Integer incorrectCount;
+
+    @Column(name = "opener_usage_count", nullable = false)
+    private Integer openerUsageCount;
+
     public static ExamResult of(UUID userId, Long examId) {
         ExamResult er = new ExamResult();
         er.userId = userId;
         er.examId = examId;
         er.totalScore = 0;
         er.totalTimeSpent = 0;
+        er.correctCount = 0;
+        er.incorrectCount = 0;
+        er.openerUsageCount = 0;
         return er;
     }
 
@@ -58,5 +70,17 @@ public class ExamResult extends BaseEntity {
             throw new IllegalArgumentException("시간은 음수 불가");
         }
         this.totalTimeSpent += time;
+    }
+
+    public void incrementCorrectCount() {
+        this.correctCount += 1;
+    }
+
+    public void incrementIncorrectCount() {
+        this.incorrectCount += 1;
+    }
+
+    public void incrementOpenerUsageCount() {
+        this.openerUsageCount += 1;
     }
 }
