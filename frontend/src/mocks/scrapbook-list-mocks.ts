@@ -5,7 +5,7 @@ export const ScrapBookListMocks: ScrapBookListResponse = {
   code: 200,
   message: '성공',
   data: {
-    year: 2022,
+    examYear: 2022,
     examType: { code: 'M06', name: '6모' },
     examHistories: [
       {

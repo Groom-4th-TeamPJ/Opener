@@ -17,11 +17,11 @@ export default function Scrapbook() {
           {SCRAPBOOK_MOCK_DATA.length > 0 ? (
             <section className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {SCRAPBOOK_MOCK_DATA.map(
-                ({ userResultId, year, examType, analysisCount, recentDate }) => (
+                ({ examResultId, examYear, examType, analysisCount, recentDate }) => (
                   <AnalysisCard
-                    key={userResultId}
-                    userResultId={userResultId}
-                    year={year}
+                    key={examResultId}
+                    examResultId={examResultId}
+                    examYear={examYear}
                     examType={examType}
                     analysisCount={analysisCount}
                     recentDate={recentDate}

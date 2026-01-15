@@ -12,7 +12,7 @@ const EXAM_TYPES: Record<string, string> = {
 
 export default function AnalysisCard({
   examResultId,
-  year,
+  examYear,
   examType,
   analysisCount,
   recentDate,
@@ -21,7 +21,7 @@ export default function AnalysisCard({
     <Link href={`${ROUTES.SCRAPBOOK}/${examResultId}`} prefetch={false}>
       <Card className="hover:shadow-2">
         <CardHeader className="py-4">
-          <Badge label={year.toString()} variant="secondary" type="solid-pastel" />
+          <Badge label={examYear.toString()} variant="secondary" type="solid-pastel" />
         </CardHeader>
         <CardContent className="pt-0 pb-4 space-y-2">
           <h1 className="lg:text-lg font-bold">{EXAM_TYPES[examType.code]}</h1>

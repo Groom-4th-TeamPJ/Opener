@@ -27,7 +27,7 @@ export default function ScrapBookList() {
           <Image src="/icons/chevron-left.svg" alt="뒤로 가기" width={24} height={24} />
         </Button>
         <h1 className="text-text-primary text-[23px] font-bold">
-          {ScrapBookListMocks.data.year}년 {ScrapBookListMocks.data.examType.name}
+          {ScrapBookListMocks.data.examYear}년 {ScrapBookListMocks.data.examType.name}
         </h1>
       </div>
       <Card>
