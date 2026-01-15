@@ -16,5 +16,4 @@ public class ExamInfo {
     private ExamType examType;
     private String name;
     private Integer quantity;
-    private Integer timeLimit;
 }
