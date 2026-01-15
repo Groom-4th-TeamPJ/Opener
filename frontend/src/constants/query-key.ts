@@ -1,5 +1,7 @@
 // NOTE: 쿼리키 정리 필요
 
+import { ExamRequestParams } from '@/types/exam'
+
 export const QUERY_KEYS = {
   // Auth 관련
   AUTH: {
@@ -25,10 +27,17 @@ export const QUERY_KEYS = {
     TOTAL_TIME_SPENT: ['dashboard', 'time-spent'] as const,
   },
 
+  // 문제풀이 관련
   EXAM: {
     ROOT: ['exam'] as const,
+    // 현재 진행 중인(조회된) 시험지 데이터
+    CURRENT: (params: ExamRequestParams) =>
+      ['exam', 'current', params.examYear, params.category, params.examType] as const,
+    // 답안 제출
     SUBMIT: ['exam', 'question', 'submit'] as const,
+    // 오프너 분석
     ANALYZE: ['exam', 'question', 'analyze'] as const,
+    // 변형 문제 생성
     GENERATE: ['exam', 'question', 'generate'] as const,
     CHAT: ['exam', 'chat'] as const,
     SOCKET: ['exam', 'socket'] as const,
