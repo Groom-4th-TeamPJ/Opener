@@ -128,6 +128,12 @@ public class ChatRedisServiceImpl implements ChatRedisService {
         redisTemplate.delete(messagesKey);
     }
 
+    @Override
+    public void deleteMessage(Long sessionId) {
+        String messageKey = SESSION_KEY_PREFIX + sessionId + ":messages";
+        redisTemplate.delete(messageKey);
+    }
+
     // 세션 주인 확인 (권한 없으면 예외 throw)
     @Override
     public void validateSessionOwner(Long sessionId, UUID userId) {

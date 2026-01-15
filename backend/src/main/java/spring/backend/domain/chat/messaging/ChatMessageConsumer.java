@@ -57,6 +57,9 @@ public class ChatMessageConsumer {
             ChatMessage chatMessage = ChatMessage.createFromSession(questionResult, messageContents);
             chatMessageRepository.save(chatMessage);
 
+            // redis에서 기존 채팅 이력 삭제
+            chatRedisService.deleteMessage(sessionId);
+
         } catch (BusinessException e) {
             throw e;
 
