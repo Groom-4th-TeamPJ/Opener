@@ -68,6 +68,10 @@ dependencies {
     // Environment Variables (.env file support)
     implementation 'me.paulschwarz:spring-dotenv:4.0.0'
 
+    // AOP and Retry
+    implementation 'org.springframework.boot:spring-boot-starter-aop:3.5.9'
+    implementation 'org.springframework.retry:spring-retry:2.0.1'
+
     // Monitoring
     runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
     implementation 'net.ttddyy.observation:datasource-micrometer-spring-boot:2.0.1'
