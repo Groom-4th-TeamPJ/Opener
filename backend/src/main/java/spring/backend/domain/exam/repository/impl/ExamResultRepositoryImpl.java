@@ -96,6 +96,9 @@ public class ExamResultRepositoryImpl implements ExamResultRepository {
             if (criteria.getCreatedAtTo() != null ) {
                 predicates.add(builder.lessThanOrEqualTo(root.get("createdAt"), criteria.getCreatedAtTo()));
             }
+            if (criteria.getCategory() != null) {
+                predicates.add(builder.equal(root.get("category"), criteria.getCategory()));
+            }
 
 
             return predicates.isEmpty() ? builder.conjunction() : builder.and(predicates.toArray(new Predicate[0]));

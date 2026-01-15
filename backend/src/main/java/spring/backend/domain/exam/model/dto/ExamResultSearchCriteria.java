@@ -1,6 +1,7 @@
 package spring.backend.domain.exam.model.dto;
 
 import lombok.*;
+import spring.backend.domain.exam.model.enums.Category;
 import spring.backend.domain.exam.model.enums.ExamType;
 
 import java.time.LocalDateTime;
@@ -19,4 +20,5 @@ public class ExamResultSearchCriteria {
     private LocalDateTime createdAtFrom;
     private LocalDateTime createdAtTo;
     private Boolean openerUsage;
+    private Category category;
 }

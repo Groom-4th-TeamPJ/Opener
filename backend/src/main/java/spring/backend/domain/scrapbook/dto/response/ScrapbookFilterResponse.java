@@ -2,6 +2,7 @@ package spring.backend.domain.scrapbook.dto.response;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
+import spring.backend.domain.exam.model.enums.Category;
 import spring.backend.domain.exam.model.enums.ExamType;
 
 import java.time.LocalDate;
@@ -23,4 +24,6 @@ public class ScrapbookFilterResponse {
     private int openerUsageCount;
     @Schema(description = "문제 유형", example = "2024-05-20")
     private LocalDate recentDate;
+    @Schema(description = "문제 카테고리", example = "ALG")
+    private Category category;
 }

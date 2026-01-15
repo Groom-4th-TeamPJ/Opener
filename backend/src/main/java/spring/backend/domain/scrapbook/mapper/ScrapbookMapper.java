@@ -12,6 +12,7 @@ public class ScrapbookMapper {
                 .examType(examResult.getExam().getExamType())
                 .openerUsageCount(examResult.getOpenerUsageCount())
                 .recentDate(examResult.getCreatedAt().toLocalDate())
+                .category(examResult.getCategory())
                 .build();
     }
 }
