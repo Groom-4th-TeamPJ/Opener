@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import java.util.ArrayList;
@@ -28,7 +29,7 @@ public class ChatMessage extends BaseEntity {
     private Long id;
 
     @OneToOne
-    @Column(name = "question_result_id", nullable = false)
+    @JoinColumn(name = "question_result_id", nullable = false)
     private QuestionResult questionResult;
 
     @JdbcTypeCode(SqlTypes.JSON)
