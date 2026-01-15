@@ -44,9 +44,9 @@ public class ChatController {
     }
 
     // 대화 저장 (Redis → PostgreSQL) POST /api/chat/conversations/{sessionId}/save
-    @PostMapping("/save-message/{sessionId}")
+    @PostMapping("/save-message")
     public ResponseEntity<Void> saveConversation(
-            @PathVariable ChatSaveRequest req,
+            @RequestBody ChatSaveRequest req,
             @AuthenticationPrincipal AuthUser authUser) {
 
         chatService.saveMessagesAsync(req, authUser.id());

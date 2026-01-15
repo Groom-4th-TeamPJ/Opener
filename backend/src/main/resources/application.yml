@@ -44,12 +44,6 @@ security:
     max-attempts: 5            # 최대 로그인 실패 허용 횟수
     lock-duration-minutes: 5   # 계정 잠금 시간(분)
 
-# LLM 설정
-llm:
-  api-key: ${LLM_API_KEY:}
-  model: ${LLM_MODEL:gpt-4-turbo-preview}
-  timeout: 60s
-
 # Async 설정
 task:
   execution:

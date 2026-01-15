@@ -11,6 +11,9 @@ public record ChatMessageSaveEvent(
         Long sessionId,
 
         @JsonProperty("userId")
-        UUID userId
+        UUID userId,
+
+        @JsonProperty("questionResultId")
+        Long questionResultId
 ) implements Serializable {
 }
