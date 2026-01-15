@@ -42,8 +42,8 @@ export default function ScrapBookList() {
         <CardContent className="pt-0">
           {ScrapBookListMocks.data.questionResults.slice(startIndex, endIndex).map((history) => (
             <ScrapBookListItem
-              key={history.examHistoryId}
-              id={history.examHistoryId}
+              key={history.questionResultId}
+              id={history.questionResultId}
               categoryName={history.category.name}
               passage={history.passage}
               createdAt={history.createdAt}
