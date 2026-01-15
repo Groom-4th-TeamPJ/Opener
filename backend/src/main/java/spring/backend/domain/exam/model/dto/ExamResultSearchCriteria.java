@@ -1,9 +1,6 @@
 package spring.backend.domain.exam.model.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import spring.backend.domain.exam.model.enums.ExamType;
 
 import java.time.LocalDateTime;
@@ -13,6 +10,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@ToString
 public class ExamResultSearchCriteria {
 
     private UUID userId;
