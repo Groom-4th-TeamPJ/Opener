@@ -33,6 +33,13 @@ export interface Exam {
   quantity: number
 }
 
+// 시험을 식별하기 위한 공통 파라미터 타입
+export interface ExamRequestParams {
+  examYear: number
+  category: string
+  examType: string
+}
+
 export interface ExamResponse {
   examResultId: number
   exam: Exam
