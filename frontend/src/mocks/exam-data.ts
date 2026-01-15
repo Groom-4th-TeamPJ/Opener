@@ -12,7 +12,7 @@ export const mockExamData: ExamResponse = {
       questionNo: 1,
       category: { code: 'GEO', name: '기하' },
       point: 4,
-      type: 'MCQ',
+      questionType: 'MCQ',
       passages: [
         {
           order: 1,
@@ -35,7 +35,7 @@ export const mockExamData: ExamResponse = {
       questionNo: 2,
       category: { code: 'CALC', name: '미적분' },
       point: 2,
-      type: 'MCQ',
+      questionType: 'MCQ',
       passages: [
         {
           order: 1,
@@ -70,7 +70,7 @@ export const mockExamData: ExamResponse = {
       questionNo: 3,
       category: { code: 'GEO', name: '기하' },
       point: 3,
-      type: 'FRQ',
+      questionType: 'FRQ',
       passages: [
         {
           order: 1,
