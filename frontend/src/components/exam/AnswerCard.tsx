@@ -34,7 +34,7 @@ export default function AnswerCard({
 
       <CardContent className="flex flex-col gap-3 lg:gap-4 -mt-6">
         {/* Choices - Only for MCQ */}
-        {question.type === 'MCQ' && question.options && (
+        {question.questionType === 'MCQ' && question.options && (
           <>
             {question.options.map((option) => {
               const isChecked = selectedChoice === option.order
@@ -68,7 +68,7 @@ export default function AnswerCard({
         )}
 
         {/* FRQ Answer Input */}
-        {question.type === 'FRQ' && (
+        {question.questionType === 'FRQ' && (
           <>
             {!submitted && (
               <Input
