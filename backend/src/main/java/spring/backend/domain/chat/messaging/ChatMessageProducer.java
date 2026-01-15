@@ -14,15 +14,16 @@ public class ChatMessageProducer {
 
     private final RabbitTemplate rabbitTemplate;
 
-    public void publishSaveMessageEvent(Long sessionId, UUID userId) {
+    public void publishSaveMessageEvent(Long sessionId, UUID userId, Long questionResultId) {
         try {
             ChatMessageSaveEvent event = ChatMessageSaveEvent.builder()
                     .sessionId(sessionId)
                     .userId(userId)
+                    .questionResultId(questionResultId)
                     .build();
 
             rabbitTemplate.convertAndSend(
-                    RabbitMQConfig.CHAT_EXCHANGE,
+                    RabbitMQConfig.CHAT_MESSAGE_EXCHANGE,
                     RabbitMQConfig.CHAT_MESSAGE_SAVE_ROUTING_KEY,
                     event
             );
