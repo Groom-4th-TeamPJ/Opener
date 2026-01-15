@@ -6,14 +6,19 @@ import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
+import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class RabbitMQConfig {
+
+    @Value("${spring.profiles.active:prod}")
+    private String activeProfile;
 
     // Queue 이름
     public static final String CHAT_MESSAGE_SAVE_QUEUE = "chat.message.save.queue";
@@ -66,6 +71,18 @@ public class RabbitMQConfig {
         SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
         factory.setConnectionFactory(connectionFactory);
         factory.setMessageConverter(jsonMessageConverter());
+
+        // 개발 환경에서는 자동 시작 안 함 (DevQueueCleaner가 큐 정리 후 수동 시작)
+        if ("dev".equals(activeProfile)) {
+            factory.setAutoStartup(false);
+        }
+
         return factory;
+    }
+
+    // RabbitAdmin - 큐 관리 및 운영 작업용
+    @Bean
+    public RabbitAdmin rabbitAdmin(ConnectionFactory connectionFactory) {
+        return new RabbitAdmin(connectionFactory);
     }
 }
