@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import Button from '@/components/common/Button'
 import YearSelectBox from './YearSelectBox'
-import QuestionSolve from './QuestionSolveView'
-import useStartExam from '@/hooks/exam/use-start-exam'
+import QuestionSolveView from './QuestionSolveView'
+import { useStartExam } from '@/hooks/exam/use-start-exam'
+import { useSSEChat } from '@/hooks/exam/use-sse-chat'
 
 const categories = [
   { id: 'CALC', name: '미적분' },
@@ -25,10 +26,14 @@ export default function ExamSelect() {
   const [selectedYear, setSelectedYear] = useState<number>(currentYear)
   const [selectedExamType, setSelectedExamType] = useState<string>('')
   const [isExamActive, setIsExamActive] = useState(false)
+  const [examResultId, setExamResultId] = useState<number | null>(null)
 
   const canStart = !!(selectedCategory && selectedYear && selectedExamType)
 
-  const { mutateAsync, data: examData } = useStartExam()
+  const { mutateAsync } = useStartExam()
+
+  // SSE 연결 (examResultId가 있을 때만 연결)
+  useSSEChat({ sessionId: examResultId ?? 0, enabled: !!examResultId })
 
   const handleStartExam = async () => {
     if (!canStart) return
@@ -40,6 +45,7 @@ export default function ExamSelect() {
     })
 
     if (result) {
+      setExamResultId(result.examResultId)
       setIsExamActive(true)
     }
   }
@@ -47,12 +53,19 @@ export default function ExamSelect() {
   const handleClose = () => {
     setIsExamActive(false)
   }
-  //TODO: 새로고침 문제 복원 시 examResultId 저장 필요 & 조건문 변경
+  //TODO: 새로고침 문제 복원 시 examResultId localStorage 저장 필요 & 조건문 변경
   // 문제 풀이 화면으로 전환
-  if (isExamActive && examData) {
+  if (isExamActive) {
     return (
       <div className="fixed inset-0 z-100 bg-background">
-        <QuestionSolve data={examData} onClose={handleClose} />
+        <QuestionSolveView
+          params={{
+            examYear: selectedYear,
+            category: selectedCategory,
+            examType: selectedExamType,
+          }}
+          onClose={handleClose}
+        />
       </div>
     )
   }
