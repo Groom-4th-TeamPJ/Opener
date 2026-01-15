@@ -18,6 +18,7 @@ import spring.backend.domain.scrapbook.dto.request.ScrapbookFilterSearchRequest;
 import spring.backend.domain.scrapbook.dto.response.ScrapbookFilterResponse;
 import spring.backend.domain.scrapbook.service.spec.ScrapbookService;
 import spring.backend.shared.infrastructure.security.dto.AuthUser;
+import spring.backend.shared.response.PageResponse;
 import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
 
@@ -43,7 +44,7 @@ public class ScrapbookController {
             @ApiResponse(responseCode = "401", description = "인증 실패")
     })
     @GetMapping("/filters")
-    public Page<ScrapbookFilterResponse> searchScrapbookFilters(
+    public PageResponse<ScrapbookFilterResponse> searchScrapbookFilters(
             @ModelAttribute ScrapbookFilterSearchRequest request,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
             @AuthenticationPrincipal AuthUser authUser
@@ -51,7 +52,8 @@ public class ScrapbookController {
         if (authUser == null || authUser.id() == null) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
+        Page<ScrapbookFilterResponse> responses = scrapbookService.searchScrapbookFilters(authUser.id(), request, pageable);
 
-        return scrapbookService.searchScrapbookFilters(authUser.id(), request, pageable);
+        return PageResponse.from(responses);
     }
 }
