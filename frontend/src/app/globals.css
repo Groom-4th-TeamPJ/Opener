@@ -112,6 +112,7 @@
    * Animations & Keyframes
    * ========================= */
   --animate-pulse-scale: pulse-scale 1.8s ease-in-out infinite;
+  --animate-bounce-scale: bounce-scale 1.8s ease-in-out infinite;
 
   @keyframes pulse-scale {
     0%,
@@ -122,6 +123,16 @@
     50% {
       transform: scale(1.1);
       opacity: 0.7;
+    }
+  }
+
+  @keyframes bounce-scale {
+    0%,
+    100% {
+      transform: scale(0.889);
+    }
+    50% {
+      transform: scale(1);
     }
   }
 }

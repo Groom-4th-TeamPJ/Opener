@@ -1,15 +1,23 @@
 'use client'
 
+import { useState } from 'react'
 import AIChatbot from '@/components/shared/AIChatbot'
 import PromptAnalysisCard from './PromptAnalysisCard'
 import ScrapbookQuestionCard from './ScrapbookQuestionCard'
-import { mockScrapbookChatData } from '@/mocks/scrapbook-chat'
-import type { ChatMessage } from '@/types/exam'
+import type { ScrapbookQuestion, ChatMessage } from '@/types/exam'
 
 export default function HistoryDetail() {
-  const { data } = mockScrapbookChatData
+  // TODO: API 연동 필요
+  const [data] = useState<ScrapbookQuestion | null>(null)
 
-  // Mock data의 chat을 ChatMessage 형식으로 변환 (order를 id로 매핑)
+  if (!data) {
+    return (
+      <div className="h-dvh flex items-center justify-center bg-neutral-50">
+        <p className="text-text-secondary">데이터를 불러오는 중...</p>
+      </div>
+    )
+  }
+
   const chatMessages: ChatMessage[] = data.chat.map((msg) => ({
     id: msg.order,
     role: msg.role,

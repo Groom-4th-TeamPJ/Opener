@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import type { ExamResponse, StopwatchRef } from '@/types/exam'
+import type { ExamRequestParams, StopwatchRef } from '@/types/exam'
 import { ROUTES } from '@/constants/routes'
 import ExamHeader from './ExamHeader'
 import AnswerCard from './AnswerCard'
@@ -15,45 +15,38 @@ import InactivityModal from '@/components/shared/InactivityModal'
 import NewQuestionModal from '@/components/new-question/NewQuestionModal'
 import ExamExitModal from './ExamExitModal'
 import ExamResultModal from './ExamResultModal'
-import { useSSEChat } from '@/hooks/exam/use-sse-chat'
+import { useExamCurrent } from '@/hooks/exam/use-exam-current'
 
-interface QuestionSolveProps {
-  data: ExamResponse
+interface QuestionSolveViewProps {
+  params: ExamRequestParams
   onClose: () => void
 }
 
 // 비활성 타임아웃
 const INACTIVITY_TIMEOUT = 60 * 60 * 1000
 
-// 임시 sessionId
-const STATIC_SESSION_ID = Math.floor(Math.random() * 1000000)
-
-export default function QuestionSolveView({ data, onClose }: QuestionSolveProps) {
-  const router = useRouter()
-  const { exam, questions } = data
-
-  // SSE 연결 테스트 (콘솔 로그 확인용)
-  useSSEChat({ sessionId: STATIC_SESSION_ID })
-
+export default function QuestionSolveView({ params, onClose }: QuestionSolveViewProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null)
   const [frqAnswer, setFrqAnswer] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
+  const [correctAnswer, setCorrectAnswer] = useState<number | null>(null)
   const [isAnalysisActive, setIsAnalysisActive] = useState(false)
   const [showInactivityModal, setShowInactivityModal] = useState(false)
   const [showVariationModal, setShowVariationModal] = useState(false)
   const [showExitModal, setShowExitModal] = useState(false)
   const [showResultModal, setShowResultModal] = useState(false)
   const [hasNewQuestion, setHasNewQuestion] = useState(false)
-
-  // 스탑워치 ref
   const stopwatchRef = useRef<StopwatchRef>(null)
+
+  const router = useRouter()
+  const { data: examData } = useExamCurrent(params)
 
   // 비활성 감지
   useInactivityDetection({
     timeout: INACTIVITY_TIMEOUT,
-    enabled: !showResultModal,
+    enabled: !!examData && !showResultModal,
     onInactive: () => {
       setShowInactivityModal(true)
       setShowVariationModal(false)
@@ -61,13 +54,22 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
     },
   })
 
-  const currentQuestion = questions[currentIndex]
-  const isLastQuestion = currentIndex === questions.length - 1
-
   // 문제 변경 시 타이머 리셋
   useEffect(() => {
+    if (!examData) return
     stopwatchRef.current?.reset()
-  }, [currentIndex])
+  }, [currentIndex, examData])
+
+  // 캐시에 데이터가 없으면 선택 화면으로 복귀
+  // TODO: 문제 복원 기능 구현 시 세션 스토리지에서 examResultId를 확인하여 복원 처리
+  if (!examData) {
+    onClose()
+    return null
+  }
+
+  const { exam, questions } = examData
+  const currentQuestion = questions[currentIndex]
+  const isLastQuestion = currentIndex === questions.length - 1
 
   const handleChoiceSelect = (index: number) => {
     if (submitted || currentQuestion.questionType === 'FRQ') return
@@ -99,6 +101,7 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
       setFrqAnswer('')
       setSubmitted(false)
       setIsCorrect(null)
+      setCorrectAnswer(null)
       setIsAnalysisActive(false)
       setHasNewQuestion(false)
     }
@@ -183,6 +186,7 @@ export default function QuestionSolveView({ data, onClose }: QuestionSolveProps)
               frqAnswer={frqAnswer}
               submitted={submitted}
               isCorrect={isCorrect}
+              correctAnswer={correctAnswer}
               onChoiceSelect={handleChoiceSelect}
               onFrqAnswerChange={setFrqAnswer}
             />

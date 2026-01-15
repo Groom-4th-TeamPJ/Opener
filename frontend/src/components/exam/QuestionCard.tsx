@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import { Card, CardHeader, CardContent, CardFooter } from '@/components/common/Card'
 import ResultBanner from '@/components/shared/ResultBanner'
 import type { Exam, Question, StopwatchRef } from '@/types/exam'
@@ -31,10 +32,21 @@ export default function QuestionCard({
             key={passage.order}
             className="self-stretch flex flex-col justify-start items-start gap-1"
           >
-            <div
-              className="leading-7"
-              dangerouslySetInnerHTML={{ __html: renderLatex(passage.text || '') }}
-            />
+            {passage.type === 'TEXT' && (
+              <div
+                className="leading-7"
+                dangerouslySetInnerHTML={{ __html: renderLatex(passage.content || '') }}
+              />
+            )}
+            {passage.type === 'IMAGE' && passage.content && (
+              <Image
+                src={passage.content}
+                alt={`문제 이미지 ${passage.order}`}
+                width={400}
+                height={400}
+                className="max-w-full h-auto"
+              />
+            )}
           </div>
         ))}
       </CardContent>
