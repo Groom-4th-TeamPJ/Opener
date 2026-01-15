@@ -3,7 +3,7 @@ import { ApiSuccess } from './api.types'
 export type ScrapBookListData = {
   examYear: number
   examType: { code: 'M06' | 'M09' | 'CSAT'; name: '6모' | '9모' | '수능' }
-  examHistories: {
+  questionResults: {
     examHistoryId: number
     category: {
       code: 'ALG' | 'GEO' | 'PROB' | 'CALC'

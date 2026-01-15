@@ -11,7 +11,7 @@ import ScrapBookListItem from './ScrapBookListItem'
 export default function ScrapBookList() {
   const router = useRouter()
   const pageSize = 8
-  const totalCount = ScrapBookListMocks.data.examHistories.length
+  const totalCount = ScrapBookListMocks.data.questionResults.length
   const search = useSearchParams()
 
   const { currentPage, totalPages, previousPage, nextPage, startIndex, endIndex, pages } =
@@ -40,7 +40,7 @@ export default function ScrapBookList() {
         </CardHeader>
 
         <CardContent className="pt-0">
-          {ScrapBookListMocks.data.examHistories.slice(startIndex, endIndex).map((history) => (
+          {ScrapBookListMocks.data.questionResults.slice(startIndex, endIndex).map((history) => (
             <ScrapBookListItem
               key={history.examHistoryId}
               id={history.examHistoryId}
