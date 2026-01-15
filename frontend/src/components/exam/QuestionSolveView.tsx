@@ -16,6 +16,7 @@ import NewQuestionModal from '@/components/new-question/NewQuestionModal'
 import ExamExitModal from './ExamExitModal'
 import ExamResultModal from './ExamResultModal'
 import { useExamCurrent } from '@/hooks/exam/use-exam-current'
+import usePreventRefresh from '@/hooks/exam/use-prevent-refresh'
 
 interface QuestionSolveViewProps {
   params: ExamRequestParams
@@ -54,6 +55,14 @@ export default function QuestionSolveView({ params, onClose }: QuestionSolveView
     },
   })
 
+  // 새로고침 감지
+  usePreventRefresh({
+    enabled: !!examData && !showResultModal,
+    onPrevent: () => {
+      setShowExitModal(true)
+    },
+  })
+
   // 문제 변경 시 타이머 리셋
   useEffect(() => {
     if (!examData) return
@@ -61,7 +70,6 @@ export default function QuestionSolveView({ params, onClose }: QuestionSolveView
   }, [currentIndex, examData])
 
   // 캐시에 데이터가 없으면 선택 화면으로 복귀
-  // TODO: 문제 복원 기능 구현 시 세션 스토리지에서 examResultId를 확인하여 복원 처리
   if (!examData) {
     onClose()
     return null
