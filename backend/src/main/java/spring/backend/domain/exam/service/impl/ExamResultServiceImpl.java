@@ -73,7 +73,7 @@ public class ExamResultServiceImpl implements ExamResultService {
         }
 
         // QuestionResult 엔티티 생성
-        QuestionResult questionResult = QuestionResult.of(examResult, question, request.getSelected(), request.getTimeSpent());
+        QuestionResult questionResult = QuestionResult.of(examResult, question, examResult.getExam(), request.getSelected(), request.getTimeSpent());
         boolean isCorrect = isAnswerCorrect(question, request.getSelected()); // 정답 여부 체크
         questionResult.markCorrect(isCorrect);
 

@@ -9,7 +9,8 @@ import lombok.*;
         uniqueConstraints = @UniqueConstraint(name="uk_exam_result_question", columnNames = {"exam_result_id", "question_id"}),
         indexes = {
                 @Index(name="idx_exam_result", columnList="exam_result_id"),
-                @Index(name="idx_question", columnList="question_id")
+                @Index(name="idx_question", columnList="question_id"),
+                @Index(name="idx_exam", columnList="exam_id")
         }
 )
 @Getter
@@ -28,6 +29,10 @@ public class QuestionResult {
     @JoinColumn(name = "question_id", nullable = false)
     private Question question;
 
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "exam_id", nullable = false)
+    private Exam exam;
+
     @Column(name = "selected", nullable = false)
     private Integer selected;
 
@@ -40,7 +45,7 @@ public class QuestionResult {
     @Column(name = "is_opener", nullable = false)
     private boolean isOpener;
 
-    public static QuestionResult of(ExamResult er, Question q, int selected, int timeSpent) {
+    public static QuestionResult of(ExamResult er, Question q, Exam e,int selected, int timeSpent) {
         QuestionResult qr = new QuestionResult();
         qr.examResult = er;
         qr.question = q;
@@ -48,6 +53,7 @@ public class QuestionResult {
         qr.isCorrect = false;
         qr.timeSpent = timeSpent;
         qr.isOpener = false;
+        qr.exam = e;
         return qr;
     }
 
