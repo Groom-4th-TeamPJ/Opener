@@ -142,7 +142,6 @@ CREATE TABLE IF NOT EXISTS "question_results" (
     id BIGSERIAL PRIMARY KEY,
     exam_result_id BIGINT NOT NULL,
     question_id BIGINT NOT NULL,
-    exam_id BIGINT NOT NULL,
     selected INT NOT NULL,
     is_correct BOOLEAN NOT NULL DEFAULT false,
     time_spent BIGINT NOT NULL DEFAULT 0,
@@ -157,8 +156,6 @@ CREATE TABLE IF NOT EXISTS "question_results" (
     REFERENCES "exam_results"(id) ON DELETE CASCADE,
     CONSTRAINT fk_question_results_question FOREIGN KEY (question_id)
     REFERENCES "questions"(id) ON DELETE CASCADE,
-    CONSTRAINT fk_question_results_exam FOREIGN KEY (exam_id)
-    REFERENCES "exams"(id) ON DELETE CASCADE,
 
     -- 제약조건
     CONSTRAINT chk_question_results_time CHECK (time_spent >= 0),
@@ -169,7 +166,6 @@ CREATE INDEX IF NOT EXISTS idx_question_results_question_id ON "question_results
 CREATE INDEX IF NOT EXISTS idx_question_results_exam_result_id ON "question_results"(exam_result_id);
 CREATE INDEX IF NOT EXISTS idx_question_results_correct ON "question_results"(is_correct);
 CREATE INDEX IF NOT EXISTS idx_question_results_deleted_at ON "question_results"(deleted_at) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_question_results_exam_id ON "question_results"(exam_id);
 
 -- Question_New 테이블
 CREATE TABLE IF NOT EXISTS "question_new" (

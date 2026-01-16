@@ -29,10 +29,6 @@ public class QuestionResult {
     @JoinColumn(name = "question_id", nullable = false)
     private Question question;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "exam_id", nullable = false)
-    private Exam exam;
-
     @Column(name = "selected", nullable = false)
     private Integer selected;
 
@@ -53,7 +49,6 @@ public class QuestionResult {
         qr.isCorrect = false;
         qr.timeSpent = timeSpent;
         qr.isOpener = false;
-        qr.exam = er.getExam();
         return qr;
     }
 
