@@ -31,6 +31,7 @@ public enum ErrorCode {
     // Business Logic 에러 (B_xxx)
     RESOURCE_NOT_FOUND(404, "B_001", "요청한 리소스를 찾을 수 없습니다"),
     RESOURCE_CONFLICT(409, "B_002", "리소스 충돌이 발생했습니다"),
+    AUTHORIZATION_FAILED(403, "B_003", "권한이 없습니다"),
 
     // Server 에러 (S_xxx)
     INTERNAL_SERVER_ERROR(500, "S_001", "서버 내부 오류가 발생했습니다"),
@@ -57,7 +58,11 @@ public enum ErrorCode {
 
     // Question 관련 에러 (Q_xxx)
     QUESTION_NOT_FOUND(404, "Q_001", "문제를 찾을 수 없습니다"),
-    QUESTION_NOT_IN_EXAM(400, "Q_002", "문제가 해당 시험에 속하지 않습니다");
+    QUESTION_NOT_IN_EXAM(400, "Q_002", "문제가 해당 시험에 속하지 않습니다"),
+
+    // Question Result 관련 에러 (QR_xxx)
+    QUESTION_RESULT_NOT_FOUND(404, "QR_001", "문제 결과를 찾을 수 없습니다");
+
 
     private final int status;
     private final String code;
