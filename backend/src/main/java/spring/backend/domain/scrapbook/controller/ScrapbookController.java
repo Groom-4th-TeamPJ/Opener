@@ -63,7 +63,7 @@ public class ScrapbookController {
             @ApiResponse(responseCode = "401", description = "인증 실패")
     })
     @GetMapping("/{examId}")
-    public ScrapbookResponse searchScrapbookFilters(
+    public ScrapbookResponse getScrapbookQuestions(
             @PathVariable Long examId,
             @PageableDefault(size = 8, sort = "openerUsedAt", direction = Sort.Direction.DESC) Pageable pageable,
             @AuthenticationPrincipal AuthUser authUser
