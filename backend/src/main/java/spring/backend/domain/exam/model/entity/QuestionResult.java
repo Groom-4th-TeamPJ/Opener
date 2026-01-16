@@ -2,6 +2,9 @@ package spring.backend.domain.exam.model.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import spring.backend.shared.entity.BaseEntity;
+
+import java.time.LocalDateTime;
 
 @Entity
 @Table(
@@ -15,7 +18,7 @@ import lombok.*;
 )
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class QuestionResult {
+public class QuestionResult extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -29,10 +32,6 @@ public class QuestionResult {
     @JoinColumn(name = "question_id", nullable = false)
     private Question question;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "exam_id", nullable = false)
-    private Exam exam;
-
     @Column(name = "selected", nullable = false)
     private Integer selected;
 
@@ -45,7 +44,10 @@ public class QuestionResult {
     @Column(name = "is_opener", nullable = false)
     private boolean isOpener;
 
-    public static QuestionResult of(ExamResult er, Question q, Exam e,int selected, int timeSpent) {
+    @Column(name = "opener_used_at")
+    private LocalDateTime openerUsedAt;
+
+    public static QuestionResult of(ExamResult er, Question q, int selected, int timeSpent) {
         QuestionResult qr = new QuestionResult();
         qr.examResult = er;
         qr.question = q;
@@ -53,7 +55,6 @@ public class QuestionResult {
         qr.isCorrect = false;
         qr.timeSpent = timeSpent;
         qr.isOpener = false;
-        qr.exam = e;
         return qr;
     }
 
@@ -63,5 +64,6 @@ public class QuestionResult {
 
     public void markOpener() {
         this.isOpener = true;
+        this.openerUsedAt = LocalDateTime.now();
     }
 }

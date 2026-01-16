@@ -1,8 +1,5 @@
 package spring.backend.domain.exam.repository.spec;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import spring.backend.domain.exam.model.dto.ExamResultSearchCriteria;
 import spring.backend.domain.exam.model.entity.ExamResult;
 import spring.backend.domain.scrapbook.dto.response.ScrapbookFilterResponse;
 
@@ -21,5 +18,7 @@ public interface ExamResultRepository {
     ExamResult save(ExamResult examResult);
 
     List<ScrapbookFilterResponse> findScrapbookFiltersByUserId(UUID userId);
+
+    List<ExamResult> findAllByUserIdAndExamIdAndLastOpenerUsageDateIsNotNull(UUID userId, Long examId);
 
 }
