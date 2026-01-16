@@ -70,7 +70,7 @@ public class ScrapbookServiceImpl implements ScrapbookService {
 
         // 3. ExamResult가 존재하지 않으면 null 반환
         if (examResults.isEmpty()) {
-            log.error("스크랩북 분류 선택 후 리스트 조회 실패 - 해당 시험에 대한 ExamResult가 존재하지 않음. userId: {}, examId: {}", userId, examId);
+            log.info("스크랩북 분류 선택 후 리스트 조회 실패 - 해당 시험에 대한 ExamResult가 존재하지 않음. userId: {}, examId: {}", userId, examId);
             // 빈 QuestionResult 페이지와 함께 ScrapbookResponse 반환
             return ScrapbookResponse.builder()
                         .examType(exam.getExamType())
@@ -92,7 +92,7 @@ public class ScrapbookServiceImpl implements ScrapbookService {
                 .findAllByExamResultIdInAndIsOpenerIsTrue(examResultIds, pageable);
 
         // 4-3. 로그 출력
-        questionResults.stream().forEach(qr ->
+        questionResults.forEach(qr ->
                 log.debug("조회된 QuestionResult - id: {}, questionId: {}, examResultId: {}",
                         qr.getId(), qr.getQuestion().getId(), qr.getExamResult().getId())
         );

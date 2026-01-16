@@ -33,7 +33,7 @@ public class ScrapbookController {
             summary = "스크랩북 분류 조회"
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "스크랩북 필터 조회 성공",
+            @ApiResponse(responseCode = "200", description = "스크랩북 리스트 조회 성공",
                         content = @Content(mediaType = "application/json",
                                schema = @Schema(implementation = ScrapbookFilterResponse.class))
             ),
@@ -54,7 +54,7 @@ public class ScrapbookController {
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "스크랩북 필터 검색 성공",
                     content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ScrapbookFilterResponse.class))
+                            schema = @Schema(implementation = ScrapbookResponse.class))
             ),
             @ApiResponse(responseCode = "401", description = "인증 실패")
     })
