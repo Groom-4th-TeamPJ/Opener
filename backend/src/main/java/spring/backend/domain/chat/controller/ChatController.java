@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import spring.backend.domain.chat.dto.request.ChatSaveRequest;
 import spring.backend.domain.chat.dto.request.ChatSendRequest;
+import spring.backend.domain.chat.dto.request.OpenerAnalysisRequest;
+import spring.backend.domain.chat.dto.response.ChatHistoryResponse;
 import spring.backend.domain.chat.service.spec.ChatService;
 import spring.backend.shared.infrastructure.security.dto.AuthUser;
 
@@ -65,11 +67,12 @@ public class ChatController {
     }
 
     // 오프너 분석
-    @PostMapping("/opener-analysis/{questionId}")
+    @PostMapping("/opener-analysis")
     public ResponseEntity<Void> openerAnalysis(
-            @RequestBody OpenerAnalysisRequest req
+            @RequestBody OpenerAnalysisRequest req,
+            @AuthenticationPrincipal AuthUser authUser
     ) {
-        chatService.openerAnalysis(req);
+        chatService.openerAnalysis(req, authUser.id());
 
         return null;
     }
