@@ -24,6 +24,4 @@ public class ScrapbookFilterResponse {
     private int openerUsageCount;
     @Schema(description = "문제 유형", example = "2024-05-20")
     private LocalDate recentDate;
-    @Schema(description = "문제 카테고리", example = "ALG")
-    private Category category;
 }

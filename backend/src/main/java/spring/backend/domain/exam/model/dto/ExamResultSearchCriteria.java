@@ -20,5 +20,4 @@ public class ExamResultSearchCriteria {
     private LocalDateTime createdAtFrom;
     private LocalDateTime createdAtTo;
     private Boolean openerUsage;
-    private Category category;
 }

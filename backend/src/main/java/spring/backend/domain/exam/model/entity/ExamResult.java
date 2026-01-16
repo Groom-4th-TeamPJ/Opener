@@ -5,6 +5,7 @@ import lombok.*;
 import spring.backend.domain.exam.model.enums.Category;
 import spring.backend.shared.entity.BaseEntity;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
@@ -48,11 +49,10 @@ public class ExamResult extends BaseEntity {
     @Column(name = "opener_usage_count", nullable = false)
     private Integer openerUsageCount;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "category")
-    private Category category;
+    @Column(name = "last_opener_usage_date")
+    private LocalDateTime lastOpenerUsageDate;
 
-    public static ExamResult of(UUID userId, Exam exam, Category category) {
+    public static ExamResult of(UUID userId, Exam exam) {
         ExamResult er = new ExamResult();
         er.userId = userId;
         er.exam = exam;
@@ -61,7 +61,6 @@ public class ExamResult extends BaseEntity {
         er.correctCount = 0;
         er.incorrectCount = 0;
         er.openerUsageCount = 0;
-        er.category = category;
         return er;
     }
 
@@ -79,15 +78,38 @@ public class ExamResult extends BaseEntity {
         this.totalTimeSpent += time;
     }
 
-    public void incrementCorrectCount() {
-        this.correctCount += 1;
+    public void increaseCorrectCount() {
+        if(this.correctCount == null) {
+            this.correctCount = 1;
+        } else {
+            this.correctCount = this.correctCount + 1;
+        }
     }
 
-    public void incrementIncorrectCount() {
-        this.incorrectCount += 1;
+    public void increaseIncorrectCount() {
+        if(this.incorrectCount == null) {
+            this.incorrectCount = 1;
+        } else {
+            this.incorrectCount = this.incorrectCount + 1;
+        }
     }
 
-    public void incrementOpenerUsageCount() {
-        this.openerUsageCount += 1;
+    /** openerUsageCount를 널-세이프하게 1 증가시킨다. */
+    private void increaseOpenerUsageCount() {
+        if (this.openerUsageCount == null) {
+            this.openerUsageCount = 1;
+        } else {
+            this.openerUsageCount = this.openerUsageCount + 1;
+        }
+    }
+
+    /** lastOpenerUsageDate를 현재 시각으로 설정한다. */
+    public void touchLastOpenerUsageDate() {
+        this.lastOpenerUsageDate = LocalDateTime.now();
+    }
+
+    public void recordOpenerUsage() {
+        increaseOpenerUsageCount();
+        touchLastOpenerUsageDate();
     }
 }

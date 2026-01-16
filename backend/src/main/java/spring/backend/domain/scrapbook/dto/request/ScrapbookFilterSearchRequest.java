@@ -17,7 +17,6 @@ import java.time.LocalDateTime;
 public class ScrapbookFilterSearchRequest {
     private int examYear;
     private ExamType examType;
-    private Category category;
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDateTime startDate;
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
