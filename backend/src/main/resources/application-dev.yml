@@ -98,31 +98,31 @@ spring:
     api-docs:
       path: /api-docs
 
-# JWT 설정
-jwt:
-  secret: ${JWT_SECRET:your-very-secure-secret-key-change-this-in-production-min-32-chars}
-  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000} # 1시간
-  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000} # 7일
+  # JWT 설정
+  jwt:
+    secret: ${JWT_SECRET:your-very-secure-secret-key-change-this-in-production-min-32-chars}
+    access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000} # 1시간
+    refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000} # 7일
 
-# 개발 환경 로깅
-logging:
-  level:
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
-    org.springframework.security: DEBUG
-    org.flywaydb: DEBUG
+  # 개발 환경 로깅
+  logging:
+    level:
+      org.hibernate.SQL: DEBUG
+      org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+      org.springframework.security: DEBUG
+      org.flywaydb: DEBUG
 
-# 개발 환경용 보안 설정 (테스트 편의성)
-security:
-  account-lock:
-    max-attempts: 5            # 최대 로그인 실패 허용 횟수
-    lock-duration-minutes: 1   # 개발 환경: 1분 (테스트 용이성)
+  # 개발 환경용 보안 설정 (테스트 편의성)
+  security:
+    account-lock:
+      max-attempts: 5            # 최대 로그인 실패 허용 횟수
+      lock-duration-minutes: 1   # 개발 환경: 1분 (테스트 용이성)
 
-app:
-  cors:
-    allowed-origins:
-      - http://localhost:3000
-      - https://opener.vercel.app
+  app:
+    cors:
+      allowed-origins:
+        - http://localhost:3000
+        - https://opener.vercel.app
 
   # RAG (Retrieval-Augmented Generation) 설정
   rag:
