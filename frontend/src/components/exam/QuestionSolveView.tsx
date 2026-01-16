@@ -181,16 +181,10 @@ export default function QuestionSolveView({ params, onClose }: QuestionSolveView
 
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto bg-neutral-50">
-        <div className="w-full max-w-6xl mx-auto px-4 md:px-8 py-6 flex items-stretch gap-6 min-h-full">
+        <div className="w-full min-h-full max-w-6xl mx-auto px-4 md:px-8 py-6 flex items-stretch gap-6">
           {/* Left: Question + Answer */}
-          <div className="flex-1 flex flex-col gap-6 min-w-86">
-            <QuestionCard
-              exam={exam}
-              question={currentQuestion}
-              stopwatchRef={stopwatchRef}
-              submitted={submitted}
-              isCorrect={isCorrect}
-            />
+          <div className="flex-1 flex flex-col gap-6 min-w-86 min-h-0 overflow-hidden">
+            <QuestionCard exam={exam} question={currentQuestion} stopwatchRef={stopwatchRef} />
 
             <AnswerCard
               question={currentQuestion}

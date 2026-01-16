@@ -12,7 +12,7 @@ export default function QuestionTitle({ exam, question, stopwatchRef }: Question
   const pointVariant = getPointVariant(question.point)
 
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-6">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-4">
       <span className="bg-primary-600 text-white text-lg font-bold px-4 py-2 rounded-lg">
         {question.questionNo}
       </span>
