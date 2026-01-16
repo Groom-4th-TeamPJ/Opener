@@ -41,7 +41,7 @@ public class ExamResultServiceImpl implements ExamResultService {
         Exam exam = examRepository.findById(examId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.EXAM_NOT_FOUND));
 
-        ExamResult examResult = ExamResult.of(userId, exam, category);
+        ExamResult examResult = ExamResult.of(userId, exam);
         ExamResult saved = examResultRepository.save(examResult);
 
         return saved.getId();
