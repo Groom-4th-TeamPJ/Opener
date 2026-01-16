@@ -17,7 +17,7 @@ export default function ScrapBookList() {
   const { currentPage, totalPages, previousPage, nextPage, startIndex, endIndex, pages } =
     useScrapBookPagination({ totalCount, pageSize, search })
   return (
-    <div className="flex flex-col w-full gap-4 min-h-dvh md:mt-6 lg:mt-10">
+    <div className="flex flex-col w-full gap-4 min-h-auto md:mt-6 lg:mt-10">
       <div className="flex gap-4 items-center">
         <Button
           variant="ghost"
