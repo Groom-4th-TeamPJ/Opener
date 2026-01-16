@@ -94,7 +94,7 @@ export default async function apiJson<T>(
     if (e instanceof Response) {
       const status = e.status
 
-      // body 파싱은 "있으면" 하고, 없으면 fallback
+      // body 파싱, 없으면 fallback
       let fail: ApiFail | null = null
       const ct = e.headers.get('content-type')
 
