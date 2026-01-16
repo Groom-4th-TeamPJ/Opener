@@ -23,6 +23,8 @@ import spring.backend.shared.response.PageResponse;
 import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -70,7 +72,12 @@ public class ScrapbookServiceImpl implements ScrapbookService {
         // 3. ExamResult가 존재하지 않으면 null 반환
         if (examResults.isEmpty()) {
             log.error("스크랩북 분류 선택 후 리스트 조회 실패 - 해당 시험에 대한 ExamResult가 존재하지 않음. userId: {}, examId: {}", userId, examId);
-            return null;
+            // 빈 QuestionResult 페이지와 함께 ScrapbookResponse 반환
+            return ScrapbookResponse.builder()
+                        .examType(exam.getExamType())
+                        .examYear(exam.getExamYear())
+                        .questionResults(PageResponse.from(new PageImpl<> (Collections.emptyList(), pageable, 0) ))
+                        .build();
         }
 
         // 4. 존재하면 QuestionResult 목록 조회 및 ScrapbookResponse 생성 후 반환
