@@ -65,7 +65,7 @@ public class ScrapbookController {
     @GetMapping("/{examId}")
     public ScrapbookResponse searchScrapbookFilters(
             @PathVariable Long examId,
-            @PageableDefault(size = 8, sort = "updatedAt", direction = Sort.Direction.DESC) Pageable pageable,
+            @PageableDefault(size = 8, sort = "openerUsedAt", direction = Sort.Direction.DESC) Pageable pageable,
             @AuthenticationPrincipal AuthUser authUser
     ) {
         if (authUser == null || authUser.id() == null) {

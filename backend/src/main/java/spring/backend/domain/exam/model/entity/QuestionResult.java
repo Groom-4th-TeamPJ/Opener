@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 import spring.backend.shared.entity.BaseEntity;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(
         name = "question_results",
@@ -42,6 +44,9 @@ public class QuestionResult extends BaseEntity {
     @Column(name = "is_opener", nullable = false)
     private boolean isOpener;
 
+    @Column(name = "opener_used_at")
+    private LocalDateTime openerUsedAt;
+
     public static QuestionResult of(ExamResult er, Question q, int selected, int timeSpent) {
         QuestionResult qr = new QuestionResult();
         qr.examResult = er;
@@ -59,5 +64,6 @@ public class QuestionResult extends BaseEntity {
 
     public void markOpener() {
         this.isOpener = true;
+        this.openerUsedAt = LocalDateTime.now();
     }
 }

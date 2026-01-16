@@ -36,8 +36,8 @@ public class ScrapbookMapper {
                 .category(qr.getQuestion().getCategory())
                 .questionNo(qr.getQuestion().getQuestionNo())
 //                .passages(qr.getQuestion().getPassages())
-                .passage(question.toString())
-                .updatedAt(qr.getUpdatedAt())
+                .passage(question.toString().trim())
+                .openerUsedAt(qr.getOpenerUsedAt())
                 .build();
     }
 

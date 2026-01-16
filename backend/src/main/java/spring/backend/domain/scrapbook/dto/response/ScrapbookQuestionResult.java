@@ -33,5 +33,5 @@ public class ScrapbookQuestionResult {
     private String passage;
 
     @Schema(description = "분석 일시", example = "2024-05-20T15:30:00")
-    private LocalDateTime updatedAt;
+    private LocalDateTime openerUsedAt;
 }
