@@ -2,6 +2,7 @@ package spring.backend.domain.exam.model.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import spring.backend.shared.entity.BaseEntity;
 
 @Entity
 @Table(
@@ -15,7 +16,7 @@ import lombok.*;
 )
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class QuestionResult {
+public class QuestionResult extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
