@@ -18,6 +18,7 @@ import spring.backend.shared.response.exception.BusinessException;
 public class ChatRedisServiceImpl implements ChatRedisService {
 
     private static final String SESSION_KEY_PREFIX = "chat:session:";
+    // 채팅 세션 TTL: 5분 (SSE 타임아웃과 동일, 메시지 송수신 시 자동 갱신)
     private static final Duration SESSION_TTL = Duration.ofMinutes(5);
     private final ObjectMapper objectMapper;
     private final StringRedisTemplate redisTemplate;
@@ -94,13 +95,18 @@ public class ChatRedisServiceImpl implements ChatRedisService {
         String messageKey = SESSION_KEY_PREFIX + sessionId + ":messages";
 
         try {
+            log.debug("[Redis] 세션 메시지 조회 시작 - sessionId: {}, key: {}", sessionId, messageKey);
+
             // Redis List에서 모든 메시지 조회 (0부터 -1까지 = 전체)
             // 가져올때는 json 포멧
             List<String> jsonMessages = redisTemplate.opsForList().range(messageKey, 0, -1);
 
             if (jsonMessages == null || jsonMessages.isEmpty()) {
+                log.debug("[Redis] 세션 메시지 없음 - sessionId: {}", sessionId);
                 return List.of();
             }
+
+            log.debug("[Redis] 세션 메시지 조회 성공 - sessionId: {}, 메시지 수: {}", sessionId, jsonMessages.size());
 
             // JSON 문자열을 MessageDto로 변환
             return jsonMessages.stream()
@@ -108,6 +114,7 @@ public class ChatRedisServiceImpl implements ChatRedisService {
                         try {
                             return objectMapper.readValue(json, RedisMessageDto.class);
                         } catch (Exception e) {
+                            log.error("[Redis] JSON 역직렬화 실패 - sessionId: {}, json: {}", sessionId, json, e);
                             return null;
                         }
                     })
@@ -115,6 +122,7 @@ public class ChatRedisServiceImpl implements ChatRedisService {
                     .toList();
 
         } catch (Exception e) {
+            log.error("[Redis] 세션 메시지 조회 중 예외 발생 - sessionId: {}, key: {}", sessionId, messageKey, e);
             throw new BusinessException(ErrorCode.MESSAGE_INPUT_FAIL);
         }
     }
@@ -137,9 +145,29 @@ public class ChatRedisServiceImpl implements ChatRedisService {
     // 세션 주인 확인 (권한 없으면 예외 throw)
     @Override
     public void validateSessionOwner(Long sessionId, UUID userId) {
-        String storedUserId = (String) redisTemplate.opsForHash().get(SESSION_KEY_PREFIX + sessionId, "userId");
+        String sessionKey = SESSION_KEY_PREFIX + sessionId;
 
-        if (storedUserId == null || !storedUserId.equals(userId.toString())) {
+        try {
+            String storedUserId = (String) redisTemplate.opsForHash().get(sessionKey, "userId");
+
+            if (storedUserId == null) {
+                log.warn("[Redis] 세션 권한 검증 실패 - 세션이 존재하지 않음 - sessionId: {}, userId: {}",
+                        sessionId, userId);
+                throw new BusinessException(ErrorCode.INVALID_SESSION);
+            }
+
+            if (!storedUserId.equals(userId.toString())) {
+                log.warn("[Redis] 세션 권한 검증 실패 - 사용자 불일치 - sessionId: {}, expectedUserId: {}, actualUserId: {}",
+                        sessionId, storedUserId, userId);
+                throw new BusinessException(ErrorCode.INVALID_SESSION);
+            }
+
+            log.debug("[Redis] 세션 권한 검증 성공 - sessionId: {}, userId: {}", sessionId, userId);
+
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("[Redis] 세션 권한 검증 중 예외 발생 - sessionId: {}, userId: {}", sessionId, userId, e);
             throw new BusinessException(ErrorCode.INVALID_SESSION);
         }
     }
