@@ -67,7 +67,7 @@ public class ScrapbookServiceImpl implements ScrapbookService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.EXAM_NOT_FOUND));
 
         // 2. 해당 시험에 대한 List<ExamResult> LastOpenerUsageDate가 Not Null 조회
-        List<ExamResult> examResults = examResultRepository.findAllByUserIdAndExamIdAndLastOpenerUsageDateIsNotNull(examId, userId);
+        List<ExamResult> examResults = examResultRepository.findAllByUserIdAndExamIdAndLastOpenerUsageDateIsNotNull(userId, examId);
 
         // 3. ExamResult가 존재하지 않으면 null 반환
         if (examResults.isEmpty()) {

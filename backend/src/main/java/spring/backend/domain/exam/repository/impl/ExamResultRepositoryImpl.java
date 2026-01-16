@@ -53,7 +53,7 @@ public class ExamResultRepositoryImpl implements ExamResultRepository {
     }
 
     @Override
-    public List<ExamResult> findAllByUserIdAndExamIdAndLastOpenerUsageDateIsNotNull(Long examId, UUID userId) {
+    public List<ExamResult> findAllByUserIdAndExamIdAndLastOpenerUsageDateIsNotNull(UUID userId, Long examId) {
         return jpaExamResultRepository.findAllByUserIdAndExamIdAndLastOpenerUsageDateIsNotNull(userId, examId);
     }
 }

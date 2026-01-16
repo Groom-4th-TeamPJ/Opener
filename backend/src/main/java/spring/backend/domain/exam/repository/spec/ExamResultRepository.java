@@ -19,6 +19,6 @@ public interface ExamResultRepository {
 
     List<ScrapbookFilterResponse> findScrapbookFiltersByUserId(UUID userId);
 
-    List<ExamResult> findAllByUserIdAndExamIdAndLastOpenerUsageDateIsNotNull(Long examId, UUID userId);
+    List<ExamResult> findAllByUserIdAndExamIdAndLastOpenerUsageDateIsNotNull(UUID userId, Long examId);
 
 }
