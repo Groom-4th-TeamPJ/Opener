@@ -19,6 +19,8 @@ import { useExamCurrent } from '@/hooks/exam/use-exam-current'
 import usePreventRefresh from '@/hooks/exam/use-prevent-refresh'
 import { useSSEChat } from '@/hooks/exam/use-sse-chat'
 import { useSubmitAnswer } from '@/hooks/exam/use-submit-answer'
+import { useExamModalStore } from '@/stores/use-exam-modal-store'
+import { EXAM_MODAL } from '@/constants/exam'
 
 interface QuestionSolveViewProps {
   params: ExamRequestParams
@@ -36,13 +38,10 @@ export default function QuestionSolveView({ params, onClose }: QuestionSolveView
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
   const [correctAnswer, setCorrectAnswer] = useState<number | null>(null)
   const [isAnalysisActive, setIsAnalysisActive] = useState(false)
-  const [showInactivityModal, setShowInactivityModal] = useState(false)
-  const [showVariationModal, setShowVariationModal] = useState(false)
-  const [showExitModal, setShowExitModal] = useState(false)
-  const [showResultModal, setShowResultModal] = useState(false)
   const [hasNewQuestion, setHasNewQuestion] = useState(false)
   const stopwatchRef = useRef<StopwatchRef>(null)
 
+  const { openModal, closeModal, isOpen } = useExamModalStore()
   const router = useRouter()
   const { data: examData } = useExamCurrent(params)
   const { mutate: submitAnswer, isPending: isSubmitting } = useSubmitAnswer()
@@ -53,19 +52,17 @@ export default function QuestionSolveView({ params, onClose }: QuestionSolveView
   // 비활성 감지
   useInactivityDetection({
     timeout: INACTIVITY_TIMEOUT,
-    enabled: !!examData && !showResultModal,
+    enabled: !!examData && !isOpen(EXAM_MODAL.RESULT),
     onInactive: () => {
-      setShowInactivityModal(true)
-      setShowVariationModal(false)
-      setShowExitModal(false)
+      openModal(EXAM_MODAL.INACTIVITY)
     },
   })
 
   // 새로고침 감지
   usePreventRefresh({
-    enabled: !!examData && !showResultModal,
+    enabled: !!examData && !isOpen(EXAM_MODAL.RESULT),
     onPrevent: () => {
-      setShowExitModal(true)
+      openModal(EXAM_MODAL.EXIT)
     },
   })
 
@@ -120,7 +117,7 @@ export default function QuestionSolveView({ params, onClose }: QuestionSolveView
   const handleNext = () => {
     if (isLastQuestion) {
       // 시험 완료 - 결과 모달 표시
-      setShowResultModal(true)
+      openModal(EXAM_MODAL.RESULT)
     } else {
       setCurrentIndex((prev) => prev + 1)
       setSelectedChoice(null)
@@ -138,35 +135,20 @@ export default function QuestionSolveView({ params, onClose }: QuestionSolveView
     // TODO: AI 분석 요청
   }
 
-  // 비활성 모달 확인 시 처리
+  // TODO: 비활성 상태 60분 자동으로 대시보드 이동하도록
   const handleInactivityConfirm = () => {
     router.push(ROUTES.DASHBOARD)
   }
 
   // 변형 문제 풀기 모달 열기
   const handleVariationClick = () => {
-    setShowVariationModal(true)
+    openModal(EXAM_MODAL.NEW_QUESTION)
     setHasNewQuestion(true)
-  }
-
-  // 변형 문제 모달 닫기
-  const handleVariationModalClose = () => {
-    setShowVariationModal(false)
-  }
-
-  // 이탈 경고 모달 - 계속 학습하기
-  const handleExitCancel = () => {
-    setShowExitModal(false)
-  }
-
-  // 이탈 경고 모달 - 학습 종료하기
-  const handleExitConfirm = () => {
-    onClose()
   }
 
   // 결과 모달 닫기
   const handleResultModalClose = () => {
-    setShowResultModal(false)
+    closeModal()
     onClose()
   }
 
@@ -191,7 +173,7 @@ export default function QuestionSolveView({ params, onClose }: QuestionSolveView
       onDragStart={handleDragStart}
     >
       {/* Top Header Bar */}
-      <ExamHeader onClose={() => setShowExitModal(true)} canCount={10} />
+      <ExamHeader onClose={() => openModal(EXAM_MODAL.EXIT)} canCount={10} />
 
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto bg-neutral-50">
@@ -246,22 +228,17 @@ export default function QuestionSolveView({ params, onClose }: QuestionSolveView
       </div>
 
       {/* 변형 문제 모달 */}
-      {showVariationModal && (
-        <NewQuestionModal open={showVariationModal} onClose={handleVariationModalClose} />
-      )}
+
+      <NewQuestionModal open={isOpen(EXAM_MODAL.NEW_QUESTION)} onClose={closeModal} />
 
       {/* 비활성 모달 */}
-      <InactivityModal open={showInactivityModal} onConfirm={handleInactivityConfirm} />
+      <InactivityModal open={isOpen(EXAM_MODAL.INACTIVITY)} onConfirm={handleInactivityConfirm} />
 
       {/* 이탈 경고 모달 */}
-      <ExamExitModal
-        open={showExitModal}
-        onCancel={handleExitCancel}
-        onConfirm={handleExitConfirm}
-      />
+      <ExamExitModal open={isOpen(EXAM_MODAL.EXIT)} onCancel={closeModal} onConfirm={onClose} />
 
       {/* 학습 결과 모달 */}
-      <ExamResultModal open={showResultModal} onClose={handleResultModalClose} />
+      <ExamResultModal open={isOpen(EXAM_MODAL.RESULT)} onClose={handleResultModalClose} />
     </div>
   )
 }
