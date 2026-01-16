@@ -34,4 +34,5 @@ public interface JpaExamResultRepository extends JpaRepository<ExamResult, Long>
     """)
     List<ScrapbookFilterResponse> findScrapbookFiltersByUserId(UUID userId);
 
+    List<ExamResult> findAllByUserIdAndExamIdAndLastOpenerUsageDateIsNotNull(UUID userId, Long examId);
 }

@@ -52,4 +52,8 @@ public class ExamResultRepositoryImpl implements ExamResultRepository {
         return jpaExamResultRepository.findScrapbookFiltersByUserId(userId);
     }
 
+    @Override
+    public List<ExamResult> findAllByUserIdAndExamIdAndLastOpenerUsageDateIsNotNull(Long examId, UUID userId) {
+        return jpaExamResultRepository.findAllByUserIdAndExamIdAndLastOpenerUsageDateIsNotNull(userId, examId);
+    }
 }
