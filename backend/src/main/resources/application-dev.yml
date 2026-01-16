@@ -15,18 +15,18 @@ spring:
   # JPA/Hibernate 설정
   jpa:
     hibernate:
-      ddl-auto: validate # create, create-drop, update, validate, none
-    show-sql: true
+      ddl-auto: validate # Flyway가 스키마 관리
+    show-sql: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
   # Flyway 마이그레이션 설정
   flyway:
-    enabled: false # 개발 환경에서는 JPA ddl-auto 사용
-    baseline-on-migrate: true # 기존 DB에 Flyway 적용 시 필요
+    enabled: true # 스키마 생성 및 테스트 데이터 삽입
+    baseline-on-migrate: false # 깨끗한 DB에서 시작
     locations: classpath:db/migration
-    validate-on-migrate: true
+    validate-on-migrate: true # 스키마 검증 활성화
 
   # Redis 설정
   data:
@@ -65,10 +65,23 @@ spring:
       api-key: ${OPENAI_API_KEY}
       chat:
         options:
-          model: ${OPENAI_MODEL}
+          model: ${OPENAI_CHAT_MODEL:gpt-4o-mini}
           temperature: 0.7
           max-tokens: 2000
         base-url: https://api.openai.com
+      embedding:
+        options:
+          model: text-embedding-ada-002
+
+    # PgVector Store 설정 (Spring AI 2.0 자동 설정)
+    vectorstore:
+      pgvector:
+        enabled: true
+        dimensions: 1536                    # text-embedding-ada-002 dimension
+        distance-type: COSINE_DISTANCE      # 유사도 측정 방식
+        remove-existing-vector-store-table: false
+        initialize-schema: true             # 스키마 자동 초기화
+        index-type: HNSW                    # 인덱스 타입 (성능 최적화)
 
   # Security 개발 설정 (필요시 커스터마이징)
   security:
@@ -110,3 +123,9 @@ app:
     allowed-origins:
       - http://localhost:3000
       - https://opener.vercel.app
+
+  # RAG (Retrieval-Augmented Generation) 설정
+  rag:
+    enabled: true                    # RAG 기능 활성화
+    top-k: 5                         # 유사 문서 검색 시 반환할 최대 개수
+    similarity-threshold: 0.7        # 유사도 임계값 (0.0 ~ 1.0)
