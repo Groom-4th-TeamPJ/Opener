@@ -146,6 +146,7 @@ CREATE TABLE IF NOT EXISTS "question_results" (
     is_correct BOOLEAN NOT NULL DEFAULT false,
     time_spent BIGINT NOT NULL DEFAULT 0,
     is_opener BOOLEAN NOT NULL DEFAULT false,
+    opener_used_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,
     deleted_at TIMESTAMP,
