@@ -28,32 +28,8 @@ public class ScrapbookServiceImpl implements ScrapbookService {
         this.examResultRepository = examResultRepository;
     }
 
-
     @Override
-    @Transactional(readOnly = true)
-    public Page<ScrapbookFilterResponse> searchScrapbookFilters(UUID userId, ScrapbookFilterSearchRequest request, Pageable pageable) {
-        log.info("ScrapbookServiceImpl.searchScrapbookFilters - userId: {}, request: {}, pageable: {}", userId, request, pageable);
-        // ExamResultSearchCriteria로 변환하여 ExamResultRepository의 검색 메서드 호출
-        Page<ExamResult> examResults = examResultRepository.searchExamResults(
-                toExamResultSearchCriteria(userId, request),
-                pageable
-        );
-
-        // ExamResult를 ScrapbookFilterResponse로 매핑
-        List<ScrapbookFilterResponse> responses = examResults.stream().map(ScrapbookMapper::toScrapbookFilterResponse).toList();
-
-        // Page<ScrapbookFilterResponse> 반환
-        return new PageImpl<>(responses, pageable, examResults.getTotalElements());
-    }
-
-    private ExamResultSearchCriteria toExamResultSearchCriteria(UUID userId, ScrapbookFilterSearchRequest request) {
-        return ExamResultSearchCriteria.builder()
-                    .userId(userId)
-                    .examType(request.getExamType())
-                    .examYear(request.getExamYear()==0 ? null : request.getExamYear())
-                    .openerUsage(true) // 스크랩북은 무조건 문제풀이 기록이 있는 것만 조회
-                    .createdAtFrom(request.getStartDate())
-                    .createdAtTo(request.getEndDate())
-                    .build();
+    public List<ScrapbookFilterResponse> getScrapbookFilters(UUID userId) {
+        return examResultRepository.findScrapbookFiltersByUserId(userId);
     }
 }

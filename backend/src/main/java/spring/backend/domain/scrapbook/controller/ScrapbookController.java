@@ -22,6 +22,8 @@ import spring.backend.shared.response.PageResponse;
 import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/scrapbooks")
 public class ScrapbookController {
@@ -33,27 +35,21 @@ public class ScrapbookController {
     }
 
     @Operation(
-            summary = "스크랩북 필터 검색",
-            description = "사용자의 스크랩북을 다양한 필터링 옵션으로 검색합니다.(요건이 없지만 일단 만듦)"
+            summary = "스크랩북 분류 조회"
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "스크랩북 필터 검색 성공",
+            @ApiResponse(responseCode = "200", description = "스크랩북 필터 조회 성공",
                         content = @Content(mediaType = "application/json",
                                schema = @Schema(implementation = ScrapbookFilterResponse.class))
             ),
             @ApiResponse(responseCode = "401", description = "인증 실패")
     })
     @GetMapping("/filters")
-    public PageResponse<ScrapbookFilterResponse> searchScrapbookFilters(
-            @ModelAttribute ScrapbookFilterSearchRequest request,
-            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
-            @AuthenticationPrincipal AuthUser authUser
-    ) {
+    public List<ScrapbookFilterResponse> getScrapbookFilters(@AuthenticationPrincipal AuthUser authUser) {
         if (authUser == null || authUser.id() == null) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
-        Page<ScrapbookFilterResponse> responses = scrapbookService.searchScrapbookFilters(authUser.id(), request, pageable);
 
-        return PageResponse.from(responses);
+        return scrapbookService.getScrapbookFilters(authUser.id());
     }
 }

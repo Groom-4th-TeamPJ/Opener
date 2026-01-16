@@ -13,6 +13,7 @@ import spring.backend.domain.exam.model.entity.Exam;
 import spring.backend.domain.exam.model.entity.ExamResult;
 import spring.backend.domain.exam.repository.jpa.JpaExamResultRepository;
 import spring.backend.domain.exam.repository.spec.ExamResultRepository;
+import spring.backend.domain.scrapbook.dto.response.ScrapbookFilterResponse;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -50,55 +51,32 @@ public class ExamResultRepositoryImpl implements ExamResultRepository {
     }
 
     @Override
-    public Page<ExamResult> searchExamResults(ExamResultSearchCriteria criteria, Pageable pageable) {
-        log.info("ExamResultRepositoryImpl.searchExamResults - criteria: {}, pageable: {}", criteria, pageable);
-        Specification<ExamResult> specification = toSpecification(criteria);
-        return jpaExamResultRepository.findAll(specification, pageable);
+    public List<ScrapbookFilterResponse> findScrapbookFiltersByUserId(UUID userId) {
+        return jpaExamResultRepository.findScrapbookFiltersByUserId(userId);
     }
 
-    private Specification<ExamResult> toSpecification(ExamResultSearchCriteria criteria) {
+    private Specification<ExamResult> toSpecification(UUID userId) {
         return (root, query, builder) -> {
-            if (criteria == null) {
+            if (userId == null) {
                 return builder.conjunction();
-            }
-            // ✅ fetch join (단, count 쿼리일 땐 제외)
-            if (query.getResultType() != Long.class) {
-                root.fetch("exam", JoinType.INNER); // 또는 LEFT
-                query.distinct(true); // 조인으로 중복 row 방지
             }
 
             List<Predicate> predicates = new ArrayList<>();
-            if (criteria.getUserId() != null) {
-                predicates.add(builder.equal(root.get("userId"), criteria.getUserId()));
-            }
+
             // ✅ exam 필터는 join으로
             Join<ExamResult, Exam> exam = root.join("exam", JoinType.INNER);
 
-            if (criteria.getExamYear() != null) {
-                predicates.add(builder.equal(exam.get("examYear"), criteria.getExamYear()));
-            }
-            if (criteria.getExamType() != null) {
-                predicates.add(builder.equal(exam.get("examType"), criteria.getExamType()));
-            }
-            if (criteria.getOpenerUsage() != null) {
-                // 오프너분석 사용 여부
-                if (criteria.getOpenerUsage()) {
-                    // 오프너분석 사용
-                    predicates.add(builder.greaterThanOrEqualTo(root.get("openerUsageCount"), 1));
-                } else {
-                    // 오프너분석 미사용
-                    predicates.add(builder.equal(root.get("openerUsageCount"), 0));
-                }
-            }
-            if (criteria.getCreatedAtFrom() != null ) {
-                predicates.add(builder.greaterThanOrEqualTo(root.get("createdAt"), criteria.getCreatedAtFrom()));
-            }
-            if (criteria.getCreatedAtTo() != null ) {
-                predicates.add(builder.lessThanOrEqualTo(root.get("createdAt"), criteria.getCreatedAtTo()));
+            predicates.add(builder.equal(root.get("userId"), userId));
+            predicates.add(builder.isNotNull(root.get("lastOpenerUsageDate")));
+
+
+            if (query.getResultType() != Long.class) {
+                query.orderBy(builder.desc(root.get("lastOpenerUsageDate")));
+                query.groupBy(root.get("exam").get("id"));
             }
 
 
-            return predicates.isEmpty() ? builder.conjunction() : builder.and(predicates.toArray(new Predicate[0]));
+            return builder.and(predicates.toArray(new Predicate[0]));
         };
     }
 }

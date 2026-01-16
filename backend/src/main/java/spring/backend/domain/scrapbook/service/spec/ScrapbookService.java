@@ -5,9 +5,10 @@ import org.springframework.data.domain.Pageable;
 import spring.backend.domain.scrapbook.dto.request.ScrapbookFilterSearchRequest;
 import spring.backend.domain.scrapbook.dto.response.ScrapbookFilterResponse;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface ScrapbookService {
 
-    Page<ScrapbookFilterResponse> searchScrapbookFilters(UUID userId, ScrapbookFilterSearchRequest request, Pageable pageable);
+    List<ScrapbookFilterResponse> getScrapbookFilters(UUID userId);
 }
