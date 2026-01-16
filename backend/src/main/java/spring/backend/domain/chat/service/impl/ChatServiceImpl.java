@@ -1,6 +1,7 @@
 package spring.backend.domain.chat.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -9,9 +10,12 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import spring.backend.domain.chat.dto.enums.ChatRole;
 import spring.backend.domain.chat.dto.redis_dto.RedisMessageDto;
 import spring.backend.domain.chat.dto.request.ChatSaveRequest;
 import spring.backend.domain.chat.dto.request.ChatSendRequest;
+import spring.backend.domain.chat.dto.request.OpenerAnalysisRequest;
+import spring.backend.domain.chat.dto.response.ChatHistoryResponse;
 import spring.backend.domain.chat.dto.response.SseMessageResponse;
 import spring.backend.domain.chat.mapper.RedisMessageMapper;
 import spring.backend.domain.chat.messaging.ChatMessageProducer;
@@ -19,6 +23,12 @@ import spring.backend.domain.chat.repository.spec.ChatMessageRepository;
 import spring.backend.domain.chat.service.spec.ChatRedisService;
 import spring.backend.domain.chat.service.spec.ChatService;
 import spring.backend.domain.chat.service.spec.LlmService;
+import spring.backend.domain.chat.service.spec.RagService;
+import spring.backend.domain.exam.model.dto.Passage;
+import spring.backend.domain.exam.model.entity.Question;
+import spring.backend.domain.exam.model.entity.QuestionResult;
+import spring.backend.domain.exam.repository.jpa.JpaQuestionRepository;
+import spring.backend.domain.exam.repository.spec.QuestionResultRepository;
 import spring.backend.domain.user.model.entity.User;
 import spring.backend.domain.user.repository.spec.UserRepository;
 import spring.backend.shared.response.codes.ErrorCode;
@@ -31,12 +41,15 @@ public class ChatServiceImpl implements ChatService {
     private static final Long SSE_TIMEOUT = 5 * 60 * 1000L;
     private final ChatRedisService chatRedisService;
     private final LlmService llmService;
+    private final RagService ragService;
     private final ObjectMapper objectMapper;
     private final UserRepository userRepository;
     private final RedisMessageMapper redisMessageMapper;
     private final ChatMessageRepository chatMessageRepository;
     private final ChatMessageProducer chatMessageProducer;
     private final StringRedisTemplate redisTemplate;
+    private final JpaQuestionRepository questionRepository;
+    private final QuestionResultRepository questionResultRepository;
 
     // SSE 연결 관리 (sessionId → SseEmitter)
     private final ConcurrentHashMap<Long, SseEmitter> emitters = new ConcurrentHashMap<>();
@@ -44,21 +57,27 @@ public class ChatServiceImpl implements ChatService {
     public ChatServiceImpl(
             ChatRedisService chatRedisService,
             LlmService llmService,
+            RagService ragService,
             ObjectMapper objectMapper,
             UserRepository userRepository,
             RedisMessageMapper redisMessageMapper,
             ChatMessageRepository chatMessageRepository,
             ChatMessageProducer chatMessageProducer,
-            @Qualifier("chatRedisTemplate") StringRedisTemplate redisTemplate
+            @Qualifier("chatRedisTemplate") StringRedisTemplate redisTemplate,
+            JpaQuestionRepository questionRepository,
+            QuestionResultRepository questionResultRepository
     ) {
         this.chatRedisService = chatRedisService;
         this.llmService = llmService;
+        this.ragService = ragService;
         this.objectMapper = objectMapper;
         this.userRepository = userRepository;
         this.redisMessageMapper = redisMessageMapper;
         this.chatMessageRepository = chatMessageRepository;
         this.chatMessageProducer = chatMessageProducer;
         this.redisTemplate = redisTemplate;
+        this.questionRepository = questionRepository;
+        this.questionResultRepository = questionResultRepository;
     }
 
     @Override
@@ -68,7 +87,7 @@ public class ChatServiceImpl implements ChatService {
         // 스프링 인메모리 힙에 sessionId로 운영중인 SSE 연결 조회
         SseEmitter sseEmitter = emitters.get(sessionId);
 
-        // 기존 SSE 연결이 있으면 재사용
+        // 기존 SSE 연결이 있으면 재사용 (재연결)
         if (sseEmitter != null) {
 
             // DB에서 sessionId와 userId로 세션 권한 검증
@@ -105,6 +124,18 @@ public class ChatServiceImpl implements ChatService {
             emitters.remove(sessionId);
             return null;
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ChatHistoryResponse getHistory(Long sessionId, UUID userId) {
+        // 권한 검증
+        chatRedisService.validateSessionOwner(sessionId, userId);
+
+        // Redis에서 메시지 조회
+        List<RedisMessageDto> messages = chatRedisService.getSessionMessages(sessionId);
+
+        return ChatHistoryResponse.of(sessionId, messages);
     }
 
     @Override
