@@ -113,6 +113,7 @@
    * ========================= */
   --animate-pulse-scale: pulse-scale 1.8s ease-in-out infinite;
   --animate-bounce-scale: bounce-scale 1.8s ease-in-out infinite;
+  --animate-pulse-wave: pulse-wave 1s ease-in-out infinite;
 
   @keyframes pulse-scale {
     0%,
@@ -133,6 +134,23 @@
     }
     50% {
       transform: scale(1);
+    }
+  }
+
+  @keyframes pulse-wave {
+    0%,
+    80%,
+    100% {
+      background-color: var(--color-neutral-100);
+    }
+    20% {
+      background-color: var(--color-neutral-200);
+    }
+    40% {
+      background-color: var(--color-neutral-300);
+    }
+    60% {
+      background-color: var(--color-neutral-200);
     }
   }
 }
@@ -187,6 +205,18 @@ body {
   box-shadow:
     0px 4px 30px 0px rgba(0, 179, 171, 0.08),
     0px 2px 12px 0px rgba(0, 179, 171, 0.04);
+}
+
+/* =========================
+ * Animation Delay Utilities
+ * ========================= */
+
+@utility animation-delay-200 {
+  animation-delay: 200ms;
+}
+
+@utility animation-delay-400 {
+  animation-delay: 400ms;
 }
 
 /* =========================

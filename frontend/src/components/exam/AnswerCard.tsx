@@ -6,6 +6,7 @@ import CorrectAnswerIcon from '@/components/icons/CorrectAnswerIcon'
 import WrongAnswerIcon from '@/components/icons/WrongAnswerIcon'
 import FRQAnswer from '@/components/shared/FRQAnswer'
 import ResultAnswer from '@/components/shared/ResultAnswer'
+import ResultBanner from '@/components/shared/ResultBanner'
 
 interface AnswerCardProps {
   question: Question
@@ -31,7 +32,13 @@ export default function AnswerCard({
   return (
     <Card className="overflow-hidden min-h-81">
       <CardHeader>
-        <h3 className="text-text-secondary lg:text-lg font-bold">답안 입력</h3>
+        <div className="flex items-center justify-between h-8">
+          <h3 className="text-text-secondary lg:text-lg font-bold">답안 입력</h3>
+
+          {submitted && isCorrect !== null && (
+            <ResultBanner result={isCorrect ? 'correct' : 'wrong'} />
+          )}
+        </div>
       </CardHeader>
 
       <CardContent className="flex flex-col gap-3 lg:gap-4 -mt-6">
