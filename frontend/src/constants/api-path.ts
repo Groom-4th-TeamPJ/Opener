@@ -11,6 +11,7 @@ export const API_PATHS = {
   },
   EXAM: {
     ROOT: '/exams',
+    SUBMIT: '/exams/results',
     ANALYSIS: '/exams/analysis',
     GENERATE: '/exams/generate',
     SAVE_CHAT: '/exams/save-chat',
