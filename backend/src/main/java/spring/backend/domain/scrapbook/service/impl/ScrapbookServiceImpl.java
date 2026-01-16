@@ -17,6 +17,7 @@ import spring.backend.domain.exam.repository.spec.QuestionResultRepository;
 import spring.backend.domain.scrapbook.dto.response.ScrapbookFilterResponse;
 import spring.backend.domain.scrapbook.dto.response.ScrapbookQuestionResult;
 import spring.backend.domain.scrapbook.dto.response.ScrapbookResponse;
+import spring.backend.domain.scrapbook.dto.response.detail.ScrapbookDetailResponse;
 import spring.backend.domain.scrapbook.mapper.ScrapbookMapper;
 import spring.backend.domain.scrapbook.service.spec.ScrapbookService;
 import spring.backend.shared.response.PageResponse;
@@ -113,6 +114,54 @@ public class ScrapbookServiceImpl implements ScrapbookService {
                 .examYear(exam.getExamYear())
                 .questionResults(PageResponse.from(
                         new PageImpl<>(scrapbookQuestionResults, pageable, questionResults.getTotalElements())))
+                .build();
+    }
+
+
+    @Transactional(readOnly = true)
+    @Override
+    public ScrapbookDetailResponse getScrapbookDetail(UUID userId, Long questionResultId) {
+        log.info("스크랩북 상세보기 조회 - userId: {}, questionResultId: {}", userId, questionResultId);
+
+        // 1. QuestionResult 조회
+        QuestionResult questionResult = questionResultRepository.findById(questionResultId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.QUESTION_RESULT_NOT_FOUND));
+
+        // 2. ExamResult에 연관된 ExamResult 조회 및 사용자 검증
+        ExamResult examResult = questionResult.getExamResult();
+        if(examResult == null) {
+            throw new BusinessException(ErrorCode.RESULT_NOT_FOUND);
+        }
+
+        if (!examResult.getUserId().equals(userId)) {
+            log.warn("스크랩북 상세보기 조회 실패 - 사용자 불일치. userId: {}, examResultUserId: {}", userId, examResult.getUserId());
+            throw new BusinessException(ErrorCode.AUTHORIZATION_FAILED);
+        }
+
+        // 2-1. 오프너 사용 이력 검증
+        if (!questionResult.isOpener()) {
+            log.warn("스크랩북 상세보기 조회 실패 - 오프너 사용 이력이 없는 문제. questionResultId: {}", questionResultId);
+            throw new BusinessException(ErrorCode.SCRAPBOOK_DETAIL_NOT_FOUND);
+        }
+
+        // 3. TODO :: Chat message 조회 추가 작업 필요
+
+        // 4. TODO :: 프롬포트 내용 요약 추출 추가 작업 필요
+
+        // 5. ScrapbookDetailResponse 생성 및 반환
+        return ScrapbookDetailResponse.builder()
+                .questionResultId(questionResult.getId())
+                .examYear(examResult.getExam().getExamYear())
+                .examType(examResult.getExam().getExamType())
+                .passages(questionResult.getQuestion().getPassages())
+                .options(questionResult.getQuestion().getOptions())
+                .answer(questionResult.getQuestion().getAnswer())
+                .point(questionResult.getQuestion().getPoint())
+                .questionNo(questionResult.getQuestion().getQuestionNo())
+                .questionType(questionResult.getQuestion().getQuestionType())
+                .selected(questionResult.getSelected())
+                .isCorrect(questionResult.isCorrect())
+                .createdAt(questionResult.getCreatedAt())
                 .build();
     }
 }

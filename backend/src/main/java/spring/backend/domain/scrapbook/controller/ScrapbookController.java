@@ -12,6 +12,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import spring.backend.domain.scrapbook.dto.response.ScrapbookFilterResponse;
 import spring.backend.domain.scrapbook.dto.response.ScrapbookResponse;
+import spring.backend.domain.scrapbook.dto.response.detail.ScrapbookDetailResponse;
 import spring.backend.domain.scrapbook.service.spec.ScrapbookService;
 import spring.backend.shared.infrastructure.security.dto.AuthUser;
 import spring.backend.shared.response.codes.ErrorCode;
@@ -69,5 +70,28 @@ public class ScrapbookController {
         }
 
         return scrapbookService.getScrapbookContents(authUser.id(), examId, pageable);
+    }
+
+    @Operation(
+            summary = "스크랩북 문제 상세 조회"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "스크랩북 문제 상세 조회 성공",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ScrapbookDetailResponse.class))
+            ),
+            @ApiResponse(responseCode = "401", description = "인증 실패"),
+            @ApiResponse(responseCode = "403", description = "인가 실패"),
+            @ApiResponse(responseCode = "404", description = "스크랩북 문제를 찾을 수 없음")
+    })
+    @GetMapping("/question-results/{questionResultId}")
+    public ScrapbookDetailResponse getScrapbookDetails(
+            @PathVariable Long questionResultId,
+            @AuthenticationPrincipal AuthUser authUser) {
+        if (authUser == null || authUser.id() == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        return scrapbookService.getScrapbookDetail(authUser.id(), questionResultId);
     }
 }
