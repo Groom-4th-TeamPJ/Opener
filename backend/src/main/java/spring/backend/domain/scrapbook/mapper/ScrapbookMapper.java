@@ -1,23 +1,17 @@
 package spring.backend.domain.scrapbook.mapper;
 
 import spring.backend.domain.exam.model.dto.Passage;
-import spring.backend.domain.exam.model.entity.ExamResult;
-import spring.backend.domain.exam.model.entity.Question;
 import spring.backend.domain.exam.model.entity.QuestionResult;
 import spring.backend.domain.exam.model.enums.PassageType;
-import spring.backend.domain.scrapbook.dto.response.ScrapbookFilterResponse;
 import spring.backend.domain.scrapbook.dto.response.ScrapbookQuestionResult;
 
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class ScrapbookMapper {
 
     public static ScrapbookQuestionResult toScrapbookQuestionResult(QuestionResult qr) {
-        // TODO :: passages 를 한줄로 가져올수 있도록 변경 필요
-        List<Passage> passages = qr.getQuestion().getPassages();
+        List<Passage> passages = new java.util.ArrayList<>(List.copyOf(qr.getQuestion().getPassages()));
         // passages order 기준으로 정렬
         passages.sort(Comparator.comparingInt(Passage::order));
 
