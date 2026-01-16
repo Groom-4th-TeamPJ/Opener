@@ -89,6 +89,10 @@ spring:
       name: admin # 기본 사용자 이름
       password: admin # 기본 비밀번호 (개발용)
 
+    account-lock:
+      max-attempts: 5            # 최대 로그인 실패 허용 횟수
+      lock-duration-minutes: 1   # 개발 환경: 1분 (테스트 용이성)
+
   # Swagger/OpenAPI 설정
   springdoc:
     swagger-ui:
@@ -111,12 +115,6 @@ spring:
       org.hibernate.type.descriptor.sql.BasicBinder: TRACE
       org.springframework.security: DEBUG
       org.flywaydb: DEBUG
-
-  # 개발 환경용 보안 설정 (테스트 편의성)
-  security:
-    account-lock:
-      max-attempts: 5            # 최대 로그인 실패 허용 횟수
-      lock-duration-minutes: 1   # 개발 환경: 1분 (테스트 용이성)
 
   app:
     cors:
