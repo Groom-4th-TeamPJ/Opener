@@ -123,18 +123,25 @@ public class ScrapbookServiceImpl implements ScrapbookService {
     public ScrapbookDetailResponse getScrapbookDetail(UUID userId, Long questionResultId) {
         log.info("스크랩북 상세보기 조회 - userId: {}, questionResultId: {}", userId, questionResultId);
 
-        // 1. QuestionResult
+        // 1. QuestionResult 조회
         QuestionResult questionResult = questionResultRepository.findById(questionResultId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.QUESTION_RESULT_NOT_FOUND));
 
-
-        // 2. ExamResultId로 ExamResult 조회 및 사용자 검증
-        ExamResult examResult = examResultRepository.findById(questionResult.getExamResult().getId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.RESULT_NOT_FOUND));
+        // 2. ExamResult에 연관된 ExamResult 조회 및 사용자 검증
+        ExamResult examResult = questionResult.getExamResult();
+        if(examResult == null) {
+            throw new BusinessException(ErrorCode.RESULT_NOT_FOUND);
+        }
 
         if (!examResult.getUserId().equals(userId)) {
             log.warn("스크랩북 상세보기 조회 실패 - 사용자 불일치. userId: {}, examResultUserId: {}", userId, examResult.getUserId());
             throw new BusinessException(ErrorCode.AUTHORIZATION_FAILED);
+        }
+
+        // 2-1. 오프너 사용 이력 검증
+        if (!questionResult.isOpener()) {
+            log.warn("스크랩북 상세보기 조회 실패 - 오프너 사용 이력이 없는 문제. questionResultId: {}", questionResultId);
+            throw new BusinessException(ErrorCode.SCRAPBOOK_DETAIL_NOT_FOUND);
         }
 
         // 3. TODO :: Chat message 조회 추가 작업 필요
