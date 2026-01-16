@@ -1,7 +1,6 @@
 package spring.backend.domain.chat.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -15,7 +14,6 @@ import spring.backend.domain.chat.dto.redis_dto.RedisMessageDto;
 import spring.backend.domain.chat.dto.request.ChatSaveRequest;
 import spring.backend.domain.chat.dto.request.ChatSendRequest;
 import spring.backend.domain.chat.dto.request.OpenerAnalysisRequest;
-import spring.backend.domain.chat.dto.response.ChatHistoryResponse;
 import spring.backend.domain.chat.dto.response.SseMessageResponse;
 import spring.backend.domain.chat.mapper.RedisMessageMapper;
 import spring.backend.domain.chat.messaging.ChatMessageProducer;
@@ -124,18 +122,6 @@ public class ChatServiceImpl implements ChatService {
             emitters.remove(sessionId);
             return null;
         }
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public ChatHistoryResponse getHistory(Long sessionId, UUID userId) {
-        // 권한 검증
-        chatRedisService.validateSessionOwner(sessionId, userId);
-
-        // Redis에서 메시지 조회
-        List<RedisMessageDto> messages = chatRedisService.getSessionMessages(sessionId);
-
-        return ChatHistoryResponse.of(sessionId, messages);
     }
 
     @Override
@@ -288,5 +274,108 @@ public class ChatServiceImpl implements ChatService {
 
         } catch (Exception e) {
         }
+    }
+
+    @Async
+    @Override
+    public void openerAnalysis(OpenerAnalysisRequest req, UUID userId) {
+        Long sessionId = req.sessionId();
+        Long questionId = req.questionId();
+        Long questionResultId = req.questionResultId();
+
+        // SSE 연결 조회
+        SseEmitter sseEmitter = emitters.get(sessionId);
+        if (sseEmitter == null) {
+            throw new BusinessException(ErrorCode.SESSION_EXPIRED);
+        }
+
+        // 세션 검증
+        chatRedisService.validateSessionOwner(sessionId, userId);
+
+        try {
+            // 1. 사용자의 오프너 분석 요청 메시지를 Redis에 저장
+            RedisMessageDto userRequestMessage = RedisMessageDto.builder()
+                    .chatRole(ChatRole.USER)
+                    .message("오프너 분석을 요청했습니다.")
+                    .timestamp(java.time.LocalDateTime.now())
+                    .build();
+            chatRedisService.saveMessage(sessionId, userRequestMessage);
+
+            // Question 조회
+            Question question = questionRepository.findById(questionId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.QUESTION_NOT_FOUND));
+
+            // Passages를 문자열로 변환
+            String problemContext = buildProblemContext(question);
+
+            // RAG 응답을 수집할 StringBuilder
+            StringBuilder ragResponseBuilder = new StringBuilder();
+
+            // RAG 서비스를 통해 유사 문제 생성 (스트리밍)
+            ragService.generateSimilarProblemStream(
+                    problemContext,
+                    chunk -> {
+                        // 각 청크를 SSE로 전송
+                        sendSseChunk(sseEmitter, sessionId.toString(), chunk);
+
+                        // 전체 응답 수집
+                        ragResponseBuilder.append(chunk);
+                    }
+            );
+
+            // 2. 완전한 RAG 응답을 Redis에 저장
+            String fullRagResponse = ragResponseBuilder.toString();
+            RedisMessageDto ragRedisMessageDto = redisMessageMapper.toDtoLlm(fullRagResponse);
+            chatRedisService.saveMessage(sessionId, ragRedisMessageDto);
+
+            // 완료 이벤트 전송
+            sendSseComplete(sseEmitter, sessionId.toString());
+
+            // QuestionResult 업데이트 (isOpener = true)
+            // JpaRepository.save()는 이미 @Transactional이 적용되어 있음
+            QuestionResult questionResult = questionResultRepository.findById(questionResultId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.QUESTION_RESULT_NOT_FOUND));
+            questionResult.markOpener();
+            questionResultRepository.save(questionResult);
+
+        } catch (Exception e) {
+            sendSseError(sseEmitter, sessionId.toString(), e.getMessage());
+        }
+    }
+
+    // Question의 모든 정보를 하나의 문자열로 변환
+    private String buildProblemContext(Question question) {
+        if (question.getPassages() == null || question.getPassages().isEmpty()) {
+            throw new BusinessException(ErrorCode.QUESTION_HAS_NO_PASSAGES);
+        }
+
+        StringBuilder context = new StringBuilder();
+        context.append("문제 번호: ").append(question.getQuestionNo()).append("\n");
+        context.append("카테고리: ").append(question.getCategory()).append("\n");
+        context.append("배점: ").append(question.getPoint()).append("점\n\n");
+
+        // Passages (지문)
+        context.append("=== 문제 지문 ===\n");
+        for (Passage passage : question.getPassages()) {
+            context.append(passage.content()).append("\n");
+        }
+        context.append("\n");
+
+        // Options (선택지)
+        if (question.getOptions() != null && !question.getOptions().isEmpty()) {
+            context.append("=== 선택지 ===\n");
+            for (var option : question.getOptions()) {
+                context.append(option.order()).append(". ").append(option.content()).append("\n");
+            }
+            context.append("\n");
+        }
+
+        // Answer (정답)
+        if (question.getAnswer() != null) {
+            context.append("=== 정답 ===\n");
+            context.append("정답: ").append(question.getAnswer()).append("번\n");
+        }
+
+        return context.toString();
     }
 }
