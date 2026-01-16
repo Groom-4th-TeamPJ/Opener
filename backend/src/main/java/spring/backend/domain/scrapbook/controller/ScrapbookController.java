@@ -10,12 +10,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import spring.backend.domain.scrapbook.dto.request.ScrapbookFilterSearchRequest;
 import spring.backend.domain.scrapbook.dto.response.ScrapbookFilterResponse;
+import spring.backend.domain.scrapbook.dto.response.ScrapbookQuestionResult;
+import spring.backend.domain.scrapbook.dto.response.ScrapbookResponse;
 import spring.backend.domain.scrapbook.service.spec.ScrapbookService;
 import spring.backend.shared.infrastructure.security.dto.AuthUser;
 import spring.backend.shared.response.PageResponse;
@@ -51,5 +50,28 @@ public class ScrapbookController {
         }
 
         return scrapbookService.getScrapbookFilters(authUser.id());
+    }
+
+    @Operation(
+            summary = "스크랩북 분류 선택 후 리스트 조회"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "스크랩북 필터 검색 성공",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ScrapbookFilterResponse.class))
+            ),
+            @ApiResponse(responseCode = "401", description = "인증 실패")
+    })
+    @GetMapping("/{examId}")
+    public ScrapbookResponse searchScrapbookFilters(
+            @PathVariable Long examId,
+            @PageableDefault(size = 8, sort = "updatedAt", direction = Sort.Direction.DESC) Pageable pageable,
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        if (authUser == null || authUser.id() == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        return scrapbookService.getScrapbookContents(authUser.id(), examId, pageable);
     }
 }
