@@ -45,7 +45,7 @@ public class QuestionResult {
     @Column(name = "is_opener", nullable = false)
     private boolean isOpener;
 
-    public static QuestionResult of(ExamResult er, Question q, Exam e,int selected, int timeSpent) {
+    public static QuestionResult of(ExamResult er, Question q, int selected, int timeSpent) {
         QuestionResult qr = new QuestionResult();
         qr.examResult = er;
         qr.question = q;
@@ -53,7 +53,7 @@ public class QuestionResult {
         qr.isCorrect = false;
         qr.timeSpent = timeSpent;
         qr.isOpener = false;
-        qr.exam = e;
+        qr.exam = er.getExam();
         return qr;
     }
 
