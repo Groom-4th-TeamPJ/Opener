@@ -54,7 +54,7 @@ export interface SubmitAnswerRequest {
 
 export interface SubmitAnswerResponse {
   questionResultId: number
-  isCorrect: boolean
+  correct: boolean
   answer: number
 }
 
