@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Button from '@/components/common/Button'
 import YearSelectBox from './YearSelectBox'
 import QuestionSolveView from './QuestionSolveView'
-import { useStartExam } from '@/hooks/exam/use-start-exam'
+import { useStartExam } from '@/hooks/exam/queries/use-start-exam'
 import ExamLoading from './ExamLoading'
 import { useExamStore } from '@/stores/use-exam-store'
 
