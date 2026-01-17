@@ -38,6 +38,11 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
   const { mutate: submitAnswer, isPending: isSubmitting } = useSubmitAnswer()
   const examData = useCurrentExam()
 
+  // 마운트 시 모달 상태 초기화
+  useEffect(() => {
+    closeModal()
+  }, [closeModal])
+
   // SSE 연결 (examResultId가 있을 때만 연결)
   useSSEChat({ sessionId: examData?.examResultId ?? 0, enabled: !!examData?.examResultId })
 
