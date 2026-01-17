@@ -55,9 +55,13 @@ public enum ErrorCode {
     RESULT_ALREADY_SUBMITTED(400, "R_001", "이미 제출된 시험 결과입니다"),
     RESULT_NOT_FOUND(404, "R_002", "시험 결과를 찾을 수 없습니다"),
 
+    // Question Result 관련 에러 (QR_xxx)
+    QUESTION_RESULT_NOT_FOUND(404, "QR_001", "문제 결과를 찾을 수 없습니다"),
+
     // Question 관련 에러 (Q_xxx)
     QUESTION_NOT_FOUND(404, "Q_001", "문제를 찾을 수 없습니다"),
-    QUESTION_NOT_IN_EXAM(400, "Q_002", "문제가 해당 시험에 속하지 않습니다");
+    QUESTION_NOT_IN_EXAM(400, "Q_002", "문제가 해당 시험에 속하지 않습니다"),
+    QUESTION_HAS_NO_PASSAGES(400, "Q_003", "문제에 지문이 없습니다");
 
     private final int status;
     private final String code;
