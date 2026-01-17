@@ -71,7 +71,6 @@ async function api<B = unknown>(path: string, options?: RequestConfig<B>): Promi
     body,
   })
 
-  if (!res.ok) throw res
   return res
 }
 
@@ -86,15 +85,38 @@ export default async function apiJson<T>(
 ): Promise<T | null> {
   try {
     const res = await api(path, options)
+    if (!res.ok) throw res
     const json = await readJsonOrNull<T>(res)
     if (!json) return null
     if (json.status !== 'success') throw toUiError(json)
     return json.data
   } catch (e) {
     if (e instanceof Response) {
-      const fail = (await e.json()) as ApiFail
+      const status = e.status
 
-      if (retry && fail.code === 401) {
+      // body 파싱, 없으면 fallback
+      let fail: ApiFail | null = null
+      const ct = e.headers.get('content-type')
+
+      if (ct?.includes('application/json')) {
+        try {
+          fail = (await e.json()) as ApiFail
+        } catch {
+          fail = null
+        }
+      }
+
+      if (!fail) {
+        fail = {
+          status: 'error',
+          code: status,
+          message: e.statusText || '서버 오류가 발생했습니다.',
+          data: null,
+          error: null,
+        }
+      }
+
+      if (retry && status === 401) {
         if (!(await refreshOnce())) {
           if (typeof window !== 'undefined') {
             toast.error('세션이 만료되었습니다. 다시 로그인해주세요.', { duration: 3000 })
@@ -104,7 +126,6 @@ export default async function apiJson<T>(
         }
         return apiJson<T>(path, options, false)
       }
-
       throw toUiError(fail)
     }
 

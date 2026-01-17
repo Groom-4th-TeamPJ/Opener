@@ -11,7 +11,7 @@ export type ApiFail = {
   code: number
   message: string
   data: null
-  error: ApiError
+  error: ApiError | null
 }
 
 export type ApiError = {
