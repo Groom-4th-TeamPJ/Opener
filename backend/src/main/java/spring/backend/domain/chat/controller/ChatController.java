@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import spring.backend.domain.chat.dto.request.ChatSaveRequest;
 import spring.backend.domain.chat.dto.request.ChatSendRequest;
+import spring.backend.domain.chat.dto.request.OpenerAnalysisRequest;
 import spring.backend.domain.chat.service.spec.ChatService;
 import spring.backend.shared.infrastructure.security.dto.AuthUser;
 
@@ -54,21 +55,23 @@ public class ChatController {
         return ResponseEntity.ok().build();
     }
 
-    /**
-     * 저장된 대화 목록 조회 GET /api/chat/conversations
-     */
-    @GetMapping("/conversations")
-    public ResponseEntity<?> getConversations(@AuthenticationPrincipal AuthUser authUser) {
-        // TODO: 구현
-        return ResponseEntity.ok().build();
-    }
-
     // 명시적 세션 해제
     @PostMapping("/disconnect/{sessionId}")
     public ResponseEntity<Void> disconnectSession(
             @PathVariable Long sessionId,
             @AuthenticationPrincipal AuthUser authUser) {
         chatService.disconnectSession(sessionId, authUser.id());
+
+        return null;
+    }
+
+    // 오프너 분석
+    @PostMapping("/opener-analysis")
+    public ResponseEntity<Void> openerAnalysis(
+            @RequestBody OpenerAnalysisRequest req,
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        chatService.openerAnalysis(req, authUser.id());
 
         return null;
     }
