@@ -47,9 +47,14 @@ export interface ExamResponse {
   questions: Question[]
 }
 
+export interface SubmitAnswerRequest {
+  selected: number
+  timeSpent: number
+}
+
 export interface SubmitAnswerResponse {
   questionResultId: number
-  isCorrect: boolean
+  correct: boolean
   answer: number
 }
 

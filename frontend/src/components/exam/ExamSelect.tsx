@@ -6,7 +6,6 @@ import YearSelectBox from './YearSelectBox'
 import QuestionSolveView from './QuestionSolveView'
 import { useStartExam } from '@/hooks/exam/use-start-exam'
 import ExamLoading from './ExamLoading'
-import { toast } from 'sonner'
 
 const categories = [
   { id: 'CALC', name: '미적분' },
@@ -35,19 +34,14 @@ export default function ExamSelect() {
   const handleStartExam = async () => {
     if (!canStart) return
 
-    try {
-      const result = await mutateAsync({
-        examYear: selectedYear,
-        category: selectedCategory,
-        examType: selectedExamType,
-      })
+    const result = await mutateAsync({
+      examYear: selectedYear,
+      category: selectedCategory,
+      examType: selectedExamType,
+    })
 
-      if (result) {
-        setIsExamActive(true)
-      }
-    } catch (error) {
-      console.error('[ERROR] 문제 풀이 요청', error)
-      toast.error('문제를 불러오지 못했습니다. 다시 시도해주세요.', { duration: 3000 })
+    if (result) {
+      setIsExamActive(true)
     }
   }
 

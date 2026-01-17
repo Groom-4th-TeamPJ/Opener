@@ -57,15 +57,13 @@ export default function Button({
       {...props}
     >
       {isLoading && (
-        <span
-          className={cn(
-            'absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
-            'inline-block rounded-full border-2 border-current border-t-transparent animate-spin',
-            size === 'sm' && 'w-3 h-3',
-            size === 'md' && 'w-4 h-4',
-            size === 'lg' && 'w-5 h-5'
-          )}
-        />
+        <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          <div className="inline-flex justify-start items-center gap-1">
+            <div className="w-2 h-2 bg-neutral-100 rounded-full animate-pulse-wave" />
+            <div className="w-2 h-2 bg-neutral-100 rounded-full animate-pulse-wave animation-delay-200" />
+            <div className="w-2 h-2 bg-neutral-100 rounded-full animate-pulse-wave animation-delay-400" />
+          </div>
+        </span>
       )}
       <span className={cn('flex items-center gap-1', isLoading && 'invisible')}>
         {finalLeftIcon && <span className="shrink-0">{finalLeftIcon}</span>}

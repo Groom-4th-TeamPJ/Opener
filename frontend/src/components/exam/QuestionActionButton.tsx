@@ -1,5 +1,7 @@
 import Button from '@/components/common/Button'
 import OutlineCanIcon from '@/components/icons/OutlineCanIcon'
+import { QUERY_KEYS } from '@/constants/query-key'
+import { useMutationState } from '@tanstack/react-query'
 
 interface QuestionActionButtonProps {
   submitted: boolean
@@ -26,11 +28,23 @@ export default function QuestionActionButton({
   onShowAnalysis,
   onVariationClick,
 }: QuestionActionButtonProps) {
+  const isSubmitting =
+    useMutationState({
+      filters: { mutationKey: QUERY_KEYS.EXAM.SUBMIT, status: 'pending' },
+    }).length > 0
+
   const isDisabled = questionType === 'MCQ' ? selectedChoice === null : frqAnswer.trim() === ''
 
   if (!submitted) {
     return (
-      <Button variant="default" size="lg" widthFull onClick={onSubmit} disabled={isDisabled}>
+      <Button
+        variant="default"
+        size="lg"
+        widthFull
+        onClick={onSubmit}
+        disabled={isDisabled}
+        isLoading={isSubmitting}
+      >
         답안제출
       </Button>
     )

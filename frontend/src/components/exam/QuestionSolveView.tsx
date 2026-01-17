@@ -18,6 +18,7 @@ import ExamResultModal from './ExamResultModal'
 import { useExamCurrent } from '@/hooks/exam/use-exam-current'
 import usePreventRefresh from '@/hooks/exam/use-prevent-refresh'
 import { useSSEChat } from '@/hooks/exam/use-sse-chat'
+import { useSubmitAnswer } from '@/hooks/exam/use-submit-answer'
 
 interface QuestionSolveViewProps {
   params: ExamRequestParams
@@ -44,6 +45,7 @@ export default function QuestionSolveView({ params, onClose }: QuestionSolveView
 
   const router = useRouter()
   const { data: examData } = useExamCurrent(params)
+  const { mutate: submitAnswer, isPending: isSubmitting } = useSubmitAnswer()
 
   // SSE 연결 (examResultId가 있을 때만 연결)
   useSSEChat({ sessionId: examData?.examResultId ?? 0, enabled: !!examData?.examResultId })
@@ -89,18 +91,30 @@ export default function QuestionSolveView({ params, onClose }: QuestionSolveView
   }
 
   const handleSubmit = () => {
+    if (isSubmitting) return
     if (currentQuestion.questionType === 'MCQ' && selectedChoice === null) return
     if (currentQuestion.questionType === 'FRQ' && frqAnswer.trim() === '') return
 
     // 답안 제출 시 스탑워치 정지
     stopwatchRef.current?.stop()
+    const timeSpent = stopwatchRef.current?.getTime() ?? 0
 
-    const correct =
-      currentQuestion.questionType === 'MCQ'
-        ? selectedChoice === currentQuestion.answer
-        : Number(frqAnswer) === currentQuestion.answer
-    setIsCorrect(correct)
-    setSubmitted(true)
+    const selected = currentQuestion.questionType === 'MCQ' ? selectedChoice! : Number(frqAnswer)
+
+    submitAnswer(
+      {
+        examResultId: examData.examResultId,
+        questionId: currentQuestion.questionId,
+        body: { selected, timeSpent },
+      },
+      {
+        onSuccess: (data) => {
+          setSubmitted(true)
+          setIsCorrect(data?.correct ?? false)
+          setCorrectAnswer(data?.answer ?? null)
+        },
+      }
+    )
   }
 
   const handleNext = () => {
@@ -181,16 +195,10 @@ export default function QuestionSolveView({ params, onClose }: QuestionSolveView
 
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto bg-neutral-50">
-        <div className="w-full max-w-6xl mx-auto px-4 md:px-8 py-6 flex items-stretch gap-6 min-h-full">
+        <div className="w-full min-h-full max-w-6xl mx-auto px-4 md:px-8 py-6 flex items-stretch gap-6">
           {/* Left: Question + Answer */}
-          <div className="flex-1 flex flex-col gap-6 min-w-86">
-            <QuestionCard
-              exam={exam}
-              question={currentQuestion}
-              stopwatchRef={stopwatchRef}
-              submitted={submitted}
-              isCorrect={isCorrect}
-            />
+          <div className="flex-1 flex flex-col gap-6 min-w-86 min-h-0 overflow-hidden">
+            <QuestionCard exam={exam} question={currentQuestion} stopwatchRef={stopwatchRef} />
 
             <AnswerCard
               question={currentQuestion}
