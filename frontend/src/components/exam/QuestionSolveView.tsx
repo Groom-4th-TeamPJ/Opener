@@ -168,7 +168,7 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
       onDragStart={handleDragStart}
     >
       {/* Top Header Bar */}
-      <ExamHeader onClose={() => openModal(EXAM_MODAL.EXIT)} canCount={10} />
+      <ExamHeader onClose={() => openModal(EXAM_MODAL.EXIT)} />
 
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto bg-neutral-50">
