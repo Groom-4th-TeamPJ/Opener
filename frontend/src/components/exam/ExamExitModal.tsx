@@ -1,6 +1,7 @@
 import Image from 'next/image'
 import Button from '@/components/common/Button'
 import { Modal, ModalContent, ModalFooter } from '@/components/common/Modal'
+import { memo } from 'react'
 
 interface ExamExitModalProps {
   open: boolean
@@ -8,7 +9,7 @@ interface ExamExitModalProps {
   onConfirm: () => void
 }
 
-export default function ExamExitModal({ open, onCancel, onConfirm }: ExamExitModalProps) {
+export default memo(function ExamExitModal({ open, onCancel, onConfirm }: ExamExitModalProps) {
   return (
     <Modal
       open={open}
@@ -61,4 +62,4 @@ export default function ExamExitModal({ open, onCancel, onConfirm }: ExamExitMod
       </ModalFooter>
     </Modal>
   )
-}
+})

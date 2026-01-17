@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import Button from '@/components/common/Button'
 import { X } from 'lucide-react'
 import SolidCanIcon from '@/components/icons/SolidCanIcon'
@@ -7,7 +8,7 @@ interface ExamHeaderProps {
   onClose: () => void
 }
 
-export default function ExamHeader({ onClose }: ExamHeaderProps) {
+export default memo(function ExamHeader({ onClose }: ExamHeaderProps) {
   const { data } = useCanCount()
   const canCount = data?.currentCan ?? 0
 
@@ -31,4 +32,4 @@ export default function ExamHeader({ onClose }: ExamHeaderProps) {
       </div>
     </header>
   )
-}
+})
