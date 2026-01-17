@@ -63,7 +63,6 @@ export interface ChatMessage {
   role: 'USER' | 'ASSISTANT'
   content: string
   timestamp: string
-  highlight?: string
 }
 
 export interface ScrapbookChatMessage {
