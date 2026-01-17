@@ -1,5 +1,6 @@
 import { API_PATHS } from '@/constants/api-path'
 import { QUERY_KEYS } from '@/constants/query-key'
+import { useExamStore } from '@/stores/use-exam-store'
 import api from '@/utils/api'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
@@ -16,6 +17,7 @@ export default function useLogout() {
     mutationFn: logoutApi,
     onSettled: () => {
       queryClient.clear()
+      useExamStore.getState().resetExam()
       router.replace('/login')
     },
   })
