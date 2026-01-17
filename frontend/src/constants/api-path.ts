@@ -24,4 +24,7 @@ export const API_PATHS = {
   USERS: {
     ME: '/users/me/cans/count',
   },
+  SCRAPBOOK: {
+    LIST: '/scrapbooks/${examId}',
+  },
 } as const
