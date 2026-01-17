@@ -7,7 +7,7 @@ import Button from '@/components/common/Button'
 import useScrapBookPagination from '@/hooks/scrapbook/use-scrap-book-pagination'
 import ScrapBookPagination from './ScrapBookPagination'
 import ScrapBookListItem from './ScrapBookListItem'
-import useScrapBookList from '@/hooks/scrapbook/use-scrap-book-list'
+import useScrapBookList from '@/hooks/scrapbook/use-scrapbook-list'
 
 export default function ScrapBookList() {
   const router = useRouter()
