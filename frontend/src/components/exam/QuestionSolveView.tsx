@@ -22,6 +22,7 @@ import { useSubmitAnswer } from '@/hooks/exam/queries/use-submit-answer'
 import { useExamModalStore } from '@/stores/use-exam-modal-store'
 import { useExamStore } from '@/stores/use-exam-store'
 import { EXAM_MODAL } from '@/constants/exam'
+import useContentProtection from '@/hooks/exam/use-content-protection'
 
 interface QuestionSolveViewProps {
   onClose: () => void
@@ -37,6 +38,7 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
   const { currentIndex, goNextQuestion, updateQuestionState, getQuestionState } = useExamStore()
   const { mutate: submitAnswer, isPending: isSubmitting } = useSubmitAnswer()
   const examData = useCurrentExam()
+  const { handleContextMenu, handleCopy, handleDragStart } = useContentProtection()
 
   // 마운트 시 모달 상태 초기화
   useEffect(() => {
@@ -116,6 +118,7 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
     )
   }
 
+  // 다음 문제 이동
   const handleNext = () => {
     if (isLastQuestion) {
       // 시험 완료 - 결과 모달 표시
@@ -125,9 +128,9 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
     }
   }
 
+  // TODO: 오프너 분석 API 연동
   const handleShowAnalysis = () => {
     updateQuestionState(currentQuestion.questionId, { isAnalysisActive: true })
-    // TODO: AI 분석 요청
   }
 
   // TODO: 비활성 상태 60분 자동으로 대시보드 이동하도록
@@ -145,19 +148,6 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
   const handleResultModalClose = () => {
     closeModal()
     onClose()
-  }
-
-  // 콘텐츠 보호: 우클릭, 드래그, 복사 차단
-  const handleContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault()
-  }
-
-  const handleCopy = (e: React.ClipboardEvent) => {
-    e.preventDefault()
-  }
-
-  const handleDragStart = (e: React.DragEvent) => {
-    e.preventDefault()
   }
 
   return (
