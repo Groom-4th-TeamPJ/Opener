@@ -62,13 +62,16 @@ CREATE TABLE can_usage_logs (
     deleted_at timestamp(6),
     updated_at timestamp(6) NOT NULL,
     version bigint,
-    can_id bigint NOT NULL,
+    user_id uuid NOT NULL,
     usage_type varchar(50) NOT NULL,
-    amount integer NOT NULL,
+    cans_used integer NOT NULL,
+    related_id bigint,
+    cans_before integer NOT NULL,
+    cans_after integer NOT NULL,
     status varchar(50) NOT NULL,
-    reason varchar(255),
     CONSTRAINT can_usage_logs_usage_type_check CHECK (usage_type IN ('ISSUED', 'USED', 'REFUNDED', 'EXPIRED')),
-    CONSTRAINT can_usage_logs_status_check CHECK (status IN ('SUCCESS', 'FAILED', 'PENDING'))
+    CONSTRAINT can_usage_logs_status_check CHECK (status IN ('SUCCESS', 'FAILED', 'PENDING')),
+    CONSTRAINT fk_can_usage_logs_user FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
 -- ===========================

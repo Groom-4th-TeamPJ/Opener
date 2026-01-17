@@ -58,3 +58,18 @@ VALUES
     ((SELECT id FROM exam_results LIMIT 1), (SELECT id FROM questions WHERE question_no = 3 LIMIT 1), 3, true, 350, false),
     ((SELECT id FROM exam_results LIMIT 1), (SELECT id FROM questions WHERE question_no = 4 LIMIT 1), 2, true, 400, false),
     ((SELECT id FROM exam_results LIMIT 1), (SELECT id FROM questions WHERE question_no = 5 LIMIT 1), 2, true, 300, false);
+
+-- 7. 테스트 사용자 CAN (캔 잔액)
+INSERT INTO user_cans (user_id, current_cans, max_cans, created_at, updated_at, version)
+VALUES
+    ('550e8400-e29b-41d4-a716-446655440000'::uuid, 10, 10, NOW(), NOW(), 0);
+
+-- 8. 테스트 CAN 사용 로그
+INSERT INTO can_usage_logs (user_id, usage_type, cans_used, related_id, cans_before, cans_after, status, created_at, updated_at, version)
+VALUES
+    -- 초기 발급
+    ('550e8400-e29b-41d4-a716-446655440000'::uuid, 'ISSUED', 10, NULL, 0, 10, 'SUCCESS', NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day', 0),
+    -- 채팅 사용
+    ('550e8400-e29b-41d4-a716-446655440000'::uuid, 'USED', 2, 1, 10, 8, 'SUCCESS', NOW() - INTERVAL '12 hours', NOW() - INTERVAL '12 hours', 0),
+    -- 환불
+    ('550e8400-e29b-41d4-a716-446655440000'::uuid, 'REFUNDED', 2, 1, 8, 10, 'SUCCESS', NOW() - INTERVAL '6 hours', NOW() - INTERVAL '6 hours', 0);
