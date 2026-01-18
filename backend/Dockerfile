@@ -25,6 +25,9 @@ FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
+# Netty native(QUIC) 로딩에 필요한 런타임 라이브러리
+RUN apk add --no-cache libgcc libstdc++
+
 # Create non-root user for security
 RUN addgroup -S spring && adduser -S spring -G spring
 
@@ -42,7 +45,7 @@ EXPOSE 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://15.164.172.190:8080/actuator/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider https://opener.deving.xyz:8080/actuator/health || exit 1
 
 # Run application
 ENTRYPOINT ["java", "-jar", "app.jar"]
