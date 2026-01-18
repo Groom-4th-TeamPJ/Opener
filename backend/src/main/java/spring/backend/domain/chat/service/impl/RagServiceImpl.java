@@ -1,9 +1,13 @@
 package spring.backend.domain.chat.service.impl;
 
+import java.util.List;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -26,6 +30,7 @@ public class RagServiceImpl implements RagService {
 
     private final VectorStore vectorStore;
     private final ChatClient.Builder chatClientBuilder;
+    private final spring.backend.domain.chat.util.PromptLoader promptLoader;
 
     @Value("${app.rag.top-k:5}")
     private int topK;
@@ -36,28 +41,51 @@ public class RagServiceImpl implements RagService {
     @Override
     public void generateSimilarProblemStream(String problemContext, Consumer<String> chunkConsumer) {
         try {
-            // 문제 풀이 분석용 프롬프트 구성
-            String prompt = String.format("""
-                    다음은 학생이 틀린 수학 문제입니다:
-                    
-                    %s
-                    
-                    이 문제를 자세하게 분석하고 풀이 방법을 설명해주세요.
-                    
-                    다음 내용을 포함해주세요:
-                    1. 문제가 요구하는 핵심 개념
-                    2. 단계별 풀이 과정 (각 단계의 이유를 설명)
-                    3. 정답이 왜 정답인지에 대한 설명
-                    4. 학생들이 자주 하는 실수나 주의할 점
-                    5. 이 문제를 푸는 데 필요한 기본 지식이나 공식
-                    
-                    학생이 이해하기 쉽도록 친절하고 자세하게 설명해주세요.
-                    """, problemContext);
+            log.info("[RAG] 오프너 분석 시작 - 문제 컨텍스트 길이: {}", problemContext.length());
 
-            // ChatClient 생성
+            // 1. VectorStore에서 유사 문서 검색
+            SearchRequest searchRequest = SearchRequest.builder()
+                    .query(problemContext)
+                    .topK(topK)
+                    .similarityThreshold(similarityThreshold)
+                    .build();
+
+            List<Document> similarDocuments = vectorStore.similaritySearch(searchRequest);
+
+            log.info("[RAG] 유사 문서 검색 완료 - 검색된 문서 수: {}", similarDocuments.size());
+
+            // 2. 검색된 문서를 컨텍스트로 구성
+            String retrievedContext = "";
+            if (!similarDocuments.isEmpty()) {
+                retrievedContext = similarDocuments.stream()
+                        .map(doc -> {
+                            log.debug("[RAG] 검색된 문서 - 유사도: {}, 내용 길이: {}",
+                                    doc.getMetadata().get("distance"),
+                                    doc.getText().length());
+                            return doc.getText();
+                        })
+                        .collect(Collectors.joining("\n\n=== 참고 자료 구분 ===\n\n"));
+
+                log.debug("[RAG] 전체 검색 컨텍스트 길이: {}", retrievedContext.length());
+            } else {
+                log.warn("[RAG] 유사 문서를 찾지 못했습니다. 일반 LLM 응답으로 진행합니다.");
+            }
+
+            // 3. 검색된 문서 + 문제를 프롬프트에 포함
+            String prompt;
+            if (!retrievedContext.isEmpty()) {
+                // RAG 사용: 검색된 문서 포함
+                prompt = promptLoader.buildRagOpenerAnalysisPrompt(retrievedContext, problemContext);
+            } else {
+                // RAG 실패 시 일반 프롬프트
+                prompt = promptLoader.buildNoRagOpenerAnalysisPrompt(problemContext);
+            }
+
+            log.debug("[RAG] 프롬프트 구성 완료 - 전체 길이: {}", prompt.length());
+
+            // 4. ChatClient를 사용한 스트리밍 호출
             ChatClient chatClient = chatClientBuilder.build();
 
-            // 스트리밍 호출
             Flux<String> streamResponse = chatClient
                     .prompt()
                     .user(prompt)
@@ -72,10 +100,15 @@ public class RagServiceImpl implements RagService {
                         }
                     })
                     .doOnError(error -> {
+                        log.error("[RAG] 스트리밍 중 에러 발생", error);
+                    })
+                    .doOnComplete(() -> {
+                        log.info("[RAG] 스트리밍 완료");
                     })
                     .blockLast();
 
         } catch (Exception e) {
+            log.error("[RAG] RAG 서비스 실행 실패", e);
             throw new BusinessException(ErrorCode.LLM_RESPONSE_FAIL);
         }
     }
