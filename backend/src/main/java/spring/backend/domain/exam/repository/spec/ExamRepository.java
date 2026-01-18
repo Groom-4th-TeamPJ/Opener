@@ -12,6 +12,8 @@ public interface ExamRepository {
     
     boolean existsById(Long id);
 
+    Optional<Exam> findById(Long id);
+
     Optional<Exam> findByExamYearAndExamType(Integer examYear, ExamType examType);
 
     Optional<Question> findQuestionById(Long id);
