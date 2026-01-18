@@ -136,6 +136,7 @@ CREATE TABLE IF NOT EXISTS "exam_results" (
 CREATE INDEX IF NOT EXISTS idx_exam_results_exam_id ON "exam_results"(exam_id);
 CREATE INDEX IF NOT EXISTS idx_exam_results_user_id ON "exam_results"(user_id);
 CREATE INDEX IF NOT EXISTS idx_exam_results_user_exam ON "exam_results"(user_id, exam_id);
+CREATE INDEX IF NOT EXISTS idx_exam_results_user_id_created_at ON "exam_results"(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_exam_results_deleted_at ON "exam_results"(deleted_at) WHERE deleted_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS "question_results" (
