@@ -69,7 +69,7 @@ public class DashboardServiceImpl implements DashboardService {
             return 0;
         }
 
-        return (int) Math.round(((double) correctCnt / totalCnt) * 100);
+        return (int) Math.ceil(((double) correctCnt / totalCnt) * 100);
     }
 
     private String makeTotalLearningTimeFormat(long totalLearningTime) {
