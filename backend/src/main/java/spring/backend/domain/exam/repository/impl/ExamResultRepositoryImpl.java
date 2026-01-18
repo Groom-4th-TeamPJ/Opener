@@ -8,6 +8,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Repository;
 import spring.backend.domain.exam.model.entity.Exam;
 import spring.backend.domain.exam.model.entity.ExamResult;
+import spring.backend.domain.exam.repository.dto.DashboardStatsRow;
 import spring.backend.domain.exam.repository.jpa.JpaExamResultRepository;
 import spring.backend.domain.exam.repository.spec.ExamResultRepository;
 import spring.backend.domain.scrapbook.dto.response.ScrapbookFilterResponse;
@@ -45,6 +46,11 @@ public class ExamResultRepositoryImpl implements ExamResultRepository {
     @Override
     public boolean existsByIdAndUserId(Long id, UUID userId) {
         return jpaExamResultRepository.existsByIdAndUserId(id, userId);
+    }
+
+    @Override
+    public DashboardStatsRow getDashboardSummary(UUID userId) {
+        return jpaExamResultRepository.getDashboardSummary(userId);
     }
 
     @Override
