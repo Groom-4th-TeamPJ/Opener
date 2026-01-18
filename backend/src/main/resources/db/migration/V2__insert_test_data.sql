@@ -73,3 +73,52 @@ VALUES
     ('550e8400-e29b-41d4-a716-446655440000'::uuid, 'USED', 2, 1, 10, 8, 'SUCCESS', NOW() - INTERVAL '12 hours', NOW() - INTERVAL '12 hours', 0),
     -- 환불
     ('550e8400-e29b-41d4-a716-446655440000'::uuid, 'REFUNDED', 2, 1, 8, 10, 'SUCCESS', NOW() - INTERVAL '6 hours', NOW() - INTERVAL '6 hours', 0);
+
+-- 9. 테스트 변형 문제 (QuestionNew) - AI 생성 변형 문제 샘플 데이터
+INSERT INTO question_new (user_id, question_result_id, passages, options, answer, category, question_type, analysis, created_at, updated_at, version)
+VALUES
+    -- 첫 번째 변형 문제 (question_no 1의 변형)
+    ('550e8400-e29b-41d4-a716-446655440000'::uuid,
+     (SELECT id FROM question_results WHERE question_id = (SELECT id FROM questions WHERE question_no = 1 LIMIT 1) LIMIT 1),
+     '[{"order": 1, "type": "TEXT", "content": "다음 방정식을 푸시오: x^2 - 7x + 12 = 0"}]'::jsonb,
+     '[{"order": 1, "content": "x = 2, 5"}, {"order": 2, "content": "x = 3, 4"}, {"order": 3, "content": "x = -3, -4"}, {"order": 4, "content": "x = 1, 12"}, {"order": 5, "content": "x = 2, 6"}]'::jsonb,
+     2,
+     'ALG',
+     'MCQ',
+     '## 풀이 방법
+
+### 1단계: 인수분해
+방정식 x^2 - 7x + 12 = 0을 인수분해합니다.
+곱해서 12, 더해서 -7이 되는 두 수는 -3과 -4입니다.
+(x - 3)(x - 4) = 0
+
+### 2단계: 해 구하기
+x - 3 = 0 또는 x - 4 = 0
+따라서 x = 3 또는 x = 4
+
+### 3단계: 최종 답
+정답: x = 3, 4 (선택지 2번)',
+     NOW(), NOW(), 0),
+
+    -- 두 번째 변형 문제 (question_no 3의 변형 - 확률)
+    ('550e8400-e29b-41d4-a716-446655440000'::uuid,
+     (SELECT id FROM question_results WHERE question_id = (SELECT id FROM questions WHERE question_no = 3 LIMIT 1) LIMIT 1),
+     '[{"order": 1, "type": "TEXT", "content": "주사위를 두 번 던질 때 합이 7이 나올 확률은?"}]'::jsonb,
+     '[{"order": 1, "content": "1/12"}, {"order": 2, "content": "1/9"}, {"order": 3, "content": "1/6"}, {"order": 4, "content": "1/4"}, {"order": 5, "content": "1/3"}]'::jsonb,
+     3,
+     'PROB',
+     'MCQ',
+     '## 풀이 방법
+
+### 1단계: 전체 경우의 수
+주사위를 두 번 던지면 총 6 × 6 = 36가지 경우가 있습니다.
+
+### 2단계: 합이 7이 되는 경우
+(1,6), (2,5), (3,4), (4,3), (5,2), (6,1) → 총 6가지
+
+### 3단계: 확률 계산
+P(합이 7) = 6/36 = 1/6
+
+### 4단계: 최종 답
+정답: 1/6 (선택지 3번)',
+     NOW(), NOW(), 0);
