@@ -2,6 +2,9 @@
 -- Postgres: gen_random_uuid() 사용을 위한 확장 생성
 -- CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+-- Enable pgvector extension for similarity search
+CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public;
+
 -- Users 테이블
 CREATE TABLE IF NOT EXISTS "users" (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -10,14 +13,15 @@ CREATE TABLE IF NOT EXISTS "users" (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,
     deleted_at TIMESTAMP,
-    version BIGINT NOT NULL DEFAULT 1
+    version BIGINT NOT NULL DEFAULT 1,
+    CONSTRAINT users_role_check CHECK (role IN ('USER', 'ADMIN'))
 );
 
 -- Credentials 테이블
 CREATE TABLE IF NOT EXISTS "credentials" (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL,
-    provider TEXT,
+    provider VARCHAR(255) NOT NULL,
     provider_id VARCHAR(500),  -- provider_Id → provider_id (일관성)
     email VARCHAR(500),
     password VARCHAR(500),
@@ -30,25 +34,74 @@ CREATE TABLE IF NOT EXISTS "credentials" (
     deleted_at TIMESTAMP,
     version BIGINT NOT NULL DEFAULT 1,
 
-    -- 외래키 제약조건
-    CONSTRAINT fk_credentials_user FOREIGN KEY (user_id)
-    REFERENCES "users"(id) ON DELETE CASCADE,
-
-    -- 제약조건
-    CONSTRAINT chk_credentials_provider CHECK (
-        (provider IS NOT NULL AND provider_id IS NOT NULL) OR
-        (email IS NOT NULL AND password IS NOT NULL)
-    ),
-
-    -- 중복 방지
-    CONSTRAINT uk_credentials_provider UNIQUE (provider, provider_id),
-    CONSTRAINT uk_credentials_email UNIQUE (email)
+    CONSTRAINT credentials_provider_check CHECK (provider IN ('FORM', 'KAKAO')),
+    CONSTRAINT uk_credentials_email UNIQUE (email),
+    CONSTRAINT uk_credentials_provider_id UNIQUE (provider_id),
+    CONSTRAINT uk_credentials_user_id UNIQUE (user_id),
+    CONSTRAINT fk_credentials_user FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_credentials_user_id ON "credentials"(user_id);
 CREATE INDEX IF NOT EXISTS idx_credentials_email ON "credentials"(email);
 CREATE INDEX IF NOT EXISTS idx_credentials_provider ON "credentials"(provider, provider_id);
 CREATE INDEX IF NOT EXISTS idx_credentials_deleted_at ON "credentials"(deleted_at) WHERE deleted_at IS NULL;
+
+-- user_cans 테이블
+CREATE TABLE IF NOT EXISTS "user_cans" (
+    id BIGSERIAL PRIMARY KEY,
+    user_id UUID NOT NULL,
+    current_cans INT NOT NULL DEFAULT 0,
+    max_cans INT NOT NULL DEFAULT 100,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP,
+    deleted_at TIMESTAMP,
+    version BIGINT NOT NULL DEFAULT 1,
+
+    -- 외래키 제약조건
+    CONSTRAINT fk_user_cans_user FOREIGN KEY (user_id)
+    REFERENCES "users"(id) ON DELETE CASCADE,
+
+    -- 제약조건
+    CONSTRAINT chk_user_cans_current CHECK (current_cans >= 0),
+    CONSTRAINT chk_user_cans_max CHECK (max_cans >= 0),
+    CONSTRAINT chk_user_cans_limit CHECK (current_cans <= max_cans),
+
+    -- 중복 방지 (한 사용자당 하나의 캔 레코드)
+    CONSTRAINT uk_user_cans_user UNIQUE (user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_cans_user_id ON "user_cans"(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_cans_deleted_at ON "user_cans"(deleted_at) WHERE deleted_at IS NULL;
+
+-- can_usage_logs 테이블
+CREATE TABLE IF NOT EXISTS "can_usage_logs" (
+    id BIGSERIAL PRIMARY KEY,
+    user_id UUID NOT NULL,
+    usage_type TEXT NOT NULL,
+    cans_used INT NOT NULL DEFAULT 1,
+    related_id BIGINT,  -- NOT NULL 제거 (모든 로그가 related_id를 가지지 않을 수 있음)
+    cans_before INT NOT NULL,
+    cans_after INT NOT NULL,
+    status VARCHAR(500),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP,
+    deleted_at TIMESTAMP,
+    version BIGINT NOT NULL DEFAULT 1,
+
+    -- 외래키 제약조건
+    CONSTRAINT fk_can_usage_logs_user FOREIGN KEY (user_id)
+    REFERENCES "users"(id) ON DELETE CASCADE,
+
+    -- 제약조건
+    CONSTRAINT chk_can_usage_cans_used CHECK (cans_used > 0),
+    CONSTRAINT chk_can_usage_cans_before CHECK (cans_before >= 0),
+    CONSTRAINT chk_can_usage_cans_after CHECK (cans_after >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_can_usage_logs_user_id ON "can_usage_logs"(user_id);
+CREATE INDEX IF NOT EXISTS idx_can_usage_logs_type ON "can_usage_logs"(usage_type);
+CREATE INDEX IF NOT EXISTS idx_can_usage_logs_created_at ON "can_usage_logs"(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_can_usage_logs_deleted_at ON "can_usage_logs"(deleted_at) WHERE deleted_at IS NULL;
 
 
 -- Exams 테이블
@@ -200,76 +253,22 @@ CREATE INDEX IF NOT EXISTS idx_question_new_user_id ON "question_new"(user_id);
 CREATE INDEX IF NOT EXISTS idx_question_new_category ON "question_new"(category);
 CREATE INDEX IF NOT EXISTS idx_question_new_deleted_at ON "question_new"(deleted_at) WHERE deleted_at IS NULL;
 
--- user_cans 테이블
-CREATE TABLE IF NOT EXISTS "user_cans" (
-    id BIGSERIAL PRIMARY KEY,
-    user_id UUID NOT NULL,
-    current_cans INT NOT NULL DEFAULT 0,
-    max_cans INT NOT NULL DEFAULT 100,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP,
-    deleted_at TIMESTAMP,
-    version BIGINT NOT NULL DEFAULT 1,
 
-    -- 외래키 제약조건
-    CONSTRAINT fk_user_cans_user FOREIGN KEY (user_id)
-    REFERENCES "users"(id) ON DELETE CASCADE,
-
-    -- 제약조건
-    CONSTRAINT chk_user_cans_current CHECK (current_cans >= 0),
-    CONSTRAINT chk_user_cans_max CHECK (max_cans >= 0),
-    CONSTRAINT chk_user_cans_limit CHECK (current_cans <= max_cans),
-
-    -- 중복 방지 (한 사용자당 하나의 캔 레코드)
-    CONSTRAINT uk_user_cans_user UNIQUE (user_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_user_cans_user_id ON "user_cans"(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_cans_deleted_at ON "user_cans"(deleted_at) WHERE deleted_at IS NULL;
-
--- can_usage_logs 테이블
-CREATE TABLE IF NOT EXISTS "can_usage_logs" (
-    id BIGSERIAL PRIMARY KEY,
-    user_id UUID NOT NULL,
-    usage_type TEXT NOT NULL,
-    cans_used INT NOT NULL DEFAULT 1,
-    related_id BIGINT,  -- NOT NULL 제거 (모든 로그가 related_id를 가지지 않을 수 있음)
-    cans_before INT NOT NULL,
-    cans_after INT NOT NULL,
-    status VARCHAR(500),
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP,
-    deleted_at TIMESTAMP,
-    version BIGINT NOT NULL DEFAULT 1,
-
-    -- 외래키 제약조건
-    CONSTRAINT fk_can_usage_logs_user FOREIGN KEY (user_id)
-    REFERENCES "users"(id) ON DELETE CASCADE,
-
-    -- 제약조건
-    CONSTRAINT chk_can_usage_cans_used CHECK (cans_used > 0),
-    CONSTRAINT chk_can_usage_cans_before CHECK (cans_before >= 0),
-    CONSTRAINT chk_can_usage_cans_after CHECK (cans_after >= 0)
-);
-
-CREATE INDEX IF NOT EXISTS idx_can_usage_logs_user_id ON "can_usage_logs"(user_id);
-CREATE INDEX IF NOT EXISTS idx_can_usage_logs_type ON "can_usage_logs"(usage_type);
-CREATE INDEX IF NOT EXISTS idx_can_usage_logs_created_at ON "can_usage_logs"(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_can_usage_logs_deleted_at ON "can_usage_logs"(deleted_at) WHERE deleted_at IS NULL;
 
 -- chat_message 테이블
 CREATE TABLE IF NOT EXISTS "chat_messages" (
     id BIGSERIAL PRIMARY KEY,
     question_result_id BIGINT NOT NULL,
     messages JSONB NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP NOT NULL,
     updated_at TIMESTAMP,
     deleted_at TIMESTAMP,
     version BIGINT NOT NULL DEFAULT 1,
 
     -- 외래키 제약조건
     CONSTRAINT fk_chat_message_question_result FOREIGN KEY (question_result_id)
-    REFERENCES "question_results"(id) ON DELETE CASCADE
+    REFERENCES "question_results"(id),
+    CONSTRAINT uk_chat_messages_question_result UNIQUE (question_result_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_chat_message_question_result_id ON "chat_messages"(question_result_id);

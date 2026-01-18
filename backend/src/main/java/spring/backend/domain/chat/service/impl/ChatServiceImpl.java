@@ -3,15 +3,18 @@ package spring.backend.domain.chat.service.impl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import spring.backend.domain.chat.dto.enums.ChatRole;
 import spring.backend.domain.chat.dto.redis_dto.RedisMessageDto;
 import spring.backend.domain.chat.dto.request.ChatSaveRequest;
 import spring.backend.domain.chat.dto.request.ChatSendRequest;
+import spring.backend.domain.chat.dto.request.OpenerAnalysisRequest;
 import spring.backend.domain.chat.dto.response.SseMessageResponse;
 import spring.backend.domain.chat.mapper.RedisMessageMapper;
 import spring.backend.domain.chat.messaging.ChatMessageProducer;
@@ -19,11 +22,18 @@ import spring.backend.domain.chat.repository.spec.ChatMessageRepository;
 import spring.backend.domain.chat.service.spec.ChatRedisService;
 import spring.backend.domain.chat.service.spec.ChatService;
 import spring.backend.domain.chat.service.spec.LlmService;
+import spring.backend.domain.chat.service.spec.RagService;
+import spring.backend.domain.exam.model.dto.Passage;
+import spring.backend.domain.exam.model.entity.Question;
+import spring.backend.domain.exam.model.entity.QuestionResult;
+import spring.backend.domain.exam.repository.jpa.JpaQuestionRepository;
+import spring.backend.domain.exam.repository.spec.QuestionResultRepository;
 import spring.backend.domain.user.model.entity.User;
 import spring.backend.domain.user.repository.spec.UserRepository;
 import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
 
+@Slf4j
 @Service
 public class ChatServiceImpl implements ChatService {
 
@@ -31,12 +41,15 @@ public class ChatServiceImpl implements ChatService {
     private static final Long SSE_TIMEOUT = 5 * 60 * 1000L;
     private final ChatRedisService chatRedisService;
     private final LlmService llmService;
+    private final RagService ragService;
     private final ObjectMapper objectMapper;
     private final UserRepository userRepository;
     private final RedisMessageMapper redisMessageMapper;
     private final ChatMessageRepository chatMessageRepository;
     private final ChatMessageProducer chatMessageProducer;
     private final StringRedisTemplate redisTemplate;
+    private final JpaQuestionRepository questionRepository;
+    private final QuestionResultRepository questionResultRepository;
 
     // SSE 연결 관리 (sessionId → SseEmitter)
     private final ConcurrentHashMap<Long, SseEmitter> emitters = new ConcurrentHashMap<>();
@@ -44,21 +57,27 @@ public class ChatServiceImpl implements ChatService {
     public ChatServiceImpl(
             ChatRedisService chatRedisService,
             LlmService llmService,
+            RagService ragService,
             ObjectMapper objectMapper,
             UserRepository userRepository,
             RedisMessageMapper redisMessageMapper,
             ChatMessageRepository chatMessageRepository,
             ChatMessageProducer chatMessageProducer,
-            @Qualifier("chatRedisTemplate") StringRedisTemplate redisTemplate
+            @Qualifier("chatRedisTemplate") StringRedisTemplate redisTemplate,
+            JpaQuestionRepository questionRepository,
+            QuestionResultRepository questionResultRepository
     ) {
         this.chatRedisService = chatRedisService;
         this.llmService = llmService;
+        this.ragService = ragService;
         this.objectMapper = objectMapper;
         this.userRepository = userRepository;
         this.redisMessageMapper = redisMessageMapper;
         this.chatMessageRepository = chatMessageRepository;
         this.chatMessageProducer = chatMessageProducer;
         this.redisTemplate = redisTemplate;
+        this.questionRepository = questionRepository;
+        this.questionResultRepository = questionResultRepository;
     }
 
     @Override
@@ -68,7 +87,7 @@ public class ChatServiceImpl implements ChatService {
         // 스프링 인메모리 힙에 sessionId로 운영중인 SSE 연결 조회
         SseEmitter sseEmitter = emitters.get(sessionId);
 
-        // 기존 SSE 연결이 있으면 재사용
+        // 기존 SSE 연결이 있으면 재사용 (재연결)
         if (sseEmitter != null) {
 
             // DB에서 sessionId와 userId로 세션 권한 검증
@@ -201,6 +220,11 @@ public class ChatServiceImpl implements ChatService {
         // RabbitMQ를 통해 메시지 저장 이벤트 발행
         // 실제 저장은 ChatMessageConsumer에서 비동기로 처리
         chatMessageProducer.publishSaveMessageEvent(sessionId, userId, questionResultId);
+
+        // 대화 저장 후 Redis 대화 내역 초기화 (새로운 대화 세션 시작)
+        chatRedisService.deleteMessage(sessionId);
+
+        log.info("[Chat] 대화 저장 완료 및 세션 초기화 - sessionId: {}", sessionId);
     }
 
     // sse 청크 전송
@@ -257,5 +281,108 @@ public class ChatServiceImpl implements ChatService {
 
         } catch (Exception e) {
         }
+    }
+
+    @Async
+    @Override
+    public void openerAnalysis(OpenerAnalysisRequest req, UUID userId) {
+        Long sessionId = req.sessionId();
+        Long questionId = req.questionId();
+        Long questionResultId = req.questionResultId();
+
+        // SSE 연결 조회
+        SseEmitter sseEmitter = emitters.get(sessionId);
+        if (sseEmitter == null) {
+            throw new BusinessException(ErrorCode.SESSION_EXPIRED);
+        }
+
+        // 세션 검증
+        chatRedisService.validateSessionOwner(sessionId, userId);
+
+        try {
+            // 1. 사용자의 오프너 분석 요청 메시지를 Redis에 저장
+            RedisMessageDto userRequestMessage = RedisMessageDto.builder()
+                    .chatRole(ChatRole.USER)
+                    .message("오프너 분석을 요청했습니다.")
+                    .timestamp(java.time.LocalDateTime.now())
+                    .build();
+            chatRedisService.saveMessage(sessionId, userRequestMessage);
+
+            // Question 조회
+            Question question = questionRepository.findById(questionId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.QUESTION_NOT_FOUND));
+
+            // Passages를 문자열로 변환
+            String problemContext = buildProblemContext(question);
+
+            // RAG 응답을 수집할 StringBuilder
+            StringBuilder ragResponseBuilder = new StringBuilder();
+
+            // RAG 서비스를 통해 유사 문제 생성 (스트리밍)
+            ragService.generateSimilarProblemStream(
+                    problemContext,
+                    chunk -> {
+                        // 각 청크를 SSE로 전송
+                        sendSseChunk(sseEmitter, sessionId.toString(), chunk);
+
+                        // 전체 응답 수집
+                        ragResponseBuilder.append(chunk);
+                    }
+            );
+
+            // 2. 완전한 RAG 응답을 Redis에 저장
+            String fullRagResponse = ragResponseBuilder.toString();
+            RedisMessageDto ragRedisMessageDto = redisMessageMapper.toDtoLlm(fullRagResponse);
+            chatRedisService.saveMessage(sessionId, ragRedisMessageDto);
+
+            // 완료 이벤트 전송
+            sendSseComplete(sseEmitter, sessionId.toString());
+
+            // QuestionResult 업데이트 (isOpener = true)
+            // JpaRepository.save()는 이미 @Transactional이 적용되어 있음
+            QuestionResult questionResult = questionResultRepository.findById(questionResultId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.QUESTION_RESULT_NOT_FOUND));
+            questionResult.markOpener();
+            questionResultRepository.save(questionResult);
+
+        } catch (Exception e) {
+            sendSseError(sseEmitter, sessionId.toString(), e.getMessage());
+        }
+    }
+
+    // Question의 모든 정보를 하나의 문자열로 변환
+    private String buildProblemContext(Question question) {
+        if (question.getPassages() == null || question.getPassages().isEmpty()) {
+            throw new BusinessException(ErrorCode.QUESTION_HAS_NO_PASSAGES);
+        }
+
+        StringBuilder context = new StringBuilder();
+        context.append("문제 번호: ").append(question.getQuestionNo()).append("\n");
+        context.append("카테고리: ").append(question.getCategory()).append("\n");
+        context.append("배점: ").append(question.getPoint()).append("점\n\n");
+
+        // Passages (지문)
+        context.append("=== 문제 지문 ===\n");
+        for (Passage passage : question.getPassages()) {
+            context.append(passage.content()).append("\n");
+        }
+        context.append("\n");
+
+        // Options (선택지)
+        if (question.getOptions() != null && !question.getOptions().isEmpty()) {
+            context.append("=== 선택지 ===\n");
+            for (var option : question.getOptions()) {
+                context.append(option.order()).append(". ").append(option.content()).append("\n");
+            }
+            context.append("\n");
+        }
+
+        // Answer (정답)
+        if (question.getAnswer() != null) {
+            context.append("=== 정답 ===\n");
+            context.append("정답: ").append(question.getAnswer()).append("번\n");
+        }
+
+        return context.toString();
     }
 }

@@ -18,6 +18,9 @@ public interface ChatRedisService {
     // 세션 삭제
     void deleteSession(Long sessionId);
 
+    // 메세지 삭제
+    void deleteMessage(Long sessionId);
+
     // 세션 권한 확인
     void validateSessionOwner(Long sessionId, UUID userId);
 }

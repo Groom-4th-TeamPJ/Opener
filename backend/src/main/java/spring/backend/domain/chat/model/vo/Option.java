@@ -1,4 +1,4 @@
-package spring.backend.domain.exam.model.dto;
+package spring.backend.domain.chat.model.vo;
 
 public record Option(
         Integer order,
