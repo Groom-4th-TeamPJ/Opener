@@ -7,17 +7,19 @@ import Button from '@/components/common/Button'
 import useScrapBookPagination from '@/hooks/scrapbook/use-scrap-book-pagination'
 import ScrapBookPagination from './ScrapBookPagination'
 import ScrapBookListItem from './ScrapBookListItem'
+import useScrapBookList from '@/hooks/scrapbook/use-scrapbook-list'
 
 export default function ScrapBookList() {
   const router = useRouter()
   const pageSize = 8
   const totalCount = ScrapBookListMocks.data.questionResults.length
   const search = useSearchParams()
-
+  const { data: ScrapBookListData, isLoading } = useScrapBookList()
   const { currentPage, totalPages, previousPage, nextPage, startIndex, endIndex, pages } =
     useScrapBookPagination({ totalCount, pageSize, search })
+
   return (
-    <div className="flex flex-col w-full gap-4 min-h-dvh md:mt-6 lg:mt-10">
+    <div className="flex flex-col w-full gap-4 min-h-auto md:mt-6 lg:mt-10">
       <div className="flex gap-4 items-center">
         <Button
           variant="ghost"
@@ -27,7 +29,7 @@ export default function ScrapBookList() {
           <Image src="/icons/chevron-left.svg" alt="뒤로 가기" width={24} height={24} />
         </Button>
         <h1 className="text-text-primary text-[23px] font-bold">
-          {ScrapBookListMocks.data.examYear}년 {ScrapBookListMocks.data.examType.name}
+          {ScrapBookListData?.data?.examYear}년 {ScrapBookListData?.data.examType.name}
         </h1>
       </div>
       <Card>
@@ -40,15 +42,24 @@ export default function ScrapBookList() {
         </CardHeader>
 
         <CardContent className="pt-0">
-          {ScrapBookListMocks.data.questionResults.slice(startIndex, endIndex).map((history) => (
-            <ScrapBookListItem
-              key={history.questionResultId}
-              id={history.questionResultId}
-              categoryName={history.category.name}
-              passage={history.passage}
-              createdAt={history.createdAt}
-            />
-          ))}
+          {isLoading ? (
+            <div className="flex justify-center items-center h-30 text-text-secondary">
+              데이터를 불러오는 중...
+            </div>
+          ) : (
+            // TODO: api 데이터로 변경할 예정
+            ScrapBookListMocks?.data.questionResults
+              .slice(startIndex, endIndex)
+              .map((history) => (
+                <ScrapBookListItem
+                  key={history.questionResultId}
+                  questionResultId={history.questionResultId}
+                  categoryName={history.category.name}
+                  passage={history.passage}
+                  createdAt={history.createdAt}
+                />
+              ))
+          )}
         </CardContent>
       </Card>
       <ScrapBookPagination
