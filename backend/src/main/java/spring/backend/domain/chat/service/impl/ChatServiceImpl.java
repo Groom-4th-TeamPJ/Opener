@@ -3,6 +3,7 @@ package spring.backend.domain.chat.service.impl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Async;
@@ -32,6 +33,7 @@ import spring.backend.domain.user.repository.spec.UserRepository;
 import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
 
+@Slf4j
 @Service
 public class ChatServiceImpl implements ChatService {
 
@@ -218,6 +220,11 @@ public class ChatServiceImpl implements ChatService {
         // RabbitMQ를 통해 메시지 저장 이벤트 발행
         // 실제 저장은 ChatMessageConsumer에서 비동기로 처리
         chatMessageProducer.publishSaveMessageEvent(sessionId, userId, questionResultId);
+
+        // 대화 저장 후 Redis 대화 내역 초기화 (새로운 대화 세션 시작)
+        chatRedisService.deleteMessage(sessionId);
+
+        log.info("[Chat] 대화 저장 완료 및 세션 초기화 - sessionId: {}", sessionId);
     }
 
     // sse 청크 전송
