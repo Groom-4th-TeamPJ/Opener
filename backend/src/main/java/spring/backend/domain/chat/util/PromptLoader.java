@@ -63,4 +63,18 @@ public class PromptLoader {
         template = replaceVariable(template, "ragContext", ragContext);
         return template;
     }
+
+    /**
+     * 변형 문제 생성 프롬프트를 생성합니다
+     *
+     * @param retrievedContext RAG로 검색된 유사 문제 컨텍스트
+     * @param problemContext 원본 문제 컨텍스트
+     * @return 변형 문제 생성 프롬프트
+     */
+    public String buildVariantQuestionPrompt(String retrievedContext, String problemContext) {
+        String template = loadPromptTemplate("generate-variant-question.txt");
+        template = replaceVariable(template, "retrievedContext", retrievedContext);
+        template = replaceVariable(template, "problemContext", problemContext);
+        return template;
+    }
 }
