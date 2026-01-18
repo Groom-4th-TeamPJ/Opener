@@ -81,7 +81,7 @@ DROP TABLE IF EXISTS "credentials" CASCADE;
 DROP TABLE IF EXISTS "exams" CASCADE;
 DROP TABLE IF EXISTS "question_results" CASCADE;
 DROP TABLE IF EXISTS "chat_session" CASCADE;
-DROP TABLE IF EXISTS "chat_message" CASCADE;
+DROP TABLE IF EXISTS "chat_messages" CASCADE;
 ```
 
 ---

@@ -7,8 +7,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 @JsonFormat(shape = JsonFormat.Shape.OBJECT)
 public enum ExamType {
 
-    M06("6월 모의고사"),
-    M09("9월 모의고사"),
+    M06("6월 모의평가"),
+    M09("9월 모의평가"),
     CSAT("수학능력시험");
 
     private final String name;

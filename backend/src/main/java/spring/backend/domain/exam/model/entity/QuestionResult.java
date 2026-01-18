@@ -2,6 +2,9 @@ package spring.backend.domain.exam.model.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import spring.backend.shared.entity.BaseEntity;
+
+import java.time.LocalDateTime;
 
 @Entity
 @Table(
@@ -9,12 +12,13 @@ import lombok.*;
         uniqueConstraints = @UniqueConstraint(name="uk_exam_result_question", columnNames = {"exam_result_id", "question_id"}),
         indexes = {
                 @Index(name="idx_exam_result", columnList="exam_result_id"),
-                @Index(name="idx_question", columnList="question_id")
+                @Index(name="idx_question", columnList="question_id"),
+                @Index(name="idx_exam", columnList="exam_id")
         }
 )
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class QuestionResult {
+public class QuestionResult extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -40,6 +44,9 @@ public class QuestionResult {
     @Column(name = "is_opener", nullable = false)
     private boolean isOpener;
 
+    @Column(name = "opener_used_at")
+    private LocalDateTime openerUsedAt;
+
     public static QuestionResult of(ExamResult er, Question q, int selected, int timeSpent) {
         QuestionResult qr = new QuestionResult();
         qr.examResult = er;
@@ -57,5 +64,6 @@ public class QuestionResult {
 
     public void markOpener() {
         this.isOpener = true;
+        this.openerUsedAt = LocalDateTime.now();
     }
 }

@@ -22,7 +22,6 @@ public class ExamMapper {
                 .examType(exam.getExamType())
                 .name(exam.getName())
                 .quantity(questions == null ? 0 : questions.size())
-                .timeLimit(exam.getTimeLimit())
                 .build();
 
         List<QuestionResponse> qs = (questions == null) ? List.of()

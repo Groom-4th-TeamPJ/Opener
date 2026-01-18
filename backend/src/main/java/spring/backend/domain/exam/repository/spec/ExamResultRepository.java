@@ -1,7 +1,9 @@
 package spring.backend.domain.exam.repository.spec;
 
 import spring.backend.domain.exam.model.entity.ExamResult;
+import spring.backend.domain.scrapbook.dto.response.ScrapbookFilterResponse;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -15,5 +17,8 @@ public interface ExamResultRepository {
 
     ExamResult save(ExamResult examResult);
 
+    List<ScrapbookFilterResponse> findScrapbookFiltersByUserId(UUID userId);
+
+    List<ExamResult> findAllByUserIdAndExamIdAndLastOpenerUsageDateIsNotNull(UUID userId, Long examId);
 
 }

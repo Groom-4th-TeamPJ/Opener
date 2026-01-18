@@ -4,9 +4,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import spring.backend.domain.exam.dto.request.SubmitAnswerRequest;
 import spring.backend.domain.exam.dto.response.SubmitAnswerResponse;
+import spring.backend.domain.exam.model.entity.Exam;
 import spring.backend.domain.exam.model.entity.ExamResult;
 import spring.backend.domain.exam.model.entity.Question;
 import spring.backend.domain.exam.model.entity.QuestionResult;
+import spring.backend.domain.exam.model.enums.Category;
 import spring.backend.domain.exam.repository.spec.ExamRepository;
 import spring.backend.domain.exam.repository.spec.ExamResultRepository;
 import spring.backend.domain.exam.repository.spec.QuestionResultRepository;
@@ -31,16 +33,15 @@ public class ExamResultServiceImpl implements ExamResultService {
 
     @Transactional
     @Override
-    public Long startExam(UUID userId, Long examId) {
+    public Long startExam(UUID userId, Long examId, Category category) {
         if (userId == null || examId == null) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
 
-        if (!examRepository.existsById(examId)) {
-            throw new BusinessException(ErrorCode.EXAM_NOT_FOUND);
-        }
+        Exam exam = examRepository.findById(examId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.EXAM_NOT_FOUND));
 
-        ExamResult examResult = ExamResult.of(userId ,examId);
+        ExamResult examResult = ExamResult.of(userId, exam);
         ExamResult saved = examResultRepository.save(examResult);
 
         return saved.getId();
@@ -67,7 +68,7 @@ public class ExamResultServiceImpl implements ExamResultService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.QUESTION_NOT_FOUND));
 
         // 질문이 해당 시험에 속하는지 검증
-        if (question.getExam() == null || question.getExam().getId() == null || !question.getExam().getId().equals(examResult.getExamId())) {
+        if (question.getExam() == null || question.getExam().getId() == null || !question.getExam().getId().equals(examResult.getExam().getId())) {
             throw new BusinessException(ErrorCode.QUESTION_NOT_IN_EXAM);
         }
 

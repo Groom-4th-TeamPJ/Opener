@@ -50,7 +50,7 @@ public class ExamServiceImpl implements ExamService {
         );
 
         // ExamResult 시작
-        Long examResultId = startExamResult(userId, exam.getId());
+        Long examResultId = startExamResult(userId, exam.getId(), category);
 
         ExamResponse response = examMapper.toDto(exam, questions, examResultId);
 
@@ -61,7 +61,7 @@ public class ExamServiceImpl implements ExamService {
         return response;
     }
 
-    private Long startExamResult(UUID userId, Long examId) {
-        return examResultService.startExam(userId, examId);
+    private Long startExamResult(UUID userId, Long examId, Category category) {
+        return examResultService.startExam(userId, examId, category);
     }
 }
