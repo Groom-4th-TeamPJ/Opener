@@ -3,7 +3,6 @@ package spring.backend.domain.chat.service.impl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Async;
@@ -26,7 +25,6 @@ import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
 
 @Service
-@RequiredArgsConstructor
 public class ChatServiceImpl implements ChatService {
 
     // SSE 타임아웃 (5분)
@@ -38,12 +36,30 @@ public class ChatServiceImpl implements ChatService {
     private final RedisMessageMapper redisMessageMapper;
     private final ChatMessageRepository chatMessageRepository;
     private final ChatMessageProducer chatMessageProducer;
-
-    @Qualifier("chatRedisTemplate")
     private final StringRedisTemplate redisTemplate;
 
     // SSE 연결 관리 (sessionId → SseEmitter)
     private final ConcurrentHashMap<Long, SseEmitter> emitters = new ConcurrentHashMap<>();
+
+    public ChatServiceImpl(
+            ChatRedisService chatRedisService,
+            LlmService llmService,
+            ObjectMapper objectMapper,
+            UserRepository userRepository,
+            RedisMessageMapper redisMessageMapper,
+            ChatMessageRepository chatMessageRepository,
+            ChatMessageProducer chatMessageProducer,
+            @Qualifier("chatRedisTemplate") StringRedisTemplate redisTemplate
+    ) {
+        this.chatRedisService = chatRedisService;
+        this.llmService = llmService;
+        this.objectMapper = objectMapper;
+        this.userRepository = userRepository;
+        this.redisMessageMapper = redisMessageMapper;
+        this.chatMessageRepository = chatMessageRepository;
+        this.chatMessageProducer = chatMessageProducer;
+        this.redisTemplate = redisTemplate;
+    }
 
     @Override
     @Transactional
@@ -169,6 +185,7 @@ public class ChatServiceImpl implements ChatService {
     public void saveMessagesAsync(ChatSaveRequest req, UUID userId) {
 
         Long sessionId = req.sessionId();
+        Long questionResultId = req.questionResultId();
 
         // 스프링 인메모리 힙에 sessionId로 운영중인 SSE 연결 조회
         SseEmitter sseEmitter = emitters.get(sessionId);
@@ -183,7 +200,7 @@ public class ChatServiceImpl implements ChatService {
 
         // RabbitMQ를 통해 메시지 저장 이벤트 발행
         // 실제 저장은 ChatMessageConsumer에서 비동기로 처리
-        chatMessageProducer.publishSaveMessageEvent(sessionId, userId);
+        chatMessageProducer.publishSaveMessageEvent(sessionId, userId, questionResultId);
     }
 
     // sse 청크 전송
