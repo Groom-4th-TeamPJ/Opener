@@ -46,9 +46,9 @@ export default function AIChatbot({
 
   useEffect(() => {
     if (isActive && messages.length === 0 && !initialMessages) {
-      const userAnswer = question.questionType === 'MCQ' ? `${selectedChoice}번` : frqAnswer
-      const highlightText = `${userAnswer}을 선택했네요.`
-      const contentText = `왜 ${userAnswer}이 정답이라고 생각하셨나요?\n어떤 근거로 그렇게 판단하셨는지 설명해주세요!`
+      const userAnswer =
+        question.questionType === 'MCQ' ? `${selectedChoice}번이` : `${frqAnswer}이/가`
+      const contentText = `왜 ${userAnswer} 정답이라고 생각하셨나요?\n어떤 근거로 그렇게 판단하셨는지 설명해주세요!`
 
       setMessages([
         {
@@ -56,7 +56,6 @@ export default function AIChatbot({
           role: 'ASSISTANT',
           content: contentText,
           timestamp: formatChatTimestamp(new Date()),
-          highlight: highlightText,
         },
       ])
     }
@@ -135,11 +134,6 @@ export default function AIChatbot({
                     </div>
                     <div className="flex flex-col gap-2 flex-1">
                       <div className="max-w-64 min-w-44 px-3 py-2.5 bg-neutral-50 rounded-tr-lg rounded-bl-lg rounded-br-lg flex flex-col gap-1">
-                        {message.highlight && (
-                          <p className="text-primary-600 text-sm font-medium whitespace-pre-line">
-                            {message.highlight}
-                          </p>
-                        )}
                         <p className="text-text-primary text-sm whitespace-pre-wrap">
                           {message.content}
                         </p>

@@ -3,13 +3,14 @@
 import Image from 'next/image'
 import { Modal, ModalContent, ModalFooter } from '@/components/common/Modal'
 import Button from '@/components/common/Button'
+import { memo } from 'react'
 
 interface InactivityModalProps {
   open: boolean
   onConfirm: () => void
 }
 
-export default function InactivityModal({ open, onConfirm }: InactivityModalProps) {
+export default memo(function InactivityModal({ open, onConfirm }: InactivityModalProps) {
   return (
     <Modal
       open={open}
@@ -53,4 +54,4 @@ export default function InactivityModal({ open, onConfirm }: InactivityModalProp
       </ModalFooter>
     </Modal>
   )
-}
+})

@@ -3,18 +3,20 @@ import Button from '@/components/common/Button'
 import { Modal, ModalContent, ModalFooter, ModalHeader } from '@/components/common/Modal'
 import { useRouter } from 'next/navigation'
 import ExamResultSummary from './ExamResultSummary'
+import { memo, useCallback } from 'react'
 
 interface ExamResultModalProps {
   open: boolean
   onClose: () => void
 }
 
-export default function ExamResultModal({ open, onClose }: ExamResultModalProps) {
+export default memo(function ExamResultModal({ open, onClose }: ExamResultModalProps) {
   const router = useRouter()
 
-  const handleGoToDashboard = () => {
-    router.push('/')
-  }
+  const handleGoToDashboard = useCallback(() => {
+    router.replace('/')
+  }, [router])
+
   return (
     <Modal
       open={open}
@@ -40,4 +42,4 @@ export default function ExamResultModal({ open, onClose }: ExamResultModalProps)
       </ModalFooter>
     </Modal>
   )
-}
+})

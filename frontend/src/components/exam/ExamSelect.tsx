@@ -4,8 +4,9 @@ import { useState } from 'react'
 import Button from '@/components/common/Button'
 import YearSelectBox from './YearSelectBox'
 import QuestionSolveView from './QuestionSolveView'
-import { useStartExam } from '@/hooks/exam/use-start-exam'
+import { useStartExam } from '@/hooks/exam/queries/use-start-exam'
 import ExamLoading from './ExamLoading'
+import { useExamStore } from '@/stores/use-exam-store'
 
 const categories = [
   { id: 'CALC', name: '미적분' },
@@ -26,21 +27,24 @@ export default function ExamSelect() {
   const [selectedYear, setSelectedYear] = useState<number>(currentYear)
   const [selectedExamType, setSelectedExamType] = useState<string>('')
   const [isExamActive, setIsExamActive] = useState(false)
-
   const canStart = !!(selectedCategory && selectedYear && selectedExamType)
 
   const { mutateAsync, isPending } = useStartExam()
+  const { setExam } = useExamStore()
 
   const handleStartExam = async () => {
     if (!canStart) return
 
-    const result = await mutateAsync({
+    const examParams = {
       examYear: selectedYear,
       category: selectedCategory,
       examType: selectedExamType,
-    })
+    }
+
+    const result = await mutateAsync(examParams)
 
     if (result) {
+      setExam(examParams, result.examResultId)
       setIsExamActive(true)
     }
   }
@@ -58,14 +62,7 @@ export default function ExamSelect() {
   if (isExamActive) {
     return (
       <div className="fixed inset-0 z-100 bg-background">
-        <QuestionSolveView
-          params={{
-            examYear: selectedYear,
-            category: selectedCategory,
-            examType: selectedExamType,
-          }}
-          onClose={handleClose}
-        />
+        <QuestionSolveView onClose={handleClose} />
       </div>
     )
   }

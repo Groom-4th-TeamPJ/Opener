@@ -2,28 +2,16 @@ import Button from '@/components/common/Button'
 import OutlineCanIcon from '@/components/icons/OutlineCanIcon'
 import { QUERY_KEYS } from '@/constants/query-key'
 import { useMutationState } from '@tanstack/react-query'
+import { useExamStore } from '@/stores/use-exam-store'
+import useCurrentExam from '@/hooks/exam/use-current-exam'
 
 interface QuestionActionButtonProps {
-  submitted: boolean
-  selectedChoice: number | null
-  frqAnswer: string
-  questionType: 'MCQ' | 'FRQ'
-  isAnalysisActive: boolean
-  isCorrect: boolean | null
-  hasNewQuestion: boolean
   onSubmit: () => void
   onShowAnalysis: () => void
   onVariationClick: () => void
 }
 
 export default function QuestionActionButton({
-  submitted,
-  selectedChoice,
-  frqAnswer,
-  questionType,
-  isAnalysisActive,
-  isCorrect,
-  hasNewQuestion,
   onSubmit,
   onShowAnalysis,
   onVariationClick,
@@ -32,10 +20,20 @@ export default function QuestionActionButton({
     useMutationState({
       filters: { mutationKey: QUERY_KEYS.EXAM.SUBMIT, status: 'pending' },
     }).length > 0
+  const examData = useCurrentExam()
+  const { currentIndex, getQuestionState } = useExamStore()
 
-  const isDisabled = questionType === 'MCQ' ? selectedChoice === null : frqAnswer.trim() === ''
+  if (!examData) return null
 
-  if (!submitted) {
+  const { questions } = examData
+  const question = questions[currentIndex]
+  const { selectedChoice, frqAnswer, isSubmitted, isAnalysisActive, isCorrect, hasNewQuestion } =
+    getQuestionState(question.questionId)
+
+  const isDisabled =
+    question.questionType === 'MCQ' ? selectedChoice === null : frqAnswer.trim() === ''
+
+  if (!isSubmitted) {
     return (
       <Button
         variant="default"

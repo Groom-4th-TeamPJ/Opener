@@ -1,20 +1,28 @@
 import Image from 'next/image'
 import { Card, CardHeader, CardContent } from '@/components/common/Card'
-import type { Exam, Question, StopwatchRef } from '@/types/exam'
+import type { StopwatchRef } from '@/types/exam'
 import QuestionTitle from './QuestionTitle'
 import renderLatex from '@/utils/render-latex'
+import useCurrentExam from '@/hooks/exam/use-current-exam'
+import { useExamStore } from '@/stores/use-exam-store'
 
 interface QuestionCardProps {
-  exam: Exam
-  question: Question
   stopwatchRef?: React.Ref<StopwatchRef>
 }
 
-export default function QuestionCard({ exam, question, stopwatchRef }: QuestionCardProps) {
+export default function QuestionCard({ stopwatchRef }: QuestionCardProps) {
+  const examData = useCurrentExam()
+  const { currentIndex } = useExamStore()
+
+  if (!examData) return null
+
+  const { questions } = examData
+  const question = questions[currentIndex]
+
   return (
     <Card className="flex flex-col flex-1 overflow-hidden min-h-70">
       <CardHeader className="p-6 shrink-0">
-        <QuestionTitle exam={exam} question={question} stopwatchRef={stopwatchRef} />
+        <QuestionTitle question={question} stopwatchRef={stopwatchRef} />
       </CardHeader>
 
       <CardContent className="flex-1 min-h-0  flex flex-col pt-0 px-6">

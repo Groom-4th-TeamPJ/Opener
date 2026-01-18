@@ -1,14 +1,20 @@
-import type { Exam, Question, StopwatchRef } from '@/types/exam'
+import type { Question, StopwatchRef } from '@/types/exam'
 import Stopwatch from '@/components/shared/Stopwatch'
 import { Badge } from '@/components/common/Badge'
 import getPointVariant from '@/utils/get-point-variant'
+import useCurrentExam from '@/hooks/exam/use-current-exam'
+import { memo } from 'react'
 
 interface QuestionTitleProps {
-  exam: Exam
   question: Question
   stopwatchRef?: React.Ref<StopwatchRef>
 }
-export default function QuestionTitle({ exam, question, stopwatchRef }: QuestionTitleProps) {
+export default memo(function QuestionTitle({ question, stopwatchRef }: QuestionTitleProps) {
+  const examData = useCurrentExam()
+
+  if (!examData) return null
+
+  const { exam } = examData
   const pointVariant = getPointVariant(question.point)
 
   return (
@@ -36,4 +42,4 @@ export default function QuestionTitle({ exam, question, stopwatchRef }: Question
       </div>
     </div>
   )
-}
+})
