@@ -219,12 +219,10 @@ public class ChatServiceImpl implements ChatService {
 
         // RabbitMQ를 통해 메시지 저장 이벤트 발행
         // 실제 저장은 ChatMessageConsumer에서 비동기로 처리
+        // Redis 삭제도 Consumer에서 저장 완료 후 수행
         chatMessageProducer.publishSaveMessageEvent(sessionId, userId, questionResultId);
 
-        // 대화 저장 후 Redis 대화 내역 초기화 (새로운 대화 세션 시작)
-        chatRedisService.deleteMessage(sessionId);
-
-        log.info("[Chat] 대화 저장 완료 및 세션 초기화 - sessionId: {}", sessionId);
+        log.info("[Chat] 대화 저장 이벤트 발행 완료 - sessionId: {}", sessionId);
     }
 
     // sse 청크 전송
