@@ -45,6 +45,7 @@ public enum ErrorCode {
     NO_MESSAGE_STORED(401, "C_005", "저장할 채팅 내용이 없습니다."),
     LLM_RESPONSE_FAIL(401, "C_006", "LLM 응답에 실패하였습니다."),
     INVALID_QUESTION(400, "C_007", "변형문제를 생성할 권한이 없습니다."),
+    LLM_TIMEOUT(408, "C_008", "LLM 응답 시간이 초과되었습니다."),
 
     // Can 관련 에러 (N_xxx)
     INSUFFICIENT_CANS(400, "N_001", "CAN이 부족합니다"),

@@ -2,7 +2,12 @@ package spring.backend.domain.chat.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -179,6 +184,26 @@ public class ChatServiceImpl implements ChatService {
             RedisMessageDto userRedisMessageDto = redisMessageMapper.toDtoUser(req);
             chatRedisService.saveMessage(sessionId, userRedisMessageDto);
 
+            // 첫 청크 대기용 Future 생성
+            CompletableFuture<Void> firstChunkReceived = new CompletableFuture<>();
+
+            // 타임아웃 발생 플래그 (스레드 안전)
+            AtomicBoolean timedOut = new AtomicBoolean(false);
+
+            // 타임아웃 체크를 별도 스레드에서 비동기 실행
+            CompletableFuture.runAsync(() -> {
+                try {
+                    // 15초 대기, 타임아웃 시 예외 발생
+                    firstChunkReceived.orTimeout(15, TimeUnit.SECONDS).join();
+                } catch (CompletionException e) {
+                    if (e.getCause() instanceof TimeoutException) {
+                        log.error("[Chat] LLM 응답 타임아웃 (15초 초과) - sessionId: {}", sessionId);
+                        timedOut.set(true);
+                        sendSseError(sseEmitter, sessionId.toString(), "LLM 응답 시간이 초과되었습니다");
+                    }
+                }
+            });
+
             // LLM 응답을 수집할 StringBuilder
             StringBuilder llmResponseBuilder = new StringBuilder();
 
@@ -187,6 +212,16 @@ public class ChatServiceImpl implements ChatService {
                     sessionId.toString(),
                     userMessage,
                     chunk -> {
+                        // 타임아웃 발생 시 청크 처리 중단
+                        if (timedOut.get()) {
+                            return;
+                        }
+
+                        // 첫 청크면 타임아웃 해제
+                        if (!firstChunkReceived.isDone()) {
+                            firstChunkReceived.complete(null);
+                        }
+
                         // 각 청크를 SSE로 전송
                         sendSseChunk(sseEmitter, sessionId.toString(), chunk);
 
@@ -194,6 +229,12 @@ public class ChatServiceImpl implements ChatService {
                         llmResponseBuilder.append(chunk);
                     }
             );
+
+            // 타임아웃 발생 시 저장하지 않고 종료
+            if (timedOut.get()) {
+                log.warn("[Chat] 타임아웃으로 인해 메시지 저장 생략 - sessionId: {}", sessionId);
+                return;
+            }
 
             // 완전한 LLM 응답을 Redis에 저장
             String fullLlmResponse = llmResponseBuilder.toString();
@@ -204,6 +245,7 @@ public class ChatServiceImpl implements ChatService {
             sendSseComplete(sseEmitter, sessionId.toString());
 
         } catch (Exception e) {
+            log.error("[Chat] 메시지 처리 중 예외 발생 - sessionId: {}", sessionId, e);
             sendSseError(sseEmitter, sessionId.toString(), e.getMessage());
         }
     }
@@ -326,6 +368,28 @@ public class ChatServiceImpl implements ChatService {
             // Passages를 문자열로 변환
             String problemContext = buildProblemContext(question);
 
+            // 첫 청크 대기용 Future 생성
+            CompletableFuture<Void> firstChunkReceived = new CompletableFuture<>();
+
+            // 타임아웃 발생 플래그 (스레드 안전)
+            AtomicBoolean timedOut = new AtomicBoolean(false);
+
+            // 타임아웃 체크를 별도 스레드에서 비동기 실행
+            CompletableFuture.runAsync(() -> {
+                try {
+                    // 15초 대기, 타임아웃 시 예외 발생
+                    firstChunkReceived.orTimeout(15, TimeUnit.SECONDS).join();
+                } catch (CompletionException e) {
+                    if (e.getCause() instanceof TimeoutException) {
+                        log.error("[OpenerAnalysis] RAG 응답 타임아웃 (15초 초과) - sessionId: {}", sessionId);
+                        timedOut.set(true);
+                        sendSseError(sseEmitter, sessionId.toString(), "RAG 응답 시간이 초과되었습니다");
+                        // Can 복구
+                        canService.recoverUserCan(userId, 1);
+                    }
+                }
+            });
+
             // RAG 응답을 수집할 StringBuilder
             StringBuilder ragResponseBuilder = new StringBuilder();
 
@@ -333,6 +397,16 @@ public class ChatServiceImpl implements ChatService {
             ragService.generateSimilarProblemStream(
                     problemContext,
                     chunk -> {
+                        // 타임아웃 발생 시 청크 처리 중단
+                        if (timedOut.get()) {
+                            return;
+                        }
+
+                        // 첫 청크면 타임아웃 해제
+                        if (!firstChunkReceived.isDone()) {
+                            firstChunkReceived.complete(null);
+                        }
+
                         // 각 청크를 SSE로 전송
                         sendSseChunk(sseEmitter, sessionId.toString(), chunk);
 
@@ -340,6 +414,12 @@ public class ChatServiceImpl implements ChatService {
                         ragResponseBuilder.append(chunk);
                     }
             );
+
+            // 타임아웃 발생 시 저장하지 않고 종료
+            if (timedOut.get()) {
+                log.warn("[OpenerAnalysis] 타임아웃으로 인해 메시지 저장 및 업데이트 생략 - sessionId: {}", sessionId);
+                return;
+            }
 
             // 2. 완전한 RAG 응답을 Redis에 저장
             String fullRagResponse = ragResponseBuilder.toString();
