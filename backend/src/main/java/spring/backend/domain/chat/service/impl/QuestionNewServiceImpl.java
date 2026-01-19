@@ -63,8 +63,8 @@ public class QuestionNewServiceImpl implements QuestionNewService {
             GenerateQuestionRequest request,
             UUID userId
     ) {
-        log.info("[QuestionNew] 변형 문제 생성 시작 - questionId: {}, examResultId: {}, userId: {}",
-                request.questionId(), request.examResultId(), userId);
+        log.info("[QuestionNew] 변형 문제 생성 시작 - questionId: {}, questionResultId: {}, userId: {}",
+                request.questionId(), request.questionResultId(), userId);
 
         // 1. 사용자 조회
         User user = userRepository.findUserById(userId);
@@ -74,12 +74,12 @@ public class QuestionNewServiceImpl implements QuestionNewService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.QUESTION_NOT_FOUND));
 
         // 3. QuestionResult 조회 및 권한 검증
-        QuestionResult questionResult = questionResultRepository.findById(request.examResultId())
+        QuestionResult questionResult = questionResultRepository.findById(request.questionResultId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESULT_NOT_FOUND));
 
         // 권한 검증: QuestionResult의 소유자가 요청한 사용자인지 확인
         if (!questionResult.getExamResult().getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.UNAUTHORIZED);
+            throw new BusinessException(ErrorCode.INVALID_QUESTION);
         }
 
         // 4. 원본 문제 컨텍스트 구성
@@ -205,6 +205,31 @@ public class QuestionNewServiceImpl implements QuestionNewService {
     }
 
     /**
+     * JSON 응답 전처리: LaTeX 백슬래시 및 비정상적인 구조 제거
+     */
+    private String preprocessJson(String jsonStr) {
+        String preprocessed = jsonStr;
+
+        // 1. 비정상적인 JSON 구조 제거 ([null], null: null 패턴)
+        preprocessed = preprocessed.replaceAll("\\[null\\]\\s*null:\\s*null\\s*", "");
+        preprocessed = preprocessed.replaceAll("null:\\s*null\\s*,?", "");
+
+        // 2. 연속된 쉼표 제거 (제거 후 남은 잘못된 구조)
+        preprocessed = preprocessed.replaceAll(",\\s*,", ",");
+        preprocessed = preprocessed.replaceAll(",\\s*\\]", "]");
+        preprocessed = preprocessed.replaceAll(",\\s*}", "}");
+
+        // 3. 로깅: 전처리로 변경사항이 있었는지 확인
+        if (!jsonStr.equals(preprocessed)) {
+            log.warn("[QuestionNew] JSON 전처리 수행됨 - 비정상적인 구조 제거");
+            log.debug("[QuestionNew] 전처리 전: {}", jsonStr);
+            log.debug("[QuestionNew] 전처리 후: {}", preprocessed);
+        }
+
+        return preprocessed;
+    }
+
+    /**
      * LLM 응답 JSON 파싱 및 QuestionNew 엔티티 생성
      */
     private QuestionNew parseAndCreateEntity(
@@ -226,6 +251,9 @@ public class QuestionNewServiceImpl implements QuestionNewService {
                 jsonStr = jsonStr.substring(0, jsonStr.length() - 3);
             }
             jsonStr = jsonStr.trim();
+
+            // JSON 전처리: LaTeX 백슬래시 및 비정상적인 구조 처리
+            jsonStr = preprocessJson(jsonStr);
 
             // JSON 파싱
             JsonNode rootNode = objectMapper.readTree(jsonStr);
@@ -268,8 +296,15 @@ public class QuestionNewServiceImpl implements QuestionNewService {
                     analysis
             );
 
+        } catch (com.fasterxml.jackson.core.JsonParseException e) {
+            log.error("[QuestionNew] JSON 파싱 실패 - 유효하지 않은 JSON 형식", e);
+            log.error("[QuestionNew] 파싱 실패한 JSON (처음 500자): {}",
+                    llmResponse.substring(0, Math.min(500, llmResponse.length())));
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
         } catch (Exception e) {
-            log.error("[QuestionNew] JSON 파싱 실패 - LLM 응답: {}", llmResponse, e);
+            log.error("[QuestionNew] 엔티티 생성 실패 - LLM 응답 처리 중 예외 발생", e);
+            log.error("[QuestionNew] LLM 응답 (처음 500자): {}",
+                    llmResponse.substring(0, Math.min(500, llmResponse.length())));
             throw new BusinessException(ErrorCode.INVALID_INPUT);
         }
     }
