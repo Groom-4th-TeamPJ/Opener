@@ -98,75 +98,45 @@ public class ChatServiceImpl implements ChatService {
     @Transactional
     public SseEmitter connectSession(Long sessionId, UUID userId) {
 
-        log.info("[SSE] 연결 요청 시작 - sessionId: {}, userId: {}", sessionId, userId);
-
         // 스프링 인메모리 힙에 sessionId로 운영중인 SSE 연결 조회
         SseEmitter sseEmitter = emitters.get(sessionId);
 
         // 기존 SSE 연결이 있으면 재사용 (재연결)
         if (sseEmitter != null) {
-            log.info("[SSE] 기존 연결 재사용 - sessionId: {}, userId: {}, 현재 활성 연결 수: {}",
-                sessionId, userId, emitters.size());
 
             // DB에서 sessionId와 userId로 세션 권한 검증
             chatRedisService.validateSessionOwner(sessionId, userId);
-
-            log.info("[SSE] 세션 권한 검증 완료 - sessionId: {}", sessionId);
 
             return sseEmitter;
         }
 
         // 새 SSE 연결 생성
         try {
-            log.info("[SSE] 새로운 연결 생성 시작 - sessionId: {}, userId: {}, timeout: {}ms",
-                sessionId, userId, SSE_TIMEOUT);
-
             SseEmitter newEmitter = new SseEmitter(SSE_TIMEOUT);
 
             // 세션 해제 동작
-            newEmitter.onCompletion(() -> {
-                emitters.remove(sessionId);
-                log.info("[SSE] 연결 정상 종료 (onCompletion) - sessionId: {}, 남은 연결 수: {}",
-                    sessionId, emitters.size());
-            });
+            newEmitter.onCompletion(() -> emitters.remove(sessionId));
 
             // 타임아웃시 ConcurrentHashMap 에서 emitter 제거
-            newEmitter.onTimeout(() -> {
-                emitters.remove(sessionId);
-                log.warn("[SSE] 연결 타임아웃 ({}ms 초과) - sessionId: {}, 남은 연결 수: {}",
-                    SSE_TIMEOUT, sessionId, emitters.size());
-            });
+            newEmitter.onTimeout(() -> emitters.remove(sessionId));
 
             // 세션 예외 발생 처리
-            newEmitter.onError(e -> {
-                emitters.remove(sessionId);
-                log.error("[SSE] 연결 오류 발생 - sessionId: {}, 오류: {}, 남은 연결 수: {}",
-                    sessionId, e.getMessage(), emitters.size(), e);
-            });
+            newEmitter.onError(e -> emitters.remove(sessionId));
 
             // sessionId로 Emitter 저장
             emitters.put(sessionId, newEmitter);
 
-            log.debug("[SSE] Emitter 저장 완료 - sessionId: {}", sessionId);
-
             User user = userRepository.findUserById(userId);
-
-            log.debug("[SSE] 사용자 조회 완료 - userId: {}, userName: {}", userId, user.getName());
 
             // 세션용 레디스 초기화
             chatRedisService.initializeSession(sessionId, userId);
-
-            log.info("[SSE] ✅ 새 연결 성공 - sessionId: {}, userId: {}, userName: {}, 현재 활성 연결 수: {}",
-                sessionId, userId, user.getName(), emitters.size());
 
             return newEmitter;
 
         } catch (Exception e) {
             // 오류시 새롭게 생성된 세션 삭제
             emitters.remove(sessionId);
-            log.error("[SSE] ❌ 연결 생성 실패 - sessionId: {}, userId: {}, 오류: {}",
-                sessionId, userId, e.getMessage(), e);
-            throw new BusinessException(ErrorCode.SESSION_INITIALIZE_FAIL);
+            return null;
         }
     }
 
@@ -174,32 +144,19 @@ public class ChatServiceImpl implements ChatService {
     @Transactional
     public void disconnectSession(Long sessionId, UUID userId) {
 
-        log.info("[SSE] 연결 해제 요청 - sessionId: {}, userId: {}", sessionId, userId);
-
         // 스프링 인메모리 힙에 기존 SSE 연결이 있으는지 확인
         if (emitters.containsKey(sessionId)) {
-
-            log.debug("[SSE] 연결 존재 확인 완료 - sessionId: {}", sessionId);
 
             // DB에서 sessionId와 userId로 세션 권한 검증
             chatRedisService.validateSessionOwner(sessionId, userId);
 
-            log.debug("[SSE] 세션 권한 검증 완료 - sessionId: {}", sessionId);
-
             // 검증 통과시 emitter 삭제
             emitters.remove(sessionId);
 
-            log.debug("[SSE] Emitter 제거 완료 - sessionId: {}", sessionId);
-
             // redis에서 세션 삭제
             chatRedisService.deleteSession(sessionId);
-
-            log.info("[SSE] ✅ 연결 해제 완료 - sessionId: {}, userId: {}, 남은 연결 수: {}",
-                sessionId, userId, emitters.size());
         } else {
             // 본인 세션이 아닌 오류
-            log.error("[SSE] ❌ 연결 해제 실패 - 세션을 찾을 수 없음. sessionId: {}, userId: {}",
-                sessionId, userId);
             throw new BusinessException(ErrorCode.INVALID_SESSION);
         }
     }
