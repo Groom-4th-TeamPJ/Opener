@@ -84,8 +84,12 @@ public class ExamResultServiceImpl implements ExamResultService {
             if (point != null) {
                 examResult.addScore(question.getPoint());    // ExamResult 점수 갱신
             }
+            examResult.increaseCorrectCount();  // ExamResult 정답 개수 갱신
+        } else {
+            examResult.increaseIncorrectCount(); // ExamResult 오답 개수 갱신
         }
         examResult.addTimeSpent(request.getTimeSpent()); // ExamResult 소요 시간 갱신
+
         examResultRepository.save(examResult);           // ExamResult 저장
 
         return new SubmitAnswerResponse(saved.getId(), isCorrect, question.getAnswer());
