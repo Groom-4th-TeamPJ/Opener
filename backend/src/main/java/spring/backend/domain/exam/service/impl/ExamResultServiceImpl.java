@@ -3,6 +3,7 @@ package spring.backend.domain.exam.service.impl;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import spring.backend.domain.exam.dto.request.SubmitAnswerRequest;
+import spring.backend.domain.exam.dto.response.ExamResultSummaryResponse;
 import spring.backend.domain.exam.dto.response.SubmitAnswerResponse;
 import spring.backend.domain.exam.model.entity.Exam;
 import spring.backend.domain.exam.model.entity.ExamResult;
@@ -102,5 +103,19 @@ public class ExamResultServiceImpl implements ExamResultService {
         }
 
         return question.getAnswer().equals(selectedAnswer);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public ExamResultSummaryResponse getExamResultSummary(Long examResultId, UUID userId) {
+        ExamResult examResult = examResultRepository.findByIdAndUserId(examResultId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESULT_NOT_FOUND));
+
+        return ExamResultSummaryResponse.builder()
+                .totalTimeSpent(examResult.getTotalTimeSpent())
+                .correctCount(examResult.getCorrectCount())
+                .incorrectCount(examResult.getIncorrectCount())
+                .openerUsageCount(examResult.getOpenerUsageCount())
+                .build();
     }
 }

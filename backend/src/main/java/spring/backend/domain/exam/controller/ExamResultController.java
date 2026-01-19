@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import spring.backend.domain.exam.dto.request.SubmitAnswerRequest;
+import spring.backend.domain.exam.dto.response.ExamResultSummaryResponse;
 import spring.backend.domain.exam.dto.response.SubmitAnswerResponse;
 import spring.backend.domain.exam.service.spec.ExamResultService;
 import spring.backend.shared.infrastructure.security.dto.AuthUser;
@@ -77,5 +78,40 @@ public class ExamResultController {
         SubmitAnswerResponse resp = examResultService.submitAnswers(examResultId, questionId, authUser.id(), submitAnswerRequest);
 
         return ResponseEntity.ok(resp);
+    }
+
+    @Operation(
+            summary = "시험 결과 요약 정보 조회"
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "정답 제출 성공",
+                    content = @Content(schema = @Schema(implementation = ExamResultSummaryResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "잘못된 요청 (중복 제출, 파라미터 오류 등)"
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "인증 실패"
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "시험 결과 또는 문제를 찾을 수 없음"
+            )
+    })
+    @GetMapping("/results/{examResultId}/summary")
+    public ExamResultSummaryResponse getExamResultSummary(
+            @Parameter(description = "시험 결과 ID", example = "1")
+            @PathVariable Long examResultId,
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        if (authUser == null || authUser.id() == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        return examResultService.getExamResultSummary(examResultId, authUser.id());
     }
 }
