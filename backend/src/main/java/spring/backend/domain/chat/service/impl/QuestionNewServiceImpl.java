@@ -15,6 +15,7 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import spring.backend.domain.can.service.spec.CanService;
 import spring.backend.domain.chat.dto.request.GenerateQuestionRequest;
 import spring.backend.domain.chat.dto.response.GenerateQuestionResponse;
 import spring.backend.domain.chat.model.entity.QuestionNew;
@@ -50,6 +51,7 @@ public class QuestionNewServiceImpl implements QuestionNewService {
     private final ChatClient.Builder chatClientBuilder;
     private final PromptLoader promptLoader;
     private final ObjectMapper objectMapper;
+    private final CanService canService;
 
     @Value("${app.rag.top-k:5}")
     private int topK;
@@ -63,55 +65,64 @@ public class QuestionNewServiceImpl implements QuestionNewService {
             GenerateQuestionRequest request,
             UUID userId
     ) {
-        log.info("[QuestionNew] 변형 문제 생성 시작 - questionId: {}, questionResultId: {}, userId: {}",
-                request.questionId(), request.questionResultId(), userId);
+        try {
+            canService.useUserCan(userId, 1);
 
-        // 1. 사용자 조회
-        User user = userRepository.findUserById(userId);
+            log.info("[QuestionNew] 변형 문제 생성 시작 - questionId: {}, questionResultId: {}, userId: {}",
+                    request.questionId(), request.questionResultId(), userId);
 
-        // 2. 원본 문제 조회
-        Question originalQuestion = questionRepository.findById(request.questionId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.QUESTION_NOT_FOUND));
+            // 1. 사용자 조회
+            User user = userRepository.findUserById(userId);
 
-        // 3. QuestionResult 조회 및 권한 검증
-        QuestionResult questionResult = questionResultRepository.findById(request.questionResultId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.RESULT_NOT_FOUND));
+            // 2. 원본 문제 조회
+            Question originalQuestion = questionRepository.findById(request.questionId())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.QUESTION_NOT_FOUND));
 
-        // 권한 검증: QuestionResult의 소유자가 요청한 사용자인지 확인
-        if (!questionResult.getExamResult().getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.INVALID_QUESTION);
+            // 3. QuestionResult 조회 및 권한 검증
+            QuestionResult questionResult = questionResultRepository.findById(request.questionResultId())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.RESULT_NOT_FOUND));
+
+            // 권한 검증: QuestionResult의 소유자가 요청한 사용자인지 확인
+            if (!questionResult.getExamResult().getUserId().equals(userId)) {
+                throw new BusinessException(ErrorCode.INVALID_QUESTION);
+            }
+
+            // 4. 원본 문제 컨텍스트 구성
+            String problemContext = buildProblemContext(originalQuestion);
+            log.debug("[QuestionNew] 원본 문제 컨텍스트 길이: {}", problemContext.length());
+
+            // 5. RAG: 유사 문서 검색
+            String retrievedContext = searchSimilarDocuments(problemContext);
+
+            // 6. LLM으로 변형 문제 생성
+            String llmResponse = generateWithLLM(retrievedContext, problemContext);
+            log.debug("[QuestionNew] LLM 응답 길이: {}", llmResponse.length());
+
+            // 7. JSON 파싱 및 엔티티 생성
+            QuestionNew questionNew = parseAndCreateEntity(
+                    llmResponse,
+                    user,
+                    questionResult,
+                    originalQuestion.getCategory()
+            );
+
+            // 8. DB 저장
+            QuestionNew savedQuestion = questionNewRepository.save(questionNew);
+            log.info("[QuestionNew] 변형 문제 저장 완료 - questionNewId: {}", savedQuestion.getId());
+
+            // 9. Response 생성 및 반환
+            return GenerateQuestionResponse.builder()
+                    .passages(savedQuestion.getPassages())
+                    .options(savedQuestion.getOptions())
+                    .answer(savedQuestion.getAnswer())
+                    .analysis(savedQuestion.getAnalysis())
+                    .build();
+
+        } catch (Exception e) {
+            canService.recoverUserCan(userId, 1);
         }
 
-        // 4. 원본 문제 컨텍스트 구성
-        String problemContext = buildProblemContext(originalQuestion);
-        log.debug("[QuestionNew] 원본 문제 컨텍스트 길이: {}", problemContext.length());
-
-        // 5. RAG: 유사 문서 검색
-        String retrievedContext = searchSimilarDocuments(problemContext);
-
-        // 6. LLM으로 변형 문제 생성
-        String llmResponse = generateWithLLM(retrievedContext, problemContext);
-        log.debug("[QuestionNew] LLM 응답 길이: {}", llmResponse.length());
-
-        // 7. JSON 파싱 및 엔티티 생성
-        QuestionNew questionNew = parseAndCreateEntity(
-                llmResponse,
-                user,
-                questionResult,
-                originalQuestion.getCategory()
-        );
-
-        // 8. DB 저장
-        QuestionNew savedQuestion = questionNewRepository.save(questionNew);
-        log.info("[QuestionNew] 변형 문제 저장 완료 - questionNewId: {}", savedQuestion.getId());
-
-        // 9. Response 생성 및 반환
-        return GenerateQuestionResponse.builder()
-                .passages(savedQuestion.getPassages())
-                .options(savedQuestion.getOptions())
-                .answer(savedQuestion.getAnswer())
-                .analysis(savedQuestion.getAnalysis())
-                .build();
+        return null;
     }
 
     /**
