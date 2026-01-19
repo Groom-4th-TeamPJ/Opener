@@ -1,5 +1,6 @@
 package spring.backend.domain.chat.controller;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -13,8 +14,11 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import spring.backend.domain.chat.dto.request.ChatSaveRequest;
 import spring.backend.domain.chat.dto.request.ChatSendRequest;
+import spring.backend.domain.chat.dto.request.GenerateQuestionRequest;
 import spring.backend.domain.chat.dto.request.OpenerAnalysisRequest;
+import spring.backend.domain.chat.dto.response.GenerateQuestionResponse;
 import spring.backend.domain.chat.service.spec.ChatService;
+import spring.backend.domain.chat.service.spec.QuestionNewService;
 import spring.backend.shared.infrastructure.security.dto.AuthUser;
 
 @RestController
@@ -23,6 +27,7 @@ import spring.backend.shared.infrastructure.security.dto.AuthUser;
 public class ChatController {
 
     private final ChatService chatService;
+    private final QuestionNewService questionNewService;
 
     // sse 연결
     @GetMapping(value = "/connect/{sessionId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -74,5 +79,21 @@ public class ChatController {
         chatService.openerAnalysis(req, authUser.id());
 
         return null;
+    }
+
+    /**
+     * RAG 기반 변형 문제 생성
+     */
+    @PostMapping("/generate")
+    public ResponseEntity<GenerateQuestionResponse> generateVariantQuestion(
+            @Valid @RequestBody GenerateQuestionRequest req,
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        GenerateQuestionResponse response = questionNewService.generateQuestion(
+                req,
+                authUser.id()
+        );
+
+        return ResponseEntity.ok(response);
     }
 }
