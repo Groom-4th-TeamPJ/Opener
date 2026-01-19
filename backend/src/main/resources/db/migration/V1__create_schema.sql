@@ -255,6 +255,7 @@ CREATE TABLE IF NOT EXISTS "chat_messages" (
     id BIGSERIAL PRIMARY KEY,
     question_result_id BIGINT NOT NULL,
     messages JSONB NOT NULL,
+    summary TEXT NOT NULL,
     created_at TIMESTAMP NOT NULL,
     updated_at TIMESTAMP,
     deleted_at TIMESTAMP,
