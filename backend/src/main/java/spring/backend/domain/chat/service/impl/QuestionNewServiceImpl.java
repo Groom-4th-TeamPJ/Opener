@@ -5,6 +5,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -94,8 +98,11 @@ public class QuestionNewServiceImpl implements QuestionNewService {
             // 5. RAG: 유사 문서 검색
             String retrievedContext = searchSimilarDocuments(problemContext);
 
-            // 6. LLM으로 변형 문제 생성
-            String llmResponse = generateWithLLM(retrievedContext, problemContext);
+            // 6. LLM으로 변형 문제 생성 (15초 타임아웃)
+            String llmResponse = CompletableFuture
+                    .supplyAsync(() -> generateWithLLM(retrievedContext, problemContext))
+                    .orTimeout(15, TimeUnit.SECONDS)
+                    .join();
             log.debug("[QuestionNew] LLM 응답 길이: {}", llmResponse.length());
 
             // 7. JSON 파싱 및 엔티티 생성
@@ -118,11 +125,30 @@ public class QuestionNewServiceImpl implements QuestionNewService {
                     .analysis(savedQuestion.getAnalysis())
                     .build();
 
-        } catch (Exception e) {
+        } catch (CompletionException e) {
+            // LLM 타임아웃 또는 실행 중 예외 처리
+            if (e.getCause() instanceof TimeoutException) {
+                log.error("[QuestionNew] LLM 응답 타임아웃 (20초 초과) - userId: {}", userId);
+                canService.recoverUserCan(userId, 1);
+                throw new BusinessException(ErrorCode.LLM_TIMEOUT);
+            }
+            log.error("[QuestionNew] LLM 호출 중 예외 발생 - userId: {}", userId, e);
             canService.recoverUserCan(userId, 1);
-        }
+            throw new BusinessException(ErrorCode.LLM_RESPONSE_FAIL);
 
-        return null;
+        } catch (BusinessException e) {
+            // 비즈니스 예외는 그대로 전파 (권한 없음, 리소스 없음 등)
+            log.error("[QuestionNew] 비즈니스 예외 발생 - userId: {}, errorCode: {}",
+                    userId, e.getErrorCode().getCode(), e);
+            canService.recoverUserCan(userId, 1);
+            throw e;
+
+        } catch (Exception e) {
+            // 기타 예외 처리
+            log.error("[QuestionNew] 변형 문제 생성 실패 - userId: {}", userId, e);
+            canService.recoverUserCan(userId, 1);
+            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR);
+        }
     }
 
     /**
