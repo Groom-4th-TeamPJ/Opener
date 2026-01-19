@@ -16,7 +16,7 @@ import spring.backend.domain.chat.dto.request.ChatSaveRequest;
 import spring.backend.domain.chat.dto.request.ChatSendRequest;
 import spring.backend.domain.chat.dto.request.GenerateQuestionRequest;
 import spring.backend.domain.chat.dto.request.OpenerAnalysisRequest;
-import spring.backend.domain.chat.dto.response.GenerateVariantQuestionResponse;
+import spring.backend.domain.chat.dto.response.GenerateQuestionResponse;
 import spring.backend.domain.chat.service.spec.ChatService;
 import spring.backend.domain.chat.service.spec.QuestionNewService;
 import spring.backend.shared.infrastructure.security.dto.AuthUser;
@@ -85,11 +85,11 @@ public class ChatController {
      * RAG 기반 변형 문제 생성
      */
     @PostMapping("/generate")
-    public ResponseEntity<GenerateVariantQuestionResponse> generateVariantQuestion(
+    public ResponseEntity<GenerateQuestionResponse> generateVariantQuestion(
             @Valid @RequestBody GenerateQuestionRequest req,
             @AuthenticationPrincipal AuthUser authUser
     ) {
-        GenerateVariantQuestionResponse response = questionNewService.generateVariantQuestion(
+        GenerateQuestionResponse response = questionNewService.generateVariantQuestion(
                 req,
                 authUser.id()
         );
