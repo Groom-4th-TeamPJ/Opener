@@ -2,6 +2,8 @@ package spring.backend.shared.infrastructure.security.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
+import java.util.Arrays;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -24,95 +26,103 @@ import spring.backend.shared.infrastructure.security.filter.JwtAuthenticationFil
 import spring.backend.shared.infrastructure.security.handler.FormAuthenticationFailureHandler;
 import spring.backend.shared.infrastructure.security.handler.FormAuthenticationSuccessHandler;
 
-import java.util.Arrays;
-import java.util.List;
-
 @Configuration
 @RequiredArgsConstructor
 @EnableWebSecurity
 public class SecurityConfig {
 
-  private final JwtAuthenticationFilter jwtAuthenticationFilter;
-  private final FormAuthenticationSuccessHandler formAuthenticationSuccessHandler;
-  private final FormAuthenticationFailureHandler formAuthenticationFailureHandler;
-  private final UserDetailsService userDetailsService;
-  private final ObjectMapper objectMapper;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final FormAuthenticationSuccessHandler formAuthenticationSuccessHandler;
+    private final FormAuthenticationFailureHandler formAuthenticationFailureHandler;
+    //  private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
+//  private final CustomOAuth2UserService customOAuth2UserService;
+    private final UserDetailsService userDetailsService;
+    private final ObjectMapper objectMapper;
 
     @Value("${app.cors.allowed-origins:}")
     private String[] allowedOrigins;
 
-  @Bean
-  public SecurityFilterChain filterChain(
-          HttpSecurity http,
-          AuthenticationManager authenticationManager
-  ) throws Exception {
+    @Bean
+    public SecurityFilterChain filterChain(
+            HttpSecurity http,
+            AuthenticationManager authenticationManager
+    ) throws Exception {
 
-    http
-            .csrf(csrf -> csrf.disable())
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+        http
+                .csrf(csrf -> csrf.disable())
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
-            .authorizeHttpRequests(auth -> auth
-                    .requestMatchers(
-                            "/auth/**"
-                    ).permitAll()
-                    .anyRequest().authenticated()
-            )
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(
+                                "/auth/**"
+                                // "/login/oauth2/code/**"
+                        ).permitAll()
+                        .anyRequest().authenticated()
+                )
 
-            // REST API용 예외 처리
-            .exceptionHandling(ex -> ex
-                    .authenticationEntryPoint((req, res, e) ->
-                            res.setStatus(HttpServletResponse.SC_UNAUTHORIZED)
-                    )
-            )
+                // REST API용 예외 처리
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((req, res, e) ->
+                                res.setStatus(HttpServletResponse.SC_UNAUTHORIZED)
+                        )
+                )
 
-            // JWT 필터 추가 (인증 필터보다 먼저 실행)
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+//                // OAuth2 로그인 설정
+//                .oauth2Login(oauth2 -> oauth2
+//                        .userInfoEndpoint(userInfo -> userInfo
+//                                .userService(customOAuth2UserService)
+//                        )
+//                        .successHandler(oAuth2AuthenticationSuccessHandler)
+//                )
 
-            // JSON 로그인 필터 추가
-            .addFilterAt(
-                    formAuthenticationFilter(authenticationManager),
-                    UsernamePasswordAuthenticationFilter.class
-            );
+                // JWT 필터 추가 (인증 필터보다 먼저 실행)
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
 
-    return http.build();
-  }
+                // JSON 로그인 필터 추가
+                .addFilterAt(
+                        formAuthenticationFilter(authenticationManager),
+                        UsernamePasswordAuthenticationFilter.class
+                );
 
-  // ========================================= 필터 빈 선언부
+        return http.build();
+    }
 
-  // form 로그인 필터
-  @Bean
-  public FormAuthenticationFilter formAuthenticationFilter(
-          AuthenticationManager authenticationManager
-  ) {
+    // ========================================= 필터 빈 선언부
 
-    FormAuthenticationFilter filter =
-            new FormAuthenticationFilter(authenticationManager, objectMapper);
+    // form 로그인 필터
+    @Bean
+    public FormAuthenticationFilter formAuthenticationFilter(
+            AuthenticationManager authenticationManager
+    ) {
 
-    // 로그인 처리 URL 설정
-    filter.setFilterProcessesUrl("/auth/form-login");
+        FormAuthenticationFilter filter =
+                new FormAuthenticationFilter(authenticationManager, objectMapper);
 
-    // 성공/실패 핸들러 설정
-    filter.setAuthenticationSuccessHandler(formAuthenticationSuccessHandler);
-    filter.setAuthenticationFailureHandler(formAuthenticationFailureHandler);
+        // 로그인 처리 URL 설정
+        filter.setFilterProcessesUrl("/auth/form-login");
 
-    return filter;
-  }
+        // 성공/실패 핸들러 설정
+        filter.setAuthenticationSuccessHandler(formAuthenticationSuccessHandler);
+        filter.setAuthenticationFailureHandler(formAuthenticationFailureHandler);
 
-  // ========================================= 필터 빈 선언부
+        return filter;
+    }
 
-  // 커스텀 인증기 사용 선언
-  @Bean
-  public AuthenticationManager authenticationManager(PasswordEncoder passwordEncoder) {
-    DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService);
-    provider.setPasswordEncoder(passwordEncoder);
-    return new ProviderManager(provider);
-  }
+    // ========================================= 필터 빈 선언부
 
-  // 비밀번호 암호화를 위한 PasswordEncoder, Bcrypt 사용
-  @Bean
-  public PasswordEncoder passwordEncoder() {
-    return new BCryptPasswordEncoder();
-  }
+    // 커스텀 인증기 사용 선언
+    @Bean
+    public AuthenticationManager authenticationManager(PasswordEncoder passwordEncoder) {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService);
+        provider.setPasswordEncoder(passwordEncoder);
+        return new ProviderManager(provider);
+    }
+
+    // 비밀번호 암호화를 위한 PasswordEncoder, Bcrypt 사용
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
