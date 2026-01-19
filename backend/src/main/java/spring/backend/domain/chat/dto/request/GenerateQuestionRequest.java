@@ -10,6 +10,6 @@ public record GenerateQuestionRequest(
         Long questionId,
 
         @NotNull(message = "시험 결과 ID는 필수입니다")
-        Long examResultId
+        Long questionResultId
 ) {
 }
