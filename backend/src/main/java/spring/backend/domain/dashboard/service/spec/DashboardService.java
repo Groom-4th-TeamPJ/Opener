@@ -1,17 +1,18 @@
 package spring.backend.domain.dashboard.service.spec;
 
 import spring.backend.domain.dashboard.dto.response.DashboardSummaryResponse;
+import spring.backend.shared.infrastructure.security.dto.AuthUser;
 
 import java.util.UUID;
 
 public interface DashboardService {
 
-    DashboardSummaryResponse getCorrectRate(UUID userId);
+    DashboardSummaryResponse getCorrectRate(AuthUser authUser);
 
-    DashboardSummaryResponse getTotalQuestionsSolved(UUID userId);
+    DashboardSummaryResponse getTotalQuestionsSolved(AuthUser authUser);
 
-    DashboardSummaryResponse getTotalLearningTime(UUID userID);
+    DashboardSummaryResponse getTotalLearningTime(AuthUser authUser);
 
-    DashboardSummaryResponse getDashboardSummary(UUID userID);
+    DashboardSummaryResponse getDashboardSummary(AuthUser authUser);
 
 }

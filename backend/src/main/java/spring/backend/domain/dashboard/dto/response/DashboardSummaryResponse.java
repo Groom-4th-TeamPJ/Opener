@@ -11,6 +11,9 @@ import lombok.*;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class DashboardSummaryResponse {
 
+    @Schema(description = "사용자 이름", example = "홍길동")
+    private String userName;
+
     @Schema(description = "총 정답률", example = "85")
     private Integer monthlyAverageCorrectRate;
 
