@@ -6,7 +6,6 @@ type ScrapBookPaginationProps = {
   previousPage: number
   totalPages: number
   nextPage: number
-  pages: number[]
 }
 
 export default function ScrapBookPagination({
@@ -14,7 +13,6 @@ export default function ScrapBookPagination({
   previousPage,
   totalPages,
   nextPage,
-  pages,
 }: ScrapBookPaginationProps) {
   return (
     <nav className="flex mt-4 gap-4 mx-auto">
@@ -34,7 +32,7 @@ export default function ScrapBookPagination({
           </li>
         ) : (
           <li>
-            <Link href={`?page=${previousPage}`}>
+            <Link href={`?page=${previousPage - 1}`}>
               <Image
                 src={'/icons/chevron-left.svg'}
                 aria-label={'이전 페이지'}
@@ -45,14 +43,14 @@ export default function ScrapBookPagination({
             </Link>
           </li>
         )}
-        {pages.map((page) => (
+        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
           <li
             key={page}
             className={
               currentPage === page ? 'font-bold text-neutral-900' : 'font-medium text-neutral-600'
             }
           >
-            <Link href={`?page=${page}`}>{page}</Link>
+            <Link href={`?page=${page - 1}`}>{page}</Link>
           </li>
         ))}
 
@@ -71,7 +69,7 @@ export default function ScrapBookPagination({
           </li>
         ) : (
           <li>
-            <Link href={`?page=${nextPage}`}>
+            <Link href={`?page=${nextPage - 1}`}>
               <Image
                 src={'/icons/chevron-right.svg'}
                 aria-label={'다음 페이지'}
