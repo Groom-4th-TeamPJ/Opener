@@ -10,6 +10,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import spring.backend.domain.can.service.spec.CanService;
 import spring.backend.domain.chat.dto.enums.ChatRole;
 import spring.backend.domain.chat.dto.redis_dto.RedisMessageDto;
 import spring.backend.domain.chat.dto.request.ChatSaveRequest;
@@ -24,9 +25,11 @@ import spring.backend.domain.chat.service.spec.ChatService;
 import spring.backend.domain.chat.service.spec.LlmService;
 import spring.backend.domain.chat.service.spec.RagService;
 import spring.backend.domain.exam.model.dto.Passage;
+import spring.backend.domain.exam.model.entity.ExamResult;
 import spring.backend.domain.exam.model.entity.Question;
 import spring.backend.domain.exam.model.entity.QuestionResult;
 import spring.backend.domain.exam.repository.jpa.JpaQuestionRepository;
+import spring.backend.domain.exam.repository.spec.ExamResultRepository;
 import spring.backend.domain.exam.repository.spec.QuestionResultRepository;
 import spring.backend.domain.user.model.entity.User;
 import spring.backend.domain.user.repository.spec.UserRepository;
@@ -50,6 +53,8 @@ public class ChatServiceImpl implements ChatService {
     private final StringRedisTemplate redisTemplate;
     private final JpaQuestionRepository questionRepository;
     private final QuestionResultRepository questionResultRepository;
+    private final ExamResultRepository examResultRepository;
+    private final CanService canService;
 
     // SSE 연결 관리 (sessionId → SseEmitter)
     private final ConcurrentHashMap<Long, SseEmitter> emitters = new ConcurrentHashMap<>();
@@ -65,7 +70,9 @@ public class ChatServiceImpl implements ChatService {
             ChatMessageProducer chatMessageProducer,
             @Qualifier("chatRedisTemplate") StringRedisTemplate redisTemplate,
             JpaQuestionRepository questionRepository,
-            QuestionResultRepository questionResultRepository
+            QuestionResultRepository questionResultRepository,
+            ExamResultRepository examResultRepository,
+            CanService canService
     ) {
         this.chatRedisService = chatRedisService;
         this.llmService = llmService;
@@ -78,6 +85,8 @@ public class ChatServiceImpl implements ChatService {
         this.redisTemplate = redisTemplate;
         this.questionRepository = questionRepository;
         this.questionResultRepository = questionResultRepository;
+        this.examResultRepository = examResultRepository;
+        this.canService = canService;
     }
 
     @Override
@@ -282,8 +291,12 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Async
+    @Transactional
     @Override
     public void openerAnalysis(OpenerAnalysisRequest req, UUID userId) {
+
+        canService.useUserCan(userId, 1);
+
         Long sessionId = req.sessionId();
         Long questionId = req.questionId();
         Long questionResultId = req.questionResultId();
@@ -337,14 +350,26 @@ public class ChatServiceImpl implements ChatService {
             sendSseComplete(sseEmitter, sessionId.toString());
 
             // QuestionResult 업데이트 (isOpener = true)
-            // JpaRepository.save()는 이미 @Transactional이 적용되어 있음
+            // @Transactional 덕분에 LAZY 로딩 가능
             QuestionResult questionResult = questionResultRepository.findById(questionResultId)
                     .orElseThrow(() -> new BusinessException(ErrorCode.QUESTION_RESULT_NOT_FOUND));
+
+            // QuestionResult 상태 업데이트
             questionResult.markOpener();
+
+            // ExamResult 상태 업데이트
+            // @Transactional 덕분에 LAZY 프록시가 자동 초기화되고 dirty checking 작동
+            ExamResult examResult = questionResult.getExamResult();
+            examResult.recordOpenerUsage();
+
+            // 트랜잭션 커밋 시 자동 저장되지만, 명시적 호출로 의도 명확화
+            examResultRepository.save(examResult);
             questionResultRepository.save(questionResult);
+
 
         } catch (Exception e) {
             sendSseError(sseEmitter, sessionId.toString(), e.getMessage());
+            canService.recoverUserCan(userId, 1);
         }
     }
 
