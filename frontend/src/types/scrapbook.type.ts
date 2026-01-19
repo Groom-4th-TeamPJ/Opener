@@ -6,7 +6,7 @@ export interface ScrapbookResponse {
 }
 
 export interface ScrapbookData {
-  examResultId: number
+  examId: number
   examYear: number
   examType: CodeName
   openerUsageCount: number

@@ -38,7 +38,7 @@ export default function ScrapbookCard() {
   return (
     <section className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
       {data.data.map((scrapbookData) => (
-        <ScrapbookCardView key={scrapbookData.examResultId} {...scrapbookData} />
+        <ScrapbookCardView key={scrapbookData.examId} {...scrapbookData} />
       ))}
     </section>
   )
