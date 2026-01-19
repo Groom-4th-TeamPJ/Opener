@@ -28,7 +28,7 @@ public class ExamController {
 
     private final ExamService examService;
 
-    @Value("${ai.openai.api-key:failLoadEnv}")
+    @Value("${spring.ai.openai.api-key}")
     private String apiKey;
 
     @Value("${spring.rabbitmq.username}")
