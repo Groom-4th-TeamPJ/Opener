@@ -32,7 +32,7 @@ public class DashboardController {
         if (authUser == null) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
-        return dashboardService.getCorrectRate(authUser.id());
+        return dashboardService.getCorrectRate(authUser);
     }
 
     @GetMapping("/metrics/total-questions-solved")
@@ -42,7 +42,7 @@ public class DashboardController {
         if (authUser == null) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
-        return dashboardService.getTotalQuestionsSolved(authUser.id());
+        return dashboardService.getTotalQuestionsSolved(authUser);
     }
 
     @GetMapping("/metrics/total-learning-time")
@@ -52,7 +52,7 @@ public class DashboardController {
         if (authUser == null) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
-        return dashboardService.getTotalLearningTime(authUser.id());
+        return dashboardService.getTotalLearningTime(authUser);
     }
 
 
@@ -82,6 +82,6 @@ public class DashboardController {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
 
-        return dashboardService.getDashboardSummary(authUser.id());
+        return dashboardService.getDashboardSummary(authUser);
     }
 }

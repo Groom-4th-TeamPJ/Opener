@@ -6,6 +6,7 @@ import spring.backend.domain.dashboard.dto.response.DashboardSummaryResponse;
 import spring.backend.domain.dashboard.service.spec.DashboardService;
 import spring.backend.domain.exam.repository.dto.DashboardStatsRow;
 import spring.backend.domain.exam.repository.spec.ExamResultRepository;
+import spring.backend.shared.infrastructure.security.dto.AuthUser;
 
 import java.util.UUID;
 
@@ -20,8 +21,8 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     @Override
-    public DashboardSummaryResponse getCorrectRate(UUID userId) {
-        DashboardSummaryResponse response = getDashboardSummary(userId);
+    public DashboardSummaryResponse getCorrectRate(AuthUser authUser) {
+        DashboardSummaryResponse response = getDashboardSummary(authUser);
 
         return DashboardSummaryResponse.builder()
                 .monthlyAverageCorrectRate(response.getMonthlyAverageCorrectRate())
@@ -30,8 +31,8 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     @Override
-    public DashboardSummaryResponse getTotalQuestionsSolved(UUID userId) {
-        DashboardSummaryResponse response = getDashboardSummary(userId);
+    public DashboardSummaryResponse getTotalQuestionsSolved(AuthUser authUser) {
+        DashboardSummaryResponse response = getDashboardSummary(authUser);
 
         return DashboardSummaryResponse.builder()
                 .totalQuestionsSolvedCount(response.getTotalQuestionsSolvedCount())
@@ -39,8 +40,8 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     @Override
-    public DashboardSummaryResponse getTotalLearningTime(UUID userId) {
-        DashboardSummaryResponse response = getDashboardSummary(userId);
+    public DashboardSummaryResponse getTotalLearningTime(AuthUser authUser) {
+        DashboardSummaryResponse response = getDashboardSummary(authUser);
 
         return DashboardSummaryResponse.builder()
                 .totalLearningTimeDesc(response.getTotalLearningTimeDesc())
@@ -48,8 +49,18 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     @Override
-    public DashboardSummaryResponse getDashboardSummary(UUID userId) {
-        DashboardStatsRow statsRow = examResultRepository.getDashboardSummary(userId);
+    public DashboardSummaryResponse getDashboardSummary(AuthUser authUser) {
+        DashboardStatsRow statsRow = examResultRepository.getDashboardSummary(authUser.id());
+
+        if (statsRow == null) {
+            return DashboardSummaryResponse.builder()
+                    .userName(authUser.name())
+                    .monthlyAverageCorrectRate(0)
+                    .monthlyQuestionsSolvedCount(0L)
+                    .totalQuestionsSolvedCount(0L)
+                    .totalLearningTimeDesc("0분")
+                    .build();
+        }
 
         int monthlyAverageCorrectRate = calculateMonthlyAverageCorrectRate(
                 statsRow.monthCorrectCount(),
@@ -57,6 +68,7 @@ public class DashboardServiceImpl implements DashboardService {
         );
 
         return DashboardSummaryResponse.builder()
+                .userName(authUser.name())
                 .monthlyAverageCorrectRate(monthlyAverageCorrectRate)
                 .monthlyQuestionsSolvedCount(statsRow.monthQuestionsSolvedCount())
                 .totalQuestionsSolvedCount(statsRow.totalQuestionsSolvedCount())
