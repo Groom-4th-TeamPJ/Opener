@@ -10,6 +10,7 @@ type StartSolveCardProps = {
   description: ReactNode
   hasStats?: boolean
   label: string
+  disabled?: boolean
 }
 
 export default function StartSolveCard({
@@ -17,6 +18,7 @@ export default function StartSolveCard({
   title,
   description,
   label,
+  disabled = false,
 }: StartSolveCardProps) {
   return (
     <Card
@@ -37,10 +39,12 @@ export default function StartSolveCard({
 
         <Link
           href={ROUTES.EXAM}
+          aria-disabled={disabled}
           className={cn(
             'inline-flex items-center justify-center gap-2 rounded-lg cursor-pointer',
             'font-bold h-10 lg:h-12 px-6 text-base lg:w-full',
-            'bg-primary-600 text-background hover:bg-primary-500 active:bg-primary-700'
+            'bg-primary-600 text-background hover:bg-primary-500 active:bg-primary-700',
+            disabled && 'bg-primary-800 pointer-events-none'
           )}
         >
           {label}
