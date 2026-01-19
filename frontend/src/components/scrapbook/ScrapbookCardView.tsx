@@ -11,14 +11,14 @@ const EXAM_TYPES: Record<string, string> = {
 }
 
 export default function ScrapbookCardView({
-  examResultId,
+  examId,
   examYear,
   examType,
   openerUsageCount,
   lastOpenerUsageDate,
 }: ScrapbookData) {
   return (
-    <Link href={`${ROUTES.SCRAPBOOK}/${examResultId}`} prefetch={false}>
+    <Link href={`${ROUTES.SCRAPBOOK}/${examId}`} prefetch={false}>
       <Card className="hover:shadow-2">
         <CardHeader className="py-4">
           <Badge label={examYear.toString()} variant="secondary" type="solid-pastel" />
