@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import spring.backend.domain.chat.dto.request.ChatSaveRequest;
@@ -30,9 +31,12 @@ public class ChatController {
     private final QuestionNewService questionNewService;
 
     // sse 연결
-    @GetMapping(value = "/connect/{sessionId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @GetMapping(
+            value = "/connect",
+            produces = MediaType.TEXT_EVENT_STREAM_VALUE
+    )
     public SseEmitter connectSession(
-            @PathVariable Long sessionId,
+            @RequestParam Long sessionId,
             @AuthenticationPrincipal AuthUser authUser) {
 
         return chatService.connectSession(sessionId, authUser.id());
