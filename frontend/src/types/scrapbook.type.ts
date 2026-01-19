@@ -1,4 +1,17 @@
 import { ApiSuccess } from './api.types'
+import { CodeName } from './exam'
+
+export interface ScrapbookResponse {
+  data: ScrapbookData[]
+}
+
+export interface ScrapbookData {
+  examResultId: number
+  examYear: number
+  examType: CodeName
+  openerUsageCount: number
+  lastOpenerUsageDate: string
+}
 
 export type ScrapBookListData = {
   examYear: number
