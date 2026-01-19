@@ -3,7 +3,6 @@ package spring.backend.domain.exam.controller;
 import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,12 +27,6 @@ public class ExamController {
 
     private final ExamService examService;
 
-    @Value("${spring.ai.openai.api-key}")
-    private String apiKey;
-
-    @Value("${spring.rabbitmq.username}")
-    private String rabbitUserName;
-
     @GetMapping
     public ResponseEntity<ExamResponse> getExamWithQuestions(
             @Parameter(description = "조회할 연도", required = true) @RequestParam Integer examYear,
@@ -41,10 +34,6 @@ public class ExamController {
             @Parameter(description = "문제 카테고리 (예: ALG)", required = true) @RequestParam(required = true) Category category,
             @AuthenticationPrincipal AuthUser authUser
     ) {
-        log.info("-====================테스트================================");
-        log.info("env 파일 잘 가져오는지 확인 하는 테스트 입니다. api: {}", apiKey);
-        log.info("env 파일 잘 가져오는지 확인 하는 테스트 입니다. name : {}", rabbitUserName);
-        log.info("-====================================================");
         if (authUser == null || authUser.id() == null) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
