@@ -1,22 +1,25 @@
 'use client'
 import { Card, CardContent, CardHeader } from '@/components/common/Card'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { ScrapBookListMocks } from '@/mocks/scrapbook-list-mocks'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import Button from '@/components/common/Button'
-import useScrapBookPagination from '@/hooks/scrapbook/use-scrap-book-pagination'
 import ScrapBookPagination from './ScrapBookPagination'
 import ScrapBookListItem from './ScrapBookListItem'
 import useScrapBookList from '@/hooks/scrapbook/use-scrapbook-list'
 
 export default function ScrapBookList() {
   const router = useRouter()
-  const pageSize = 8
-  const totalCount = ScrapBookListMocks.data.questionResults.length
-  const search = useSearchParams()
-  const { data: ScrapBookListData, isLoading } = useScrapBookList()
-  const { currentPage, totalPages, previousPage, nextPage, startIndex, endIndex, pages } =
-    useScrapBookPagination({ totalCount, pageSize, search })
+  const examId = Number(useParams<{ examId: string }>().examId)
+  const page = Number(useSearchParams().get('page') ?? 0)
+  const { data: ScrapBookListData, isLoading, isError } = useScrapBookList({ examId, page })
+  const questionResults = ScrapBookListData?.questionResults
+  const totalPages = Math.max(1, questionResults?.totalPages ?? 0)
+  const currentPage = page + 1 //UI에서 1,2,3...
+  const previousPage = Math.max(1, currentPage - 1)
+  const nextPage = Math.min(totalPages, currentPage + 1)
+  if (isError) {
+    throw new Error()
+  }
 
   return (
     <div className="flex flex-col w-full gap-4 min-h-auto md:mt-6 lg:mt-10">
@@ -28,8 +31,9 @@ export default function ScrapBookList() {
         >
           <Image src="/icons/chevron-left.svg" alt="뒤로 가기" width={24} height={24} />
         </Button>
+
         <h1 className="text-text-primary text-[23px] font-bold">
-          {ScrapBookListData?.data?.examYear}년 {ScrapBookListData?.data.examType.name}
+          {ScrapBookListData?.examYear}년 {ScrapBookListData?.examType.name}
         </h1>
       </div>
       <Card>
@@ -47,18 +51,15 @@ export default function ScrapBookList() {
               데이터를 불러오는 중...
             </div>
           ) : (
-            // TODO: api 데이터로 변경할 예정
-            ScrapBookListMocks?.data.questionResults
-              .slice(startIndex, endIndex)
-              .map((history) => (
-                <ScrapBookListItem
-                  key={history.questionResultId}
-                  questionResultId={history.questionResultId}
-                  categoryName={history.category.name}
-                  passage={history.passage}
-                  createdAt={history.createdAt}
-                />
-              ))
+            questionResults?.content.map((history) => (
+              <ScrapBookListItem
+                key={history.questionResultId}
+                questionResultId={history.questionResultId}
+                categoryName={history.category.name}
+                passage={history.passage}
+                openerUsedAt={history.openerUsedAt}
+              />
+            ))
           )}
         </CardContent>
       </Card>
@@ -67,7 +68,6 @@ export default function ScrapBookList() {
         previousPage={previousPage}
         nextPage={nextPage}
         totalPages={totalPages}
-        pages={pages}
       />
     </div>
   )
