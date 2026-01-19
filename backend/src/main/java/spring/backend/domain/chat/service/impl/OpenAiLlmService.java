@@ -129,4 +129,34 @@ public class OpenAiLlmService implements LlmService {
             throw new BusinessException(ErrorCode.LLM_RESPONSE_FAIL);
         }
     }
+
+    @Override
+    public String summaryChat(String sessionId) {
+        try {
+            // Spring AI ChatMemory를 통해 대화 히스토리 가져오기
+            List<Message> chatHistory = chatMemory.get(sessionId);
+
+            log.debug("[LLM+RAG] 대화 요약 시작 - sessionId: {}, 메시지 수: {}",
+                    sessionId, chatHistory.size());
+
+            // Spring AI ChatClient를 사용한 전체 응답 (RAG 없이 대화만 요약)
+            ChatClient chatClient = chatClientBuilder.build();
+
+            String summary = chatClient
+                    .prompt()
+                    .user("다음 대화 이력을 요약해줘. 주요 질문과 답변 내용을 포함해야 해.")
+                    .messages(chatHistory)
+                    .call()
+                    .content();
+
+            log.info("[LLM+RAG] 대화 요약 완료 - sessionId: {}, 요약 길이: {}",
+                    sessionId, summary != null ? summary.length() : 0);
+
+            return summary;
+
+        } catch (Exception e) {
+            log.error("[LLM+RAG] 대화 요약 실패 - sessionId: {}", sessionId, e);
+            throw new BusinessException(ErrorCode.LLM_RESPONSE_FAIL);
+        }
+    }
 }

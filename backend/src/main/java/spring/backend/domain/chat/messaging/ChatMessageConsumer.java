@@ -12,6 +12,7 @@ import spring.backend.domain.chat.mapper.RedisMessageMapper;
 import spring.backend.domain.chat.model.entity.ChatMessage;
 import spring.backend.domain.chat.model.entity.ChatMessageContent;
 import spring.backend.domain.chat.repository.spec.ChatMessageRepository;
+import spring.backend.domain.chat.service.impl.OpenAiLlmServiceWithoutRag;
 import spring.backend.domain.chat.service.spec.ChatRedisService;
 import spring.backend.domain.exam.model.entity.QuestionResult;
 import spring.backend.domain.exam.repository.spec.QuestionResultRepository;
@@ -28,6 +29,7 @@ public class ChatMessageConsumer {
     private final RedisMessageMapper redisMessageMapper;
     private final ChatMessageRepository chatMessageRepository;
     private final QuestionResultRepository questionResultRepository;
+    private final OpenAiLlmServiceWithoutRag openAiLlmServiceWithoutRag;
 
     @RabbitListener(queues = RabbitMQConfig.CHAT_MESSAGE_SAVE_QUEUE)
     @Transactional
@@ -72,8 +74,11 @@ public class ChatMessageConsumer {
                         return new BusinessException(ErrorCode.RESULT_NOT_FOUND);
                     });
 
+            // 요약 진행
+            String summary = openAiLlmServiceWithoutRag.summaryChat(sessionId.toString());
+
             // ChatMessage 엔티티 생성 및 저장
-            ChatMessage chatMessage = ChatMessage.createFromSession(questionResult, messageContents);
+            ChatMessage chatMessage = ChatMessage.createFromSession(questionResult, messageContents, summary);
             chatMessageRepository.save(chatMessage);
 
             log.info("[RabbitMQ] 채팅 메시지 저장 완료 - sessionId: {}, 메시지 수: {}",
