@@ -31,7 +31,7 @@ public class ExamController {
     @Value("${ai.openai.api-key:failLoadEnv}")
     private String apiKey;
 
-    @Value("${sping.rabbitmq.username}")
+    @Value("${spring.rabbitmq.username}")
     private String rabbitUserName;
 
     @GetMapping
