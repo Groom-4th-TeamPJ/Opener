@@ -23,6 +23,8 @@ import spring.backend.shared.infrastructure.security.filter.FormAuthenticationFi
 import spring.backend.shared.infrastructure.security.filter.JwtAuthenticationFilter;
 import spring.backend.shared.infrastructure.security.handler.FormAuthenticationFailureHandler;
 import spring.backend.shared.infrastructure.security.handler.FormAuthenticationSuccessHandler;
+import spring.backend.shared.infrastructure.security.handler.OAuth2AuthenticationSuccessHandler;
+import spring.backend.shared.infrastructure.security.oauth2.CustomOAuth2UserService;
 
 import java.util.Arrays;
 import java.util.List;
@@ -35,6 +37,8 @@ public class SecurityConfig {
   private final JwtAuthenticationFilter jwtAuthenticationFilter;
   private final FormAuthenticationSuccessHandler formAuthenticationSuccessHandler;
   private final FormAuthenticationFailureHandler formAuthenticationFailureHandler;
+  private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
+  private final CustomOAuth2UserService customOAuth2UserService;
   private final UserDetailsService userDetailsService;
   private final ObjectMapper objectMapper;
 
@@ -53,7 +57,8 @@ public class SecurityConfig {
 
             .authorizeHttpRequests(auth -> auth
                     .requestMatchers(
-                            "/auth/**"
+                            "/auth/**",
+                            "/login/oauth2/code/**"  // OAuth2 콜백 URL 허용
                     ).permitAll()
                     .anyRequest().authenticated()
             )
@@ -63,6 +68,14 @@ public class SecurityConfig {
                     .authenticationEntryPoint((req, res, e) ->
                             res.setStatus(HttpServletResponse.SC_UNAUTHORIZED)
                     )
+            )
+
+            // OAuth2 로그인 설정
+            .oauth2Login(oauth2 -> oauth2
+                    .userInfoEndpoint(userInfo -> userInfo
+                            .userService(customOAuth2UserService)
+                    )
+                    .successHandler(oAuth2AuthenticationSuccessHandler)
             )
 
             // JWT 필터 추가 (인증 필터보다 먼저 실행)
