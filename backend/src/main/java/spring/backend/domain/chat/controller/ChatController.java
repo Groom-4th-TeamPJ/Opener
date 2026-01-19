@@ -89,7 +89,7 @@ public class ChatController {
             @Valid @RequestBody GenerateQuestionRequest req,
             @AuthenticationPrincipal AuthUser authUser
     ) {
-        GenerateQuestionResponse response = questionNewService.generateVariantQuestion(
+        GenerateQuestionResponse response = questionNewService.generateQuestion(
                 req,
                 authUser.id()
         );
