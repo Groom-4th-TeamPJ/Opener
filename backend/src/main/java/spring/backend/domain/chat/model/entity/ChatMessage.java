@@ -36,14 +36,19 @@ public class ChatMessage extends BaseEntity {
     @Column(name = "messages", columnDefinition = "jsonb", nullable = false)
     private List<ChatMessageContent> messages = new ArrayList<>();
 
+    @Column(name = "summary", nullable = false)
+    private String summary;
+
     // chat message 생성 팩토리 메서드
     public static ChatMessage createFromSession(
             QuestionResult questionResult,
-            List<ChatMessageContent> messages
+            List<ChatMessageContent> messages,
+            String summary
     ) {
         ChatMessage chatMessage = new ChatMessage();
         chatMessage.questionResult = questionResult;
         chatMessage.messages = messages != null ? messages : new ArrayList<>();
+        chatMessage.summary = summary;
         return chatMessage;
     }
 

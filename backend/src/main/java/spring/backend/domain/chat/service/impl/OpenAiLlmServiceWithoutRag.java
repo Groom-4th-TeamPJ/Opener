@@ -15,8 +15,7 @@ import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
 
 /**
- * RAG가 비활성화되었을 때 사용하는 LLM 서비스
- * 멀티턴 대화는 지원하지만 RAG는 사용하지 않음
+ * RAG가 비활성화되었을 때 사용하는 LLM 서비스 멀티턴 대화는 지원하지만 RAG는 사용하지 않음
  */
 @Slf4j
 @Service
@@ -72,6 +71,36 @@ public class OpenAiLlmServiceWithoutRag implements LlmService {
 
         } catch (Exception e) {
             log.error("[LLM-NoRAG] LLM 응답 실패 - sessionId: {}", sessionId, e);
+            throw new BusinessException(ErrorCode.LLM_RESPONSE_FAIL);
+        }
+    }
+
+    @Override
+    public String summaryChat(String sessionId) {
+        try {
+            // Spring AI ChatMemory를 통해 대화 히스토리 가져오기
+            List<Message> chatHistory = chatMemory.get(sessionId);
+
+            log.debug("[LLM-NoRAG] 대화 요약 시작 - sessionId: {}, 메시지 수: {}",
+                    sessionId, chatHistory.size());
+
+            // Spring AI ChatClient를 사용한 전체 응답
+            ChatClient chatClient = chatClientBuilder.build();
+
+            String summary = chatClient
+                    .prompt()
+                    .user("다음 대화 이력을 요약해줘. 주요 질문과 답변 내용을 포함해야 해.")
+                    .messages(chatHistory)
+                    .call()
+                    .content();
+
+            log.info("[LLM-NoRAG] 대화 요약 완료 - sessionId: {}, 요약 길이: {}",
+                    sessionId, summary != null ? summary.length() : 0);
+
+            return summary;
+
+        } catch (Exception e) {
+            log.error("[LLM-NoRAG] 대화 요약 실패 - sessionId: {}", sessionId, e);
             throw new BusinessException(ErrorCode.LLM_RESPONSE_FAIL);
         }
     }
