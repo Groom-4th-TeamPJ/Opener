@@ -93,27 +93,6 @@ spring:
       max-attempts: 5            # 최대 로그인 실패 허용 횟수
       lock-duration-minutes: 1   # 개발 환경: 1분 (테스트 용이성)
 
-    oauth2:
-      client:
-        registration:
-          kakao:
-            client-id: ${REST_API_KEY}
-            client-secret: ${CLIENT_SECRET_KEY}
-            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
-            authorization-grant-type: authorization_code
-            client-authentication-method: client_secret_post
-            client-name: Kakao
-            scope:
-              - profile_nickname
-              - account_email
-
-        provider:
-          kakao:
-            authorization-uri: https://kauth.kakao.com/oauth/authorize
-            token-uri: https://kauth.kakao.com/oauth/token
-            user-info-uri: https://kapi.kakao.com/v2/user/me
-            user-name-attribute: id
-
   # Swagger/OpenAPI 설정
   springdoc:
     swagger-ui:
@@ -149,6 +128,3 @@ app:
     enabled: true                    # RAG 기능 활성화
     top-k: 5                         # 유사 문서 검색 시 반환할 최대 개수
     similarity-threshold: 0.7        # 유사도 임계값 (0.0 ~ 1.0)
-  # OAuth2 설정
-  oauth2:
-    redirect-uri: http://localhost:3000/oauth/callback  # OAuth2 성공 후 리다이렉트 URI
