@@ -1,10 +1,6 @@
 import { ApiSuccess } from './api.types'
 import { CodeName } from './exam'
 
-export interface ScrapbookResponse {
-  data: ScrapbookData[]
-}
-
 export interface ScrapbookData {
   examId: number
   examYear: number

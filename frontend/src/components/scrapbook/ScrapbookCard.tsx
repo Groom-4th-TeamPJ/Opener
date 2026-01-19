@@ -4,8 +4,8 @@ import ScrapbookCardView from './ScrapbookCardView'
 import useGetScrapbookCard from '@/hooks/scrapbook/use-get-scrapbook-card'
 
 export default function ScrapbookCard() {
-  const { data, isLoading } = useGetScrapbookCard()
-
+  const { data, isLoading, isError } = useGetScrapbookCard()
+  if (isError) throw new Error()
   if (isLoading) {
     return (
       <StartSolveCard
@@ -15,7 +15,7 @@ export default function ScrapbookCard() {
         disabled
       />
     )
-  } else if (!data?.data || data.data.length === 0) {
+  } else if (!data || data.length === 0) {
     return (
       <StartSolveCard
         title={
@@ -37,7 +37,7 @@ export default function ScrapbookCard() {
 
   return (
     <section className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-      {data.data.map((scrapbookData) => (
+      {data.map((scrapbookData) => (
         <ScrapbookCardView key={scrapbookData.examId} {...scrapbookData} />
       ))}
     </section>
