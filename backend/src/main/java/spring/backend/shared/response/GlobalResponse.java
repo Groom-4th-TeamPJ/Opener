@@ -9,6 +9,7 @@ import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.http.server.ServletServerHttpResponse;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import spring.backend.shared.response.codes.SuccessCode;
 import spring.backend.shared.response.format.ApiResponseFormat;
 
@@ -18,7 +19,16 @@ public class GlobalResponse implements ResponseBodyAdvice<Object> {
   @Override
   public boolean supports(MethodParameter returnType, Class<? extends HttpMessageConverter<?>> converterType) {
     // ApiResponseFormat은 이미 래핑된 응답이므로 처리하지 않음
-    return !ApiResponseFormat.class.isAssignableFrom(returnType.getParameterType());
+    if (ApiResponseFormat.class.isAssignableFrom(returnType.getParameterType())) {
+      return false;
+    }
+
+    // SseEmitter는 래핑하지 않음 (SSE 스트리밍 유지)
+    if (SseEmitter.class.isAssignableFrom(returnType.getParameterType())) {
+      return false;
+    }
+
+    return true;
   }
 
   @Override
