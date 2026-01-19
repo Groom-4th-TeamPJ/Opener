@@ -81,10 +81,10 @@ export interface ScrapbookQuestion extends Question {
 }
 
 export type ResultData = {
-  solveTime: string
+  totalTimeSpent: string
   correctCount: number
-  wrongCount: number
-  openerCount: number
+  incorrectCount: number
+  openerUsageCount: number
 }
 
 export interface StopwatchRef {
