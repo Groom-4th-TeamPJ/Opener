@@ -2,6 +2,8 @@ package spring.backend.domain.exam.controller;
 
 import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,12 +18,21 @@ import spring.backend.shared.infrastructure.security.dto.AuthUser;
 import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
 
+import java.util.Optional;
+
+@Slf4j
 @RestController
 @RequestMapping("/exams")
 @RequiredArgsConstructor
 public class ExamController {
 
     private final ExamService examService;
+
+    @Value("${ai.openai.api-key:failLoadEnv}")
+    private String apiKey;
+
+    @Value("{sping.rabbitmq.username}")
+    private String rabbitUserName;
 
     @GetMapping
     public ResponseEntity<ExamResponse> getExamWithQuestions(
@@ -30,6 +41,10 @@ public class ExamController {
             @Parameter(description = "문제 카테고리 (예: ALG)", required = true) @RequestParam(required = true) Category category,
             @AuthenticationPrincipal AuthUser authUser
     ) {
+        log.info("-====================테스트================================");
+        log.info("env 파일 잘 가져오는지 확인 하는 테스트 입니다. api: {}", apiKey);
+        log.info("env 파일 잘 가져오는지 확인 하는 테스트 입니다. name : {}", rabbitUserName);
+        log.info("-====================================================");
         if (authUser == null || authUser.id() == null) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
