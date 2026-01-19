@@ -12,8 +12,8 @@ import spring.backend.domain.chat.mapper.RedisMessageMapper;
 import spring.backend.domain.chat.model.entity.ChatMessage;
 import spring.backend.domain.chat.model.entity.ChatMessageContent;
 import spring.backend.domain.chat.repository.spec.ChatMessageRepository;
-import spring.backend.domain.chat.service.impl.OpenAiLlmServiceWithoutRag;
 import spring.backend.domain.chat.service.spec.ChatRedisService;
+import spring.backend.domain.chat.service.spec.LlmService;
 import spring.backend.domain.exam.model.entity.QuestionResult;
 import spring.backend.domain.exam.repository.spec.QuestionResultRepository;
 import spring.backend.shared.infrastructure.messaging.config.RabbitMQConfig;
@@ -29,7 +29,7 @@ public class ChatMessageConsumer {
     private final RedisMessageMapper redisMessageMapper;
     private final ChatMessageRepository chatMessageRepository;
     private final QuestionResultRepository questionResultRepository;
-    private final OpenAiLlmServiceWithoutRag openAiLlmServiceWithoutRag;
+    private final LlmService llmService;
 
     @RabbitListener(queues = RabbitMQConfig.CHAT_MESSAGE_SAVE_QUEUE)
     @Transactional
@@ -75,7 +75,7 @@ public class ChatMessageConsumer {
                     });
 
             // 요약 진행
-            String summary = openAiLlmServiceWithoutRag.summaryChat(sessionId.toString());
+            String summary = llmService.summaryChat(sessionId.toString());
 
             // ChatMessage 엔티티 생성 및 저장
             ChatMessage chatMessage = ChatMessage.createFromSession(questionResult, messageContents, summary);
