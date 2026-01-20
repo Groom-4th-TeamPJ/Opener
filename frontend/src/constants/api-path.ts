@@ -26,5 +26,6 @@ export const API_PATHS = {
   },
   SCRAPBOOK: {
     LIST: '/scrapbooks/${examId}',
+    EXAM_LIST: '/scrapbooks/filters',
   },
 } as const

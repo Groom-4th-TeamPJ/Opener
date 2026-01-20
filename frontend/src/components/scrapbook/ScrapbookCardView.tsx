@@ -1,8 +1,9 @@
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/common/Card'
 import { Badge } from '@/components/common/Badge'
-import { ScrapbookData } from '@/types/scrapbook'
+import { ScrapbookData } from '@/types/scrapbook.types'
 import Link from 'next/link'
 import { ROUTES } from '@/constants/routes'
+import { formatDate } from '@/utils/format'
 
 const EXAM_TYPES: Record<string, string> = {
   M06: '6월 모의평가',
@@ -10,15 +11,15 @@ const EXAM_TYPES: Record<string, string> = {
   CSAT: '수학능력시험',
 }
 
-export default function AnalysisCard({
-  examResultId,
+export default function ScrapbookCardView({
+  examId,
   examYear,
   examType,
-  analysisCount,
-  recentDate,
+  openerUsageCount,
+  lastOpenerUsageDate,
 }: ScrapbookData) {
   return (
-    <Link href={`${ROUTES.SCRAPBOOK}/${examResultId}`} prefetch={false}>
+    <Link href={`${ROUTES.SCRAPBOOK}/${examId}`} prefetch={false}>
       <Card className="hover:shadow-2">
         <CardHeader className="py-4">
           <Badge label={examYear.toString()} variant="secondary" type="solid-pastel" />
@@ -26,11 +27,11 @@ export default function AnalysisCard({
         <CardContent className="pt-0 pb-4 space-y-2">
           <h1 className="lg:text-lg font-bold">{EXAM_TYPES[examType.code]}</h1>
           <h2 className="text-sm">
-            오프너 분석 <span className="text-primary-600">{analysisCount}개</span>
+            오프너 분석 <span className="text-primary-600">{openerUsageCount}개</span>
           </h2>
         </CardContent>
         <CardFooter className="py-4 justify-between border-t border-neutral-100 text-text-secondary text-sm">
-          <span>최근 분석 날짜</span> <span>{recentDate}</span>
+          <span>최근 분석 날짜</span> <span>{formatDate(lastOpenerUsageDate)}</span>
         </CardFooter>
       </Card>
     </Link>

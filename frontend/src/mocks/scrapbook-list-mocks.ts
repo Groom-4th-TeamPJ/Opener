@@ -1,4 +1,4 @@
-import { ScrapBookListResponse } from '@/types/scrapbook.type'
+import { ScrapBookListResponse } from '@/types/scrapbook-list.type'
 
 export const ScrapBookListMocks: ScrapBookListResponse = {
   status: 'success',
