@@ -3,6 +3,7 @@ import { Badge } from '@/components/common/Badge'
 import { ScrapbookData } from '@/types/scrapbook-list.type'
 import Link from 'next/link'
 import { ROUTES } from '@/constants/routes'
+import { formatDate } from '@/utils/format'
 
 const EXAM_TYPES: Record<string, string> = {
   M06: '6월 모의평가',
@@ -30,7 +31,7 @@ export default function ScrapbookCardView({
           </h2>
         </CardContent>
         <CardFooter className="py-4 justify-between border-t border-neutral-100 text-text-secondary text-sm">
-          <span>최근 분석 날짜</span> <span>{lastOpenerUsageDate}</span>
+          <span>최근 분석 날짜</span> <span>{formatDate(lastOpenerUsageDate)}</span>
         </CardFooter>
       </Card>
     </Link>
