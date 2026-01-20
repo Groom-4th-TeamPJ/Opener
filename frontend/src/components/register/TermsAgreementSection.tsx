@@ -87,11 +87,7 @@ export default function TermsAgreementSection({
         )}
       >
         <summary className="flex items-center justify-between gap-3 cursor-pointer select-none">
-          <CircleCheckbox
-            checked={agreed}
-            onChange={toggleAll}
-            label="필수 및 선택 항목 모두 포함 동의"
-          />
+          <CircleCheckbox checked={agreed} onChange={toggleAll} label="필수 항목 모두 동의" />
 
           <Image
             src={'icons/chevron_compact-down_gray.svg'}
