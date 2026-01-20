@@ -1,6 +1,6 @@
 import { API_PATHS } from '@/constants/api-path'
 import { QUERY_KEYS } from '@/constants/query-key'
-import { ScrapbookData } from '@/types/scrapbook-list.type'
+import { ScrapbookData } from '@/types/scrapbook.types'
 import api from '@/utils/api'
 import { useQuery } from '@tanstack/react-query'
 
