@@ -6,7 +6,6 @@ type ScrapBookPaginationProps = {
   previousPage: number
   totalPages: number
   nextPage: number
-  pages: number[]
 }
 
 export default function ScrapBookPagination({
@@ -14,7 +13,6 @@ export default function ScrapBookPagination({
   previousPage,
   totalPages,
   nextPage,
-  pages,
 }: ScrapBookPaginationProps) {
   return (
     <nav className="flex mt-4 gap-4 mx-auto">
@@ -45,7 +43,7 @@ export default function ScrapBookPagination({
             </Link>
           </li>
         )}
-        {pages.map((page) => (
+        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
           <li
             key={page}
             className={
