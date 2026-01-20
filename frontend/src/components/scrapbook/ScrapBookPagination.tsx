@@ -32,7 +32,7 @@ export default function ScrapBookPagination({
           </li>
         ) : (
           <li>
-            <Link href={`?page=${previousPage - 1}`}>
+            <Link href={`?page=${previousPage}`}>
               <Image
                 src={'/icons/chevron-left.svg'}
                 aria-label={'이전 페이지'}
@@ -50,7 +50,7 @@ export default function ScrapBookPagination({
               currentPage === page ? 'font-bold text-neutral-900' : 'font-medium text-neutral-600'
             }
           >
-            <Link href={`?page=${page - 1}`}>{page}</Link>
+            <Link href={`?page=${page}`}>{page}</Link>
           </li>
         ))}
 
@@ -69,7 +69,7 @@ export default function ScrapBookPagination({
           </li>
         ) : (
           <li>
-            <Link href={`?page=${nextPage - 1}`}>
+            <Link href={`?page=${nextPage}`}>
               <Image
                 src={'/icons/chevron-right.svg'}
                 aria-label={'다음 페이지'}

@@ -1,22 +1,41 @@
 'use client'
 import { Card, CardContent, CardHeader } from '@/components/common/Card'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import Button from '@/components/common/Button'
 import ScrapBookPagination from './ScrapBookPagination'
 import ScrapBookListItem from './ScrapBookListItem'
 import useScrapBookList from '@/hooks/scrapbook/use-scrapbook-list'
+import { useEffect } from 'react'
 
 export default function ScrapBookList() {
   const router = useRouter()
   const examId = Number(useParams<{ examId: string }>().examId)
-  const page = Number(useSearchParams().get('page') ?? 0)
-  const { data: ScrapBookListData, isLoading, isError } = useScrapBookList({ examId, page })
-  const questionResults = ScrapBookListData?.questionResults
-  const totalPages = Math.max(1, questionResults?.totalPages ?? 0)
-  const currentPage = page + 1 //UI에서 1,2,3...
+  const search = useSearchParams()
+  const pathName = usePathname()
+  const hasPageParam = search.has('page')
+  //스크랩북 리스트 처음 진입 시 url에 ?page=1 포함 시키키
+  useEffect(() => {
+    if (!hasPageParam) {
+      const params = new URLSearchParams(search.toString())
+      params.set('page', '1')
+      router.replace(`${pathName}?${params.toString()}`)
+    }
+  }, [hasPageParam, router, search, pathName])
+
+  const page = Math.max(1, Number(search.get('page') ?? 1))
+  const serverPage = page - 1
+  const {
+    data: scrapBookListData,
+    isLoading,
+    isError,
+  } = useScrapBookList({ examId, page: serverPage })
+  const questionResults = scrapBookListData?.questionResults
+  const totalPages = Math.max(1, questionResults?.totalPages ?? 1)
+  const currentPage = page //UI에서 1,2,3...
   const previousPage = Math.max(1, currentPage - 1)
   const nextPage = Math.min(totalPages, currentPage + 1)
+
   if (isError) {
     throw new Error()
   }
@@ -33,7 +52,7 @@ export default function ScrapBookList() {
         </Button>
 
         <h1 className="text-text-primary text-[23px] font-bold">
-          {ScrapBookListData?.examYear}년 {ScrapBookListData?.examType.name}
+          {scrapBookListData?.examYear}년 {scrapBookListData?.examType.name}
         </h1>
       </div>
       <Card>
