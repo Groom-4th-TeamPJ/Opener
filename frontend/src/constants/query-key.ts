@@ -20,8 +20,7 @@ export const QUERY_KEYS = {
 
   DASHBOARD: {
     ROOT: ['dashboard'] as const,
-    WEEKLY: ['dashboard', 'weekly'] as const,
-    STREAK: ['dashboard', 'streak'] as const,
+    SUMMARY: ['dashboard', 'summary'] as const,
     CORRECT_RATE: ['dashboard', 'rate'] as const,
     TOTAL_SOLVED: ['dashboard', 'solved'] as const,
     TOTAL_TIME_SPENT: ['dashboard', 'time-spent'] as const,
