@@ -1,6 +1,7 @@
 package spring.backend.shared.infrastructure.redis.config;
 
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -13,11 +14,17 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 @Configuration
 public class AuthRedisConfig {
 
+  @Value("${spring.data.redis.auth.host}")
+  private String redisHost;
+
+  @Value("${spring.data.redis.auth.port}")
+  private int redisPort;
+
   @Primary
   @Bean
   public RedisConnectionFactory authRedisConnectionFactory() {
     RedisStandaloneConfiguration config =
-            new RedisStandaloneConfiguration("localhost", 6379);
+            new RedisStandaloneConfiguration(redisHost, redisPort);
     return new LettuceConnectionFactory(config);
   }
 

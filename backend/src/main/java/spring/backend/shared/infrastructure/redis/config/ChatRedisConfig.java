@@ -1,6 +1,7 @@
 package spring.backend.shared.infrastructure.redis.config;
 
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -12,10 +13,16 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 @Configuration
 public class ChatRedisConfig {
 
+  @Value("${spring.data.redis.chat.host}")
+  private String chatRedisHost;
+
+  @Value("${spring.data.redis.chat.port}")
+  private int chatRedisPort;
+
   @Bean
   public RedisConnectionFactory chatRedisConnectionFactory() {
     RedisStandaloneConfiguration config =
-            new RedisStandaloneConfiguration("localhost", 6380);
+            new RedisStandaloneConfiguration(chatRedisHost, chatRedisPort);
     return new LettuceConnectionFactory(config);
   }
 
