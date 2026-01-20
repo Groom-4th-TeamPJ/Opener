@@ -38,16 +38,17 @@ services:
   redis-chat:
     image: redis:7-alpine
     container_name: redis-chat
+    command: redis-server --port 6380
     environment:
       - TZ=Asia/Seoul
     ports:
-      - "6380:6379"
+      - "6380:6380"
     volumes:
       - redis_chat_data:/data
     networks:
       - test-network
     healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
+      test: [ "CMD", "redis-cli", "-p", "6380", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
