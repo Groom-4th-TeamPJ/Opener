@@ -1,6 +1,6 @@
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/common/Card'
 import { Badge } from '@/components/common/Badge'
-import { ScrapbookData } from '@/types/scrapbook.type'
+import { ScrapbookData } from '@/types/scrapbook-list.type'
 import Link from 'next/link'
 import { ROUTES } from '@/constants/routes'
 
