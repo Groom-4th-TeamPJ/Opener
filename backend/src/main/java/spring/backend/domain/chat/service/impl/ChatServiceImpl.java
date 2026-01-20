@@ -151,6 +151,12 @@ public class ChatServiceImpl implements ChatService {
 
             User user = userRepository.findUserById(userId);
 
+            // User가 존재하지 않으면 예외 발생
+            if (user == null) {
+                log.error("[SSE] ❌ 사용자를 찾을 수 없음 - userId: {}", userId);
+                throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+            }
+
             log.debug("[SSE] 사용자 조회 완료 - userId: {}, userName: {}", userId, user.getName());
 
             // 세션용 레디스 초기화
