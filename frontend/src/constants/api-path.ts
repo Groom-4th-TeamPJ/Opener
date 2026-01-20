@@ -9,6 +9,12 @@ export const API_PATHS = {
     OAUTH_REGISTER: '/auth/oauth-signup',
     REFRESH: '/auth/refresh',
   },
+  DASHBOARD: {
+    SUMMARY: '/dashboard/summary',
+    ACCURACY: '/dashboard/metrics/correct-rate',
+    TOTAL_SOLVED: '/dashboard/metrics/total-questions-solved',
+    TOTAL_STUDY: '/dashboard/metrics/total-learning-time',
+  },
   EXAM: {
     ROOT: '/exams',
     SUBMIT: '/exams/results',
@@ -26,5 +32,6 @@ export const API_PATHS = {
   },
   SCRAPBOOK: {
     LIST: '/scrapbooks',
+    EXAM_LIST: '/scrapbooks/filters',
   },
 } as const
