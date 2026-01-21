@@ -237,12 +237,12 @@ public class ChatServiceImpl implements ChatService {
             CompletableFuture.runAsync(() -> {
                 try {
                     // 15초 대기, 타임아웃 시 예외 발생
-                    firstChunkReceived.orTimeout(15, TimeUnit.SECONDS).join();
+                    firstChunkReceived.orTimeout(30, TimeUnit.SECONDS).join();
                 } catch (CompletionException e) {
                     if (e.getCause() instanceof TimeoutException) {
-                        log.error("[Chat] LLM 응답 타임아웃 (15초 초과) - sessionId: {}", sessionId);
+                        log.error("[Chat] LLM 응답 타임아웃 (30초 초과) - sessionId: {}", sessionId);
                         timedOut.set(true);
-                        sendSseError(sseEmitter, sessionId.toString(), "LLM 응답 시간이 초과되었습니다");
+                        sendSseError(sseEmitter, sessionId.toString(), "LLM 응답 시간(30초)이 초과되었습니다");
                     }
                 }
             });
@@ -424,7 +424,7 @@ public class ChatServiceImpl implements ChatService {
                     firstChunkReceived.orTimeout(15, TimeUnit.SECONDS).join();
                 } catch (CompletionException e) {
                     if (e.getCause() instanceof TimeoutException) {
-                        log.error("[OpenerAnalysis] RAG 응답 타임아웃 (15초 초과) - sessionId: {}", sessionId);
+                        log.error("[OpenerAnalysis] RAG 응답 타임아웃 (30초 초과) - sessionId: {}", sessionId);
                         timedOut.set(true);
                         sendSseError(sseEmitter, sessionId.toString(), "RAG 응답 시간이 초과되었습니다");
                         // Can 복구
