@@ -27,10 +27,10 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
 
   private final JwtUtil jwtUtil;
 
-  @Value("${OAUTH2_REDIRECT_URI:https://opener.deving.xyz/register}")
+  @Value("${app.oauth2.signup-redirect-uri}")
   private String signupRedirectUri;
 
-  @Value("${OAUTH2_LOGIN_SUCCESS_URI:https://opener.deving.xyz}")
+  @Value("${app.oauth2.login-success-uri}")
   private String loginSuccessUri;
 
   @Override
