@@ -15,11 +15,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
+import spring.backend.domain.auth.model.enums.Provider;
 import spring.backend.domain.user.model.enums.Role;
 import spring.backend.shared.infrastructure.security.dto.AuthUser;
+import spring.backend.shared.infrastructure.security.dto.OAuthSignupInfo;
 
 @Component
 public class JwtUtil {
+
+    private static final long SIGNUP_TOKEN_EXPIRATION = 600000L; // 10분
 
     private final SecretKey secretKey;
     private final long accessTokenExpiration;
@@ -67,6 +71,41 @@ public class JwtUtil {
                 .expiration(expiration)
                 .signWith(secretKey)
                 .compact();
+    }
+
+    // OAuth2 Signup Token 생성 (회원가입 전 임시 토큰)
+    public String generateSignupToken(Provider provider, String providerId, String name) {
+        Date now = new Date();
+        Date expiration = new Date(now.getTime() + SIGNUP_TOKEN_EXPIRATION);
+
+        return Jwts.builder()
+                .claims(Jwts.claims()
+                        .subject(providerId)
+                        .add("provider", provider.name())
+                        .add("name", name)
+                        .add("type", "signup")
+                        .build()
+                )
+                .issuedAt(now)
+                .expiration(expiration)
+                .signWith(secretKey)
+                .compact();
+    }
+
+    // Signup Token에서 OAuth 정보 추출
+    public OAuthSignupInfo getOAuthInfoFromSignupToken(String token) {
+        Claims claims = validateToken(token);
+
+        String type = claims.get("type", String.class);
+        if (!"signup".equals(type)) {
+            throw new IllegalArgumentException("유효하지 않은 회원가입 토큰입니다.");
+        }
+
+        String providerId = claims.getSubject();
+        Provider provider = Provider.valueOf(claims.get("provider", String.class));
+        String name = claims.get("name", String.class);
+
+        return new OAuthSignupInfo(provider, providerId, name);
     }
 
     // 토큰에서 userId, name 추출하여 AuthUser dto로 만들어 반환
