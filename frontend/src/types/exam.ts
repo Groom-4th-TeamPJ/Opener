@@ -65,6 +65,12 @@ export interface ChatMessage {
   timestamp: string
 }
 
+export interface SendChatMessageRequest {
+  sessionId: number
+  questionId: number
+  message: string
+}
+
 export interface ScrapbookChatMessage {
   order: number
   role: 'USER' | 'ASSISTANT'
