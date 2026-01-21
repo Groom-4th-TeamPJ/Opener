@@ -15,6 +15,9 @@ spring:
 
 # Actuator 설정
 management:
+  metrics:
+    tags:
+      application: ${spring.application.name:backend}
   endpoints:
     web:
       exposure:
