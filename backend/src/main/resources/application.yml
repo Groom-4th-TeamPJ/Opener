@@ -44,6 +44,12 @@ security:
     max-attempts: 5            # 최대 로그인 실패 허용 횟수
     lock-duration-minutes: 5   # 계정 잠금 시간(분)
 
+# OAuth2 설정
+app:
+  oauth2:
+    signup-redirect-uri: ${OAUTH2_REDIRECT_URI:https://opener.deving.xyz/register}
+    login-success-uri: ${OAUTH2_LOGIN_SUCCESS_URI:https://opener.deving.xyz}
+
 # Async 설정
 task:
   execution:
