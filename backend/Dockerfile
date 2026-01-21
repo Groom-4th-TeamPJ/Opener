@@ -25,8 +25,12 @@ FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
-# Netty native(QUIC) 로딩에 필요한 런타임 라이브러리
-RUN apk add --no-cache libgcc libstdc++
+# Netty native(QUIC) 및 SSL/TLS 연결에 필요한 런타임 라이브러리
+# - libgcc, libstdc++: Netty 네이티브 라이브러리 의존성
+# - openssl: SSL/TLS 암호화 라이브러리 (reactor-netty HttpClientSecure 필요)
+# - ca-certificates: HTTPS 연결을 위한 루트 인증서
+# - libc6-compat: glibc 호환성 레이어 (일부 네이티브 라이브러리 필요)
+RUN apk add --no-cache libgcc libstdc++ openssl ca-certificates libc6-compat
 
 # Create non-root user for security
 RUN addgroup -S spring && adduser -S spring -G spring
