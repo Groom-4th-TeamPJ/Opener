@@ -49,6 +49,7 @@ app:
   oauth2:
     signup-redirect-uri: ${OAUTH2_REDIRECT_URI:https://opener.deving.xyz/register}
     login-success-uri: ${OAUTH2_LOGIN_SUCCESS_URI:https://opener.deving.xyz}
+    failure-redirect-uri: ${OAUTH2_FAILURE_REDIRECT_URI:https://opener.deving.xyz/login}
 
 # Async 설정
 task:
