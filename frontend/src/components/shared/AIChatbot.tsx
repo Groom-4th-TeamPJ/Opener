@@ -9,6 +9,8 @@ import Button from '@/components/common/Button'
 import { formatChatTimestamp } from '@/utils/format'
 import AISparklesIcon from '@/components/icons/AISparklesIcon'
 import { InfoTooltip } from '@/components/common/InfoTooltip'
+import { useSendChatMessage } from '@/hooks/exam/queries/use-send-chat-message'
+import { useExamStore } from '@/stores/use-exam-store'
 
 interface AIChatbotProps {
   isActive: boolean
@@ -35,6 +37,8 @@ export default function AIChatbot({
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages || [])
   const [inputValue, setInputValue] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const { mutate: sendChatMessage, isPending } = useSendChatMessage()
+  const examResultId = useExamStore((state) => state.examResultId)
 
   // 문제가 변경되면 채팅 내용 리셋
   useEffect(() => {
@@ -66,7 +70,7 @@ export default function AIChatbot({
   }, [messages])
 
   const handleSend = () => {
-    if (!inputValue.trim() || !isActive || isDisabled) return
+    if (!inputValue.trim() || !isActive || isDisabled || isPending || !examResultId) return
 
     const userMessage: ChatMessage = {
       id: messages.length + 1,
@@ -78,16 +82,11 @@ export default function AIChatbot({
     setMessages((prev) => [...prev, userMessage])
     setInputValue('')
 
-    setTimeout(() => {
-      const assistantMessage: ChatMessage = {
-        id: messages.length + 2,
-        role: 'ASSISTANT',
-        content:
-          '네, 좋은 질문이에요! 미분 공식 중 다항함수의 미분법을 적용하면 됩니다. xⁿ을 미분하면 n·xⁿ⁻¹이 되는 것을 기억하세요.',
-        timestamp: formatChatTimestamp(new Date()),
-      }
-      setMessages((prev) => [...prev, assistantMessage])
-    }, 1000)
+    sendChatMessage({
+      sessionId: examResultId,
+      questionId: question.questionId,
+      message: inputValue,
+    })
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -172,7 +171,7 @@ export default function AIChatbot({
           rightIcon={
             <Button
               onClick={handleSend}
-              disabled={!isActive || isDisabled || !inputValue.trim()}
+              disabled={!isActive || isDisabled || isPending || !inputValue.trim()}
               variant="ghost"
               className="p-0 h-auto min-h-0 text-primary-600 hover:bg-transparent hover:opacity-80"
             >
