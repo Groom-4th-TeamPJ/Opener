@@ -18,8 +18,8 @@ import spring.backend.shared.response.exception.BusinessException;
 public class ChatRedisServiceImpl implements ChatRedisService {
 
     private static final String SESSION_KEY_PREFIX = "chat:session:";
-    // 채팅 세션 TTL: 5분 (SSE 타임아웃과 동일, 메시지 송수신 시 자동 갱신)
-    private static final Duration SESSION_TTL = Duration.ofMinutes(5);
+    // 채팅 세션 TTL: 1시간 (SSE 타임아웃과 동일, 메시지 송수신 시 자동 갱신)
+    private static final Duration SESSION_TTL = Duration.ofHours(1);
     private final ObjectMapper objectMapper;
     private final StringRedisTemplate redisTemplate;
 
