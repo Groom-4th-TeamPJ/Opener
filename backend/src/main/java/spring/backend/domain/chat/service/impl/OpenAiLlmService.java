@@ -1,5 +1,6 @@
 package spring.backend.domain.chat.service.impl;
 
+import jakarta.annotation.PostConstruct;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -43,6 +44,31 @@ public class OpenAiLlmService implements LlmService {
 
     @Value("${app.rag.similarity-threshold:0.7}")
     private double similarityThreshold;
+
+    @Value("${spring.ai.openai.api-key:}")
+    private String openaiApiKey;
+
+    @PostConstruct
+    public void validateApiKeyBinding() {
+        log.info("[LLM+RAG] ========== OpenAI API 키 바인딩 검증 ==========");
+
+        if (openaiApiKey == null || openaiApiKey.isEmpty()) {
+            log.error("[LLM+RAG] ❌ OPENAI_API_KEY가 설정되지 않았습니다!");
+            log.error("[LLM+RAG] 환경변수 또는 application.yml의 spring.ai.openai.api-key를 확인하세요.");
+        } else if (openaiApiKey.equals("${OPENAI_API_KEY}")) {
+            log.error("[LLM+RAG] ❌ OPENAI_API_KEY 환경변수가 바인딩되지 않았습니다!");
+            log.error("[LLM+RAG] .env 파일이 올바르게 로드되었는지 확인하세요.");
+        } else if (!openaiApiKey.startsWith("sk-")) {
+            log.warn("[LLM+RAG] ⚠️ API 키 형식이 일반적인 OpenAI 키와 다릅니다 (sk-로 시작하지 않음)");
+            log.info("[LLM+RAG] API 키 앞 10자: {}...", openaiApiKey.substring(0, Math.min(10, openaiApiKey.length())));
+        } else {
+            log.info("[LLM+RAG] ✅ OpenAI API 키가 정상적으로 바인딩되었습니다.");
+            log.info("[LLM+RAG] API 키 앞 10자: {}...", openaiApiKey.substring(0, 10));
+        }
+
+        log.info("[LLM+RAG] RAG 설정 - topK: {}, similarityThreshold: {}", topK, similarityThreshold);
+        log.info("[LLM+RAG] ================================================");
+    }
 
     @Override
     public void chatStream(String sessionId, String userMessage, Consumer<String> chunkConsumer) {
@@ -125,7 +151,26 @@ public class OpenAiLlmService implements LlmService {
                     .blockLast(); // 스트리밍 완료까지 대기
 
         } catch (Exception e) {
-            log.error("[LLM+RAG] LLM 응답 실패 - sessionId: {}", sessionId, e);
+            // 상세 예외 정보 로깅
+            String errorType = e.getClass().getSimpleName();
+            String errorMessage = e.getMessage();
+            Throwable rootCause = e.getCause();
+            String rootCauseMessage = rootCause != null ? rootCause.getMessage() : "없음";
+
+            log.error("[LLM+RAG] LLM 응답 실패 - sessionId: {}, 예외타입: {}, 메시지: {}, 원인: {}",
+                    sessionId, errorType, errorMessage, rootCauseMessage);
+            log.error("[LLM+RAG] 상세 스택트레이스:", e);
+
+            // API 키 관련 오류 감지
+            if (errorMessage != null && (
+                    errorMessage.contains("API key") ||
+                    errorMessage.contains("api_key") ||
+                    errorMessage.contains("Unauthorized") ||
+                    errorMessage.contains("401") ||
+                    errorMessage.contains("authentication"))) {
+                log.error("[LLM+RAG] ⚠️ API 키 문제 의심 - OPENAI_API_KEY 환경변수를 확인하세요!");
+            }
+
             throw new BusinessException(ErrorCode.LLM_RESPONSE_FAIL);
         }
     }
@@ -155,7 +200,26 @@ public class OpenAiLlmService implements LlmService {
             return summary;
 
         } catch (Exception e) {
-            log.error("[LLM+RAG] 대화 요약 실패 - sessionId: {}", sessionId, e);
+            // 상세 예외 정보 로깅
+            String errorType = e.getClass().getSimpleName();
+            String errorMessage = e.getMessage();
+            Throwable rootCause = e.getCause();
+            String rootCauseMessage = rootCause != null ? rootCause.getMessage() : "없음";
+
+            log.error("[LLM+RAG] 대화 요약 실패 - sessionId: {}, 예외타입: {}, 메시지: {}, 원인: {}",
+                    sessionId, errorType, errorMessage, rootCauseMessage);
+            log.error("[LLM+RAG] 상세 스택트레이스:", e);
+
+            // API 키 관련 오류 감지
+            if (errorMessage != null && (
+                    errorMessage.contains("API key") ||
+                    errorMessage.contains("api_key") ||
+                    errorMessage.contains("Unauthorized") ||
+                    errorMessage.contains("401") ||
+                    errorMessage.contains("authentication"))) {
+                log.error("[LLM+RAG] ⚠️ API 키 문제 의심 - OPENAI_API_KEY 환경변수를 확인하세요!");
+            }
+
             throw new BusinessException(ErrorCode.LLM_RESPONSE_FAIL);
         }
     }
