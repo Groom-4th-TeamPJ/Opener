@@ -14,23 +14,12 @@ export default function ScrapBookPagination({
   totalPages,
   nextPage,
 }: ScrapBookPaginationProps) {
+  const singlePage = totalPages <= 1
+
   return (
     <nav className="flex mt-4 gap-4 mx-auto">
       <ul className="flex gap-2">
-        {currentPage === 1 ? (
-          <li>
-            {/* 첫 번째 페이지에 위치한 경우 '이전 페이지 버튼' 비활성화 */}
-            <span>
-              <Image
-                src={'/icons/chevron-left_gray.svg'}
-                aria-label={'이전 페이지'}
-                alt={'이전 페이지'}
-                width={24}
-                height={24}
-              />
-            </span>
-          </li>
-        ) : (
+        {!singlePage && currentPage > 1 && (
           <li>
             <Link href={`?page=${previousPage}`}>
               <Image
@@ -54,20 +43,7 @@ export default function ScrapBookPagination({
           </li>
         ))}
 
-        {currentPage === totalPages ? (
-          <li>
-            {/* 마지막 페이지에 위치한 경우 '다음 페이지 버튼' 비활성화 */}
-            <span>
-              <Image
-                src={'/icons/chevron-right_gray.svg'}
-                aria-label={'다음 페이지'}
-                alt={'다음 페이지'}
-                width={24}
-                height={24}
-              />
-            </span>
-          </li>
-        ) : (
+        {!singlePage && currentPage < totalPages && (
           <li>
             <Link href={`?page=${nextPage}`}>
               <Image
