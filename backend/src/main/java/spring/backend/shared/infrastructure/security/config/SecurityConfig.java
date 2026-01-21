@@ -63,8 +63,9 @@ public class SecurityConfig {
                                 "/auth/**",
                                 "/oauth2/**",
                                 "/login/oauth2/code/**",
-                                "/api/actuator/health",
-                                "/api/actuator/prometheus"
+                                "/actuator",
+                                "/actuator/health",
+                                "/actuator/prometheus"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

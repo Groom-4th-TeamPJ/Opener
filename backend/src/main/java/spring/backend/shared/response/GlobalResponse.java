@@ -28,6 +28,13 @@ public class GlobalResponse implements ResponseBodyAdvice<Object> {
             return false;
         }
 
+        // Spring Boot Actuator 관련 응답은 래핑하지 않음
+        String cls = returnType.getContainingClass().getName();
+        if (cls.startsWith("org.springframework.boot.actuate") ||
+                cls.startsWith("org.springframework.boot.webmvc.actuate")) {
+            return false;
+        }
+
         return true;
     }
 
@@ -42,6 +49,12 @@ public class GlobalResponse implements ResponseBodyAdvice<Object> {
 
         // 이미 ApiResponseFormat이면 그대로 반환 (이중 검증)
         if (body instanceof ApiResponseFormat) {
+            return body;
+        }
+
+        String path = request.getURI().getPath();
+        // Actuator 경로는 래핑하지 않음 (이중 검증)
+        if (path.startsWith("/actuator") || path.startsWith("/actuator/")) {
             return body;
         }
 
