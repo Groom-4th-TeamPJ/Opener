@@ -62,7 +62,9 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/auth/**",
                                 "/oauth2/**",
-                                "/login/oauth2/code/**"
+                                "/login/oauth2/code/**",
+                                "/api/actuator/health",
+                                "/api/actuator/prometheus"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
