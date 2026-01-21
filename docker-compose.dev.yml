@@ -61,7 +61,7 @@ services:
   # RabbitMQ with STOMP plugin
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
-    container_name: opener-
+    container_name: rabbitmq-dev
     env_file:
       - .env
     ports:
