@@ -19,7 +19,17 @@ public class CredentialRepositoryImpl implements CredentialRepository {
   }
 
   @Override
+  public Optional<Credentials> findUserCredentialByProviderId(String providerId) {
+    return jpaCredentialRepository.findByProviderId(providerId);
+  }
+
+  @Override
   public boolean existsByEmail(String email) {
     return jpaCredentialRepository.existsByEmail(email);
+  }
+
+  @Override
+  public Credentials save(Credentials credentials) {
+    return jpaCredentialRepository.save(credentials);
   }
 }
