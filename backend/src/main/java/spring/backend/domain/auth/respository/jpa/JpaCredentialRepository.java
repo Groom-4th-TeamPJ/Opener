@@ -8,5 +8,7 @@ import spring.backend.domain.auth.model.entity.Credentials;
 public interface JpaCredentialRepository extends JpaRepository<Credentials, UUID> {
   Optional<Credentials> findByEmail(String email);
 
+  Optional<Credentials> findByProviderId(String providerId);
+
   boolean existsByEmail(String email);
 }

@@ -7,6 +7,7 @@ import jakarta.transaction.Transactional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -20,10 +21,12 @@ import spring.backend.domain.auth.service.spec.AuthService;
 import spring.backend.domain.can.service.spec.CanService;
 import spring.backend.domain.user.model.entity.User;
 import spring.backend.domain.user.repository.spec.UserRepository;
+import spring.backend.shared.infrastructure.security.dto.OAuthSignupInfo;
 import spring.backend.shared.infrastructure.security.util.JwtUtil;
 import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -77,7 +80,42 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public void oauthSignup(OAuthSignupRequest req) {
+    @Transactional
+    public void oAuthSignup(HttpServletResponse response, OAuthSignupRequest req) {
+        // 1. signupToken 검증 및 OAuth 정보 추출
+        OAuthSignupInfo oAuthInfo = jwtUtil.getOAuthInfoFromSignupToken(req.signupToken());
+
+        // 2. 이미 가입된 사용자인지 확인
+        if (credentialRepository.findUserCredentialByProviderId(oAuthInfo.providerId()).isPresent()) {
+            throw new BusinessException(ErrorCode.ALREADY_REGISTERED_USER);
+        }
+
+        // 3. User 생성 (프론트에서 받은 이름 사용)
+        User user = User.createUser(req.name());
+
+        // 4. OAuth Credentials 생성
+        Credentials credential = Credentials.createOAuthCredentials(
+                user,
+                oAuthInfo.provider(),
+                oAuthInfo.providerId()
+        );
+
+        // 5. 저장
+        Credentials savedCredential = jpaCredentialRepository.save(credential);
+
+        // 6. 초기 캔 설정
+        canService.createUserCan(user.getId());
+
+        // 7. JWT 토큰 생성
+        String accessToken = jwtUtil.generateAccessToken(
+                savedCredential.getUser().getId(),
+                savedCredential.getUser().getRole(),
+                savedCredential.getUser().getName()
+        );
+        String refreshToken = jwtUtil.generateRefreshToken(savedCredential.getUser().getId());
+
+        // 8. HttpOnly 쿠키에 토큰 설정
+        jwtUtil.setHttpOnlyAllToken(response, accessToken, refreshToken);
     }
 
     @Override

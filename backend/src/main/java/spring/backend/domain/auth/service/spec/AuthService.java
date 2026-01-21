@@ -9,7 +9,7 @@ public interface AuthService {
 
   void formSignup(HttpServletResponse response, FormSignupRequest req);
 
-  void oauthSignup(OAuthSignupRequest req);
+  void oAuthSignup(HttpServletResponse response, OAuthSignupRequest req);
 
   void logout(HttpServletRequest req);
 

@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import spring.backend.domain.auth.dto.request.FormSignupRequest;
+import spring.backend.domain.auth.dto.request.OAuthSignupRequest;
 import spring.backend.domain.auth.service.spec.AuthService;
 import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
@@ -28,6 +29,15 @@ public class AuthController {
 
     // Service에서 accessToken과 refreshToken response의 HttpOnly에 담아 반환
     authService.formSignup(response, req);
+  }
+
+  @PostMapping("/oauth-signup")
+  public void oAuthSignup(
+          @Valid @RequestBody OAuthSignupRequest req,
+          HttpServletResponse response) {
+
+    // signupToken 검증 후 OAuth 회원가입 처리
+    authService.oAuthSignup(response, req);
   }
 
   @PostMapping("/refresh")
