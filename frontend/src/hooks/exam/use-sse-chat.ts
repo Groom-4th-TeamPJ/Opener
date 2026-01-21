@@ -15,7 +15,7 @@ export function useSSEChat({ sessionId, enabled = true }: UseSSEChatProps): void
     const SSE_URL = `${BASE_URL}${API_PATHS.CHAT.CONNECT}?sessionId=${sessionId}`
 
     // 표준 EventSource 사용
-    const eventSource = new EventSource(SSE_URL)
+    const eventSource = new EventSource(SSE_URL, { withCredentials: true })
 
     eventSource.onopen = () => {
       console.log('[SSE] Connected successfully')
