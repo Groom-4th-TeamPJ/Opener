@@ -204,13 +204,20 @@ public class ChatServiceImpl implements ChatService {
         Long sessionId = req.sessionId();
         String userMessage = req.message();
 
+        log.info("[Chat] 메시지 처리 시작 - sessionId: {}, userId: {}, 현재 활성 연결 수: {}",
+                sessionId, userId, emitters.size());
+
         // 스프링 인메모리 힙에 sessionId로 운영중인 SSE 연결 조회
         SseEmitter sseEmitter = emitters.get(sessionId);
 
         // SSE 연결 유지 확인
         if (sseEmitter == null) {
+            log.error("[Chat] ❌ SSE 연결 없음 - sessionId: {}, 활성 세션 목록: {}",
+                    sessionId, emitters.keySet());
             throw new BusinessException(ErrorCode.SESSION_EXPIRED);
         }
+
+        log.debug("[Chat] SSE 연결 확인 완료 - sessionId: {}", sessionId);
 
         // 권한 검증
         chatRedisService.validateSessionOwner(sessionId, userId);
