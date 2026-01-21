@@ -11,7 +11,7 @@ public interface AuthService {
 
   void oAuthSignup(HttpServletResponse response, OAuthSignupRequest req);
 
-  void logout(HttpServletRequest req);
+  void logout(HttpServletRequest req, HttpServletResponse res);
 
   void tokenRefresh(HttpServletResponse response, String refreshToken);
 

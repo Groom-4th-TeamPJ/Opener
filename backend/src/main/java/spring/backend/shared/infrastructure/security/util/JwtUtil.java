@@ -179,11 +179,37 @@ public class JwtUtil {
         ResponseCookie accessCookie = ResponseCookie.from("accessToken", accessToken)
                 .httpOnly(true)
                 .secure(true)
-                .path("/api/")
-                .sameSite("Lax")
+                .path("/api")
+                .sameSite("None")
                 .maxAge(Duration.ofMinutes(60)) // 수명 : 1시간
                 .build();
 
         response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
+    }
+
+    /**
+     * 로그아웃 시 httpOnly 쿠키 삭제 maxAge(0)으로 설정하여 브라우저에서 즉시 삭제되도록 함
+     */
+    public void clearAllTokenCookies(HttpServletResponse response) {
+        // Access Token 쿠키 삭제 (path="/"로 설정된 쿠키)
+        ResponseCookie clearAccessCookie = ResponseCookie.from("accessToken", "")
+                .httpOnly(true)
+                .secure(true)
+                .path("/")
+                .sameSite("None")
+                .maxAge(0) // 즉시 만료
+                .build();
+
+        // Refresh Token 쿠키 삭제 (path="/api/auth/refresh"로 설정된 쿠키)
+        ResponseCookie clearRefreshCookie = ResponseCookie.from("refreshToken", "")
+                .httpOnly(true)
+                .secure(true)
+                .path("/api/auth/refresh")
+                .sameSite("None")
+                .maxAge(0) // 즉시 만료
+                .build();
+
+        response.addHeader(HttpHeaders.SET_COOKIE, clearAccessCookie.toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, clearRefreshCookie.toString());
     }
 }

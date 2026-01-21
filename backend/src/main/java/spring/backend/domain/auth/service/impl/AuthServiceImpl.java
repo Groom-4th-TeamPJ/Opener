@@ -119,7 +119,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public void logout(HttpServletRequest req) {
+    public void logout(HttpServletRequest req, HttpServletResponse res) {
 
         String bearerToken = jwtUtil.extractAccessTokenFromRequest(req);
 
@@ -130,6 +130,7 @@ public class AuthServiceImpl implements AuthService {
                 0
         );
 
+        // Redis에 access token 블랙리스트 추가
         redisTemplate.opsForValue()
                 .set(
                         "blacklist:access:" + claim.getId(), // ⭐ get("jti") 말고 getId()
@@ -137,6 +138,11 @@ public class AuthServiceImpl implements AuthService {
                         ttl,
                         TimeUnit.SECONDS
                 );
+
+        // httpOnly 쿠키 삭제 (accessToken, refreshToken)
+        jwtUtil.clearAllTokenCookies(res);
+
+        log.info("[Auth] 로그아웃 완료 - userId: {}, 토큰 블랙리스트 등록 및 쿠키 삭제", claim.getSubject());
     }
 
     @Override
