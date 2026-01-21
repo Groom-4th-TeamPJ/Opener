@@ -17,13 +17,14 @@ import spring.backend.domain.user.model.enums.Role;
 @RequiredArgsConstructor
 public class CustomOAuth2User implements OAuth2User {
 
-    private final UUID userId;
+    private final UUID userId;          // 신규 회원인 경우 null
     private final String name;
     private final Role role;
     private final Provider provider;
     private final String providerId;
     private final Map<String, Object> attributes;
     private final Collection<? extends GrantedAuthority> authorities;
+    private final boolean newUser;      // 신규 회원 여부
 
     @Override
     public Map<String, Object> getAttributes() {
