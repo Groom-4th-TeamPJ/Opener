@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Modal, ModalContent, ModalFooter, ModalHeader } from '@/components/common/Modal'
 import ResultBanner from '@/components/shared/ResultBanner'
 import NewQuestionLoading from './NewQuestionLoading'
@@ -12,6 +12,7 @@ import { useGenerateQuestion } from '@/hooks/exam/queries/use-generate-question'
 import { useSubmitResult } from '@/hooks/exam/queries/use-submit-answer'
 import { useExamStore } from '@/stores/use-exam-store'
 import useCurrentExam from '@/hooks/exam/use-current-exam'
+import { toast } from 'sonner'
 
 interface NewQuestionModalProps {
   open: boolean
@@ -20,11 +21,20 @@ interface NewQuestionModalProps {
 
 export default function NewQuestionModal({ open, onClose }: NewQuestionModalProps) {
   const examData = useCurrentExam()
-  const { currentIndex } = useExamStore()
+  const { currentIndex, updateQuestionState } = useExamStore()
   const questionId = examData?.questions[currentIndex]?.questionId ?? 0
   const submitResult = useSubmitResult(questionId)
   const questionResultId = submitResult?.questionResultId ?? 0
-  const { data, isFetching } = useGenerateQuestion({ questionId, questionResultId })
+  const { data, isFetching, isError } = useGenerateQuestion({ questionId, questionResultId })
+
+  // 요청 실패 시 모달 닫기 및 버튼 다시 활성화
+  useEffect(() => {
+    if (isError) {
+      toast.error('변형문제 생성에 실패했습니다. 다시 시도해주세요.', { duration: 3000 })
+      updateQuestionState(questionId, { hasNewQuestion: false })
+      onClose()
+    }
+  }, [isError, onClose, questionId, updateQuestionState])
 
   // 문제 제출하기
   const [isSubmitted, setSubmitted] = useState<boolean>(false)
@@ -64,19 +74,23 @@ export default function NewQuestionModal({ open, onClose }: NewQuestionModalProp
       ) : (
         data && (
           <div className="flex flex-col h-full">
-            <ModalHeader closable={true} onClose={onClose} className="flex">
+            <ModalHeader
+              closable={true}
+              onClose={onClose}
+              className="flex border-b border-neutral-200"
+            >
               <NewQuestionHeader />
             </ModalHeader>
             {/* 문제 */}
-            <div className="flex-1 min-h-0 overflow-y-auto">
-              <ModalContent className="flex flex-col gap-4 ">
+            <div className="flex-1 min-h-0 overflow-y-auto scrollbar-overlay">
+              <ModalContent className="flex flex-col gap-4 p-4 2xl:p-6 min-h-50">
                 <NewQuestionExam passage={passage} />
               </ModalContent>
 
               {/* 구분선 */}
-              <div className="border-t border-t-neutral-200 my-4 lg:my-6" />
+              <div className="border-t border-t-neutral-200" />
 
-              <ModalContent className="flex flex-col gap-4">
+              <ModalContent className="flex flex-col gap-4 p-4 2xl:p-6">
                 <div className="flex items-center justify-between">
                   <h3 className="font-bold text-neutral-600">답안 선택</h3>
                   {/* 정오답 표시 */}
@@ -104,7 +118,7 @@ export default function NewQuestionModal({ open, onClose }: NewQuestionModalProp
               </ModalContent>
             </div>
             {/* 제출버튼 및 원래 페이지로 돌아가기 */}
-            <ModalFooter>
+            <ModalFooter className="border-t border-neutral-200">
               <NewQuestionAction
                 type={questionType}
                 isSubmitted={isSubmitted}

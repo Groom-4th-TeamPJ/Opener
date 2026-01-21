@@ -6,7 +6,6 @@ import { useExamStore } from '@/stores/use-exam-store'
 import useCurrentExam from '@/hooks/exam/use-current-exam'
 import { useSubmitResult } from '@/hooks/exam/queries/use-submit-answer'
 import { useGenerateQuestion } from '@/hooks/exam/queries/use-generate-question'
-import { toast } from 'sonner'
 
 interface QuestionActionButtonProps {
   onSubmit: () => void
@@ -28,7 +27,7 @@ export default function QuestionActionButton({
   const questionId = examData?.questions[currentIndex]?.questionId ?? 0
   const submitResult = useSubmitResult(questionId)
   const questionResultId = submitResult?.questionResultId ?? 0
-  const { refetch, isFetching: isGenerating } = useGenerateQuestion({
+  const { refetch } = useGenerateQuestion({
     questionId,
     questionResultId,
   })
@@ -61,14 +60,10 @@ export default function QuestionActionButton({
   if (isAnalysisActive) {
     const isDisabledVariation = isCorrect !== false || hasNewQuestion || !questionResultId
 
-    const handleVariationClick = async () => {
+    const handleVariationClick = () => {
       if (!questionResultId) return
-      const { isSuccess } = await refetch()
-      if (isSuccess) {
-        onVariationClick()
-      } else {
-        toast.error('변형문제 생성에 실패했습니다. 다시 시도해주세요.', { duration: 3000 })
-      }
+      onVariationClick()
+      refetch()
     }
 
     return (
@@ -78,7 +73,6 @@ export default function QuestionActionButton({
         widthFull
         onClick={handleVariationClick}
         disabled={isDisabledVariation}
-        isLoading={isGenerating}
         leftIcon={<OutlineCanIcon />}
       >
         변형 문제 풀어보기
