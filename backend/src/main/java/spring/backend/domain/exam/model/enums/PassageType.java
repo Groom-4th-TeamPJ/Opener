@@ -4,8 +4,8 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum PassageType {
-    TEXT("text"),
-    IMAGE("image");
+    TEXT("TEXT"),
+    IMAGE("IMAGE");
 
     private final String value;
 
