@@ -1,6 +1,7 @@
 import { useExamResult } from '@/hooks/exam/queries/use-exam-result'
 import Image from 'next/image'
 import type { ResultData } from '@/types/exam'
+import { formatTimeWithHours } from '@/utils/format'
 
 const RESULT_MENU: { label: string; key: keyof ResultData }[] = [
   { label: '풀이 시간', key: 'totalTimeSpent' },
@@ -25,7 +26,13 @@ export default function ExamResultSummary() {
           className="flex justify-between items-center border-b p-4  border-neutral-200 font-bold h-12"
         >
           <div>{label}</div>
-          <div>{data?.[key] ?? '-'}</div>
+          <div>
+            {key === 'totalTimeSpent'
+              ? data?.[key] != null
+                ? formatTimeWithHours(data[key])
+                : '-'
+              : (data?.[key] ?? '-')}
+          </div>
         </div>
       ))}
     </>
