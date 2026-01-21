@@ -98,10 +98,10 @@ public class QuestionNewServiceImpl implements QuestionNewService {
             // 5. RAG: 유사 문서 검색
             String retrievedContext = searchSimilarDocuments(problemContext);
 
-            // 6. LLM으로 변형 문제 생성 (15초 타임아웃)
+            // 6. LLM으로 변형 문제 생성 (30초 타임아웃)
             String llmResponse = CompletableFuture
                     .supplyAsync(() -> generateWithLLM(retrievedContext, problemContext))
-                    .orTimeout(15, TimeUnit.SECONDS)
+                    .orTimeout(30, TimeUnit.SECONDS)
                     .join();
             log.debug("[QuestionNew] LLM 응답 길이: {}", llmResponse.length());
 
@@ -342,7 +342,7 @@ public class QuestionNewServiceImpl implements QuestionNewService {
             log.error("[QuestionNew] 엔티티 생성 실패 - LLM 응답 처리 중 예외 발생", e);
             log.error("[QuestionNew] LLM 응답 (처음 500자): {}",
                     llmResponse.substring(0, Math.min(500, llmResponse.length())));
-            throw new BusinessException(ErrorCode.INVALID_INPUT);
+            throw new BusinessException(ErrorCode.LLM_GENERATE_FAIL);
         }
     }
 
