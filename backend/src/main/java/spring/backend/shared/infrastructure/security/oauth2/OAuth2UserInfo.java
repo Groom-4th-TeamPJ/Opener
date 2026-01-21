@@ -26,5 +26,5 @@ public abstract class OAuth2UserInfo {
      * 사용자 이름
      */
     public abstract String getName();
-  
+
 }
