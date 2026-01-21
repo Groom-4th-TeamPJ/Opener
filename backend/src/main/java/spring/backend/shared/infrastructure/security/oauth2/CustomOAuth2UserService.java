@@ -13,11 +13,12 @@ import org.springframework.transaction.annotation.Transactional;
 import spring.backend.domain.auth.model.entity.Credentials;
 import spring.backend.domain.auth.model.enums.Provider;
 import spring.backend.domain.auth.respository.spec.CredentialRepository;
-import spring.backend.domain.can.service.spec.CanService;
 import spring.backend.domain.user.model.entity.User;
+import spring.backend.domain.user.model.enums.Role;
 
 /**
- * Spring Security OAuth2 사용자 서비스 OAuth2 인증 후 사용자 정보를 로드하고, 필요시 회원가입 처리
+ * Spring Security OAuth2 사용자 서비스
+ * OAuth2 인증 후 사용자 정보를 로드 (회원가입은 별도 엔드포인트에서 처리)
  */
 @Slf4j
 @Service
@@ -25,7 +26,6 @@ import spring.backend.domain.user.model.entity.User;
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
     private final CredentialRepository credentialRepository;
-    private final CanService canService;
 
     @Override
     @Transactional
@@ -52,40 +52,36 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         Credentials credentials = credentialRepository.findUserCredentialByProviderId(providerId)
                 .orElse(null);
 
-        // 4. 없으면 회원가입
-        if (credentials == null) {
-            log.info("신규 OAuth2 사용자 회원가입: providerId={}", providerId);
-
-            // User 생성
-            User user = User.createUser(name);
-
-            // OAuth Credentials 생성
-            credentials = Credentials.createOAuthCredentials(user, provider, providerId);
-
-            // 저장
-            credentials = credentialRepository.save(credentials);
-
-            // 초기 캔 설정
-            canService.createUserCan(credentials.getUser().getId());
-
-            log.info("OAuth2 회원가입 완료: userId={}, providerId={}",
-                    credentials.getUser().getId(), providerId);
-        } else {
+        // 4. 기존 회원인 경우
+        if (credentials != null) {
             log.info("기존 OAuth2 사용자 로그인: userId={}, providerId={}",
                     credentials.getUser().getId(), providerId);
+
+            User user = credentials.getUser();
+            return new CustomOAuth2User(
+                    user.getId(),
+                    user.getName(),
+                    user.getRole(),
+                    provider,
+                    providerId,
+                    oAuth2User.getAttributes(),
+                    Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + user.getRole().name())),
+                    false  // 기존 회원
+            );
         }
 
-        // 5. CustomOAuth2User 생성 및 반환
-        User user = credentials.getUser();
+        // 5. 신규 회원인 경우 - 회원가입하지 않고 정보만 반환
+        log.info("신규 OAuth2 사용자 감지: providerId={}, name={}", providerId, name);
 
         return new CustomOAuth2User(
-                user.getId(),
-                user.getName(),
-                user.getRole(),
+                null,   // userId는 아직 없음
+                name,
+                Role.USER,
                 provider,
                 providerId,
                 oAuth2User.getAttributes(),
-                Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))
+                Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")),
+                true    // 신규 회원
         );
     }
 }
