@@ -21,8 +21,14 @@ import spring.backend.domain.chat.dto.redis_dto.RedisMessageDto;
 import spring.backend.domain.chat.dto.request.ChatSaveRequest;
 import spring.backend.domain.chat.dto.request.ChatSendRequest;
 import spring.backend.domain.chat.dto.request.OpenerAnalysisRequest;
+import spring.backend.domain.chat.dto.response.ChatHistoryResponse;
+import spring.backend.domain.chat.dto.response.ChatMessageDto;
 import spring.backend.domain.chat.dto.response.SseMessageResponse;
+import java.util.List;
+import java.util.stream.IntStream;
 import spring.backend.domain.chat.mapper.RedisMessageMapper;
+import spring.backend.domain.chat.model.entity.ChatMessage;
+import spring.backend.domain.chat.model.entity.ChatMessageContent;
 import spring.backend.domain.chat.messaging.ChatMessageProducer;
 import spring.backend.domain.chat.repository.spec.ChatMessageRepository;
 import spring.backend.domain.chat.service.spec.ChatRedisService;
@@ -530,5 +536,38 @@ public class ChatServiceImpl implements ChatService {
         }
 
         return context.toString();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ChatHistoryResponse getChatHistoryByQuestionResultId(Long questionResultId) {
+        ChatMessage chatMessage = chatMessageRepository.findByQuestionResultId(questionResultId)
+                .orElse(null);
+
+        // 채팅 기록이 없는 경우 빈 응답 반환
+        if (chatMessage == null) {
+            return ChatHistoryResponse.builder()
+                    .chat(List.of())
+                    .summary(null)
+                    .build();
+        }
+
+        // ChatMessageContent → ChatMessageDto 변환 (order 추가)
+        List<ChatMessageDto> chatDtos = IntStream.range(0, chatMessage.getMessages().size())
+                .mapToObj(index -> {
+                    ChatMessageContent content = chatMessage.getMessages().get(index);
+                    return ChatMessageDto.builder()
+                            .order(index + 1)
+                            .role(content.getRole())
+                            .content(content.getContent())
+                            .timestamp(content.getTimestamp())
+                            .build();
+                })
+                .toList();
+
+        return ChatHistoryResponse.builder()
+                .chat(chatDtos)
+                .summary(chatMessage.getSummary())
+                .build();
     }
 }
