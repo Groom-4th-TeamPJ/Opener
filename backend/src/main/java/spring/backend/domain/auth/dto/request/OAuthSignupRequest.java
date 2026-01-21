@@ -5,7 +5,6 @@ import jakarta.validation.constraints.Size;
 
 /**
  * OAuth2 회원가입 요청 DTO
- * 프론트에서 signupToken과 사용자 이름을 전달
  */
 public record OAuthSignupRequest(
         @NotBlank(message = "회원가입 토큰은 필수입니다")
