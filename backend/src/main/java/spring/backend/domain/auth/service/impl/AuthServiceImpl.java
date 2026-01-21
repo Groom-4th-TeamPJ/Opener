@@ -7,12 +7,12 @@ import jakarta.transaction.Transactional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import spring.backend.domain.auth.dto.request.FormSignupRequest;
-import spring.backend.domain.auth.dto.request.OAuthSignupRequest;
 import spring.backend.domain.auth.model.entity.Credentials;
 import spring.backend.domain.auth.respository.jpa.JpaCredentialRepository;
 import spring.backend.domain.auth.respository.spec.CredentialRepository;
@@ -24,6 +24,7 @@ import spring.backend.shared.infrastructure.security.util.JwtUtil;
 import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -74,10 +75,6 @@ public class AuthServiceImpl implements AuthService {
         String refreshToken = jwtUtil.generateRefreshToken(newCredential.getUser().getId());
 
         jwtUtil.setHttpOnlyAllToken(response, accessToken, refreshToken);
-    }
-
-    @Override
-    public void oauthSignup(OAuthSignupRequest req) {
     }
 
     @Override
