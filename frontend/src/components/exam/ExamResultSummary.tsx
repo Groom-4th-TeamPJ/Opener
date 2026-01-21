@@ -1,6 +1,18 @@
-import { RESULT_MENU, resultData } from '@/mocks/exam-complete-mocks'
+import { useExamResult } from '@/hooks/exam/queries/use-exam-result'
 import Image from 'next/image'
+import type { ResultData } from '@/types/exam'
+import { formatTimeWithHours } from '@/utils/format'
+
+const RESULT_MENU: { label: string; key: keyof ResultData }[] = [
+  { label: '풀이 시간', key: 'totalTimeSpent' },
+  { label: '정답 수', key: 'correctCount' },
+  { label: '오답 수', key: 'incorrectCount' },
+  { label: '오프너 분석 수', key: 'openerUsageCount' },
+]
+
 export default function ExamResultSummary() {
+  const { data } = useExamResult()
+
   return (
     <>
       <div className="flex flex-col items-center gap-5 p-6">
@@ -14,7 +26,13 @@ export default function ExamResultSummary() {
           className="flex justify-between items-center border-b p-4  border-neutral-200 font-bold h-12"
         >
           <div>{label}</div>
-          <div>{resultData[key]}</div>
+          <div>
+            {key === 'totalTimeSpent'
+              ? data?.[key] != null
+                ? formatTimeWithHours(data[key])
+                : '-'
+              : (data?.[key] ?? '-')}
+          </div>
         </div>
       ))}
     </>

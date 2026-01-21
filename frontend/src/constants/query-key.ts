@@ -20,8 +20,7 @@ export const QUERY_KEYS = {
 
   DASHBOARD: {
     ROOT: ['dashboard'] as const,
-    WEEKLY: ['dashboard', 'weekly'] as const,
-    STREAK: ['dashboard', 'streak'] as const,
+    SUMMARY: ['dashboard', 'summary'] as const,
     CORRECT_RATE: ['dashboard', 'rate'] as const,
     TOTAL_SOLVED: ['dashboard', 'solved'] as const,
     TOTAL_TIME_SPENT: ['dashboard', 'time-spent'] as const,
@@ -37,6 +36,8 @@ export const QUERY_KEYS = {
     SUBMIT: ['exam', 'question', 'submit'] as const,
     // 답안 제출 결과 (questionId별)
     SUBMIT_RESULT: (questionId: number) => ['exam', 'question', 'submit', questionId] as const,
+    // 학습 결과 (examResultId별)
+    RESULT: (examResultId: number) => ['exam', 'result', examResultId] as const,
     // 오프너 분석
     ANALYZE: ['exam', 'question', 'analyze'] as const,
     // 변형 문제 생성 (questionId별)

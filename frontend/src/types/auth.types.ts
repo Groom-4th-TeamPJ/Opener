@@ -11,5 +11,14 @@ export type LoginFormValues = {
   password: string
 }
 
+export type SignupTokenFields = {
+  sub: string
+  nickname: string
+  provider: string
+  type: string
+  iat: number
+  exp: number
+}
+
 export type TermKey = 'service' | 'privacy' | 'age'
 export type Term = Record<TermKey, boolean>
