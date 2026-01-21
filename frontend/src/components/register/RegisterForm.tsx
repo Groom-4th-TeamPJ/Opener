@@ -49,6 +49,9 @@ export default function RegisterForm({ signupToken }: RegisterFormProps) {
       toast.error('유효하지 않은 접근입니다. 다시 시도해주세요.')
       router.replace('/login')
     }
+    if (decodedToken) {
+      sessionStorage.removeItem('pending_oauth')
+    }
   }, [decodedToken, signupToken, router])
 
   const DEFAULT_SET = useMemo(() => {
