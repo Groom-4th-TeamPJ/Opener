@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/utils/api'
 import { QUERY_KEYS } from '@/constants/query-key'
 import type { SubmitAnswerRequest, SubmitAnswerResponse } from '@/types/exam'
@@ -34,9 +34,6 @@ export function useSubmitAnswer() {
 }
 
 export function useSubmitResult(questionId: number) {
-  return useQuery<SubmitAnswerResponse | null>({
-    queryKey: QUERY_KEYS.EXAM.SUBMIT_RESULT(questionId),
-    enabled: false,
-    initialData: null,
-  })
+  const queryClient = useQueryClient()
+  return queryClient.getQueryData<SubmitAnswerResponse>(QUERY_KEYS.EXAM.SUBMIT_RESULT(questionId))
 }

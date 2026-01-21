@@ -26,7 +26,7 @@ export default function QuestionActionButton({
   const examData = useCurrentExam()
   const { currentIndex, getQuestionState } = useExamStore()
   const questionId = examData?.questions[currentIndex]?.questionId ?? 0
-  const { data: submitResult } = useSubmitResult(questionId)
+  const submitResult = useSubmitResult(questionId)
   const questionResultId = submitResult?.questionResultId ?? 0
   const { refetch, isFetching: isGenerating } = useGenerateQuestion({
     questionId,

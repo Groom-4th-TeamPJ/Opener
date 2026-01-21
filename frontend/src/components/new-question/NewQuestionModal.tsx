@@ -22,7 +22,7 @@ export default function NewQuestionModal({ open, onClose }: NewQuestionModalProp
   const examData = useCurrentExam()
   const { currentIndex } = useExamStore()
   const questionId = examData?.questions[currentIndex]?.questionId ?? 0
-  const { data: submitResult } = useSubmitResult(questionId)
+  const submitResult = useSubmitResult(questionId)
   const questionResultId = submitResult?.questionResultId ?? 0
   const { data, isFetching } = useGenerateQuestion({ questionId, questionResultId })
 
