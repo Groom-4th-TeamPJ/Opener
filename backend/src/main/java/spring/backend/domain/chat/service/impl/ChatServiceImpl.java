@@ -45,8 +45,8 @@ import spring.backend.shared.response.exception.BusinessException;
 @Service
 public class ChatServiceImpl implements ChatService {
 
-    // SSE 타임아웃 (5분)
-    private static final Long SSE_TIMEOUT = 5 * 60 * 1000L;
+    // SSE 타임아웃 (1시간)
+    private static final Long SSE_TIMEOUT = 60 * 60 * 1000L;
     private final ChatRedisService chatRedisService;
     private final LlmService llmService;
     private final RagService ragService;
