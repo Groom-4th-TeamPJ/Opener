@@ -51,10 +51,12 @@ export default function LoginForm() {
 
     if (pendingAuth === 'true') {
       // 기록이 있다면, 사용자가 인증을 완료하지 않고 돌아온 것으로 간주
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         toast.error('로그인이 중단되었습니다.')
         sessionStorage.removeItem('pending_oauth')
       }, 100)
+
+      return () => clearTimeout(timeoutId)
     }
   }, [])
 
