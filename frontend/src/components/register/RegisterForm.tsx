@@ -11,6 +11,7 @@ import { RegisterFormValues, SignupTokenFields, Term } from '@/types/auth.types'
 import { UiError } from '@/types/api.types'
 import { jwtDecode } from 'jwt-decode'
 import { toast } from 'sonner'
+import getErrorMessages from '@/utils/error-handler'
 
 const PASSWORD_REGEX: RegExp = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[~!@#$%^&*])[A-Za-z\d~!@#$%^&*]{8,20}$/
 
@@ -102,11 +103,18 @@ export default function RegisterForm({ signupToken }: RegisterFormProps) {
         onSuccess: () => router.replace('/'),
       })
     } catch (e: unknown) {
-      // TODO: 에러 코드 상수화
       const error = e as UiError
-      if (error.code === 500 && error.errorCode === 'S_001') {
+      const errorCode = error.errorCode // "A_016" 또는 "A_017"
+
+      if (errorCode === 'S_001' || errorCode === 'A_001') {
         setError('email', { message: '이미 존재하는 계정입니다.' }, { shouldFocus: true })
+        return
       }
+
+      // 공통 인증 에러
+      const message = getErrorMessages(errorCode)
+      toast.error(message)
+      router.replace('/login')
     }
   }
 
