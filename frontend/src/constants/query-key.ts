@@ -39,8 +39,8 @@ export const QUERY_KEYS = {
     SUBMIT_RESULT: (questionId: number) => ['exam', 'question', 'submit', questionId] as const,
     // 오프너 분석
     ANALYZE: ['exam', 'question', 'analyze'] as const,
-    // 변형 문제 생성
-    GENERATE: ['exam', 'question', 'generate'] as const,
+    // 변형 문제 생성 (questionId별)
+    GENERATE: (questionId: number) => ['exam', 'question', 'generate', questionId] as const,
     CHAT: ['exam', 'chat'] as const,
     SOCKET: ['exam', 'socket'] as const,
   },

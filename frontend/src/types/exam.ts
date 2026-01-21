@@ -40,13 +40,13 @@ export interface ExamRequestParams {
   category: string
   examType: string
 }
-
 export interface ExamResponse {
   examResultId: number
   exam: Exam
   questions: Question[]
 }
 
+// 답안 제출 API
 export interface SubmitAnswerRequest {
   selected: number
   timeSpent: number
@@ -56,6 +56,19 @@ export interface SubmitAnswerResponse {
   questionResultId: number
   correct: boolean
   answer: number
+}
+
+// 변형문제생성 API
+export interface GenerateQuestionRequest {
+  questionId: number
+  questionResultId: number
+}
+
+export interface GenerateQuestionResponse {
+  passages: Passage[]
+  options: Option[]
+  answer: number
+  analysis: string
 }
 
 export interface ChatMessage {
