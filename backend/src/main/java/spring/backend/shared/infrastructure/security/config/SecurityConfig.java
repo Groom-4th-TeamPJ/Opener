@@ -25,6 +25,8 @@ import spring.backend.shared.infrastructure.security.filter.FormAuthenticationFi
 import spring.backend.shared.infrastructure.security.filter.JwtAuthenticationFilter;
 import spring.backend.shared.infrastructure.security.handler.FormAuthenticationFailureHandler;
 import spring.backend.shared.infrastructure.security.handler.FormAuthenticationSuccessHandler;
+import spring.backend.shared.infrastructure.security.handler.OAuth2AuthenticationSuccessHandler;
+import spring.backend.shared.infrastructure.security.oauth2.CustomOAuth2UserService;
 
 @Configuration
 @RequiredArgsConstructor
@@ -34,8 +36,8 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final FormAuthenticationSuccessHandler formAuthenticationSuccessHandler;
     private final FormAuthenticationFailureHandler formAuthenticationFailureHandler;
-    //  private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
-//  private final CustomOAuth2UserService customOAuth2UserService;
+    private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
+    private final CustomOAuth2UserService customOAuth2UserService;
     private final UserDetailsService userDetailsService;
     private final ObjectMapper objectMapper;
 
@@ -67,13 +69,13 @@ public class SecurityConfig {
                         )
                 )
 
-//                // OAuth2 로그인 설정
-//                .oauth2Login(oauth2 -> oauth2
-//                        .userInfoEndpoint(userInfo -> userInfo
-//                                .userService(customOAuth2UserService)
-//                        )
-//                        .successHandler(oAuth2AuthenticationSuccessHandler)
-//                )
+                // OAuth2 로그인 설정
+                .oauth2Login(oauth2 -> oauth2
+                        .userInfoEndpoint(userInfo -> userInfo
+                                .userService(customOAuth2UserService)
+                        )
+                        .successHandler(oAuth2AuthenticationSuccessHandler)
+                )
 
                 // JWT 필터 추가 (인증 필터보다 먼저 실행)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
