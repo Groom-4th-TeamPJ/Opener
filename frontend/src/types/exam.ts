@@ -81,7 +81,7 @@ export interface ScrapbookQuestion extends Question {
 }
 
 export type ResultData = {
-  totalTimeSpent: string
+  totalTimeSpent: number
   correctCount: number
   incorrectCount: number
   openerUsageCount: number
