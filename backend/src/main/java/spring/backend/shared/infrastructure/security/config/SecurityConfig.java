@@ -25,6 +25,7 @@ import spring.backend.shared.infrastructure.security.filter.FormAuthenticationFi
 import spring.backend.shared.infrastructure.security.filter.JwtAuthenticationFilter;
 import spring.backend.shared.infrastructure.security.handler.FormAuthenticationFailureHandler;
 import spring.backend.shared.infrastructure.security.handler.FormAuthenticationSuccessHandler;
+import spring.backend.shared.infrastructure.security.handler.OAuth2AuthenticationFailureHandler;
 import spring.backend.shared.infrastructure.security.handler.OAuth2AuthenticationSuccessHandler;
 import spring.backend.shared.infrastructure.security.oauth2.CustomOAuth2UserService;
 
@@ -37,6 +38,7 @@ public class SecurityConfig {
     private final FormAuthenticationSuccessHandler formAuthenticationSuccessHandler;
     private final FormAuthenticationFailureHandler formAuthenticationFailureHandler;
     private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
+    private final OAuth2AuthenticationFailureHandler oAuth2AuthenticationFailureHandler;
     private final CustomOAuth2UserService customOAuth2UserService;
     private final UserDetailsService userDetailsService;
     private final ObjectMapper objectMapper;
@@ -76,6 +78,7 @@ public class SecurityConfig {
                                 .userService(customOAuth2UserService)
                         )
                         .successHandler(oAuth2AuthenticationSuccessHandler)
+                        .failureHandler(oAuth2AuthenticationFailureHandler)
                 )
 
                 // JWT 필터 추가 (인증 필터보다 먼저 실행)
