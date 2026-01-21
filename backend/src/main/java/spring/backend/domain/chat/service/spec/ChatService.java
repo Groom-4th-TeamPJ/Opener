@@ -5,6 +5,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import spring.backend.domain.chat.dto.request.ChatSaveRequest;
 import spring.backend.domain.chat.dto.request.ChatSendRequest;
 import spring.backend.domain.chat.dto.request.OpenerAnalysisRequest;
+import spring.backend.domain.chat.dto.response.ChatHistoryResponse;
 
 public interface ChatService {
 
@@ -22,4 +23,7 @@ public interface ChatService {
 
     // 오프너 분석 (문제 기반 유사 문제 생성)
     void openerAnalysis(OpenerAnalysisRequest req, UUID userId);
+
+    // 채팅 히스토리 조회 (내부 호출용)
+    ChatHistoryResponse getChatHistoryByQuestionResultId(Long questionResultId);
 }
