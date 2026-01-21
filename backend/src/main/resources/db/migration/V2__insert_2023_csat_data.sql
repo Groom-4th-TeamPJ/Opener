@@ -267,7 +267,7 @@ values ((SELECT id FROM exam)
   {"order": 1, "type": "TEXT", "content":"다항함수 \\(f(x)\\) 에 대하여 함수 \\(g(x)\\) 를 다음과 같이 정의한다."},
   {"order": 2, "type": "TEXT", "content":"\\[ g(x)= \\begin{cases}x & (x<-1 \\text { 또는 } x>1) \\\\ f(x) & (-1 \\leq x \\leq 1)\\end{cases} \\]"},
   {"order": 3, "type": "TEXT", "content":"함수 \\(h(x)=\\lim _{t \\rightarrow 0+} g(x+t) \\times \\lim _{t \\rightarrow 2+} g(x+t)\\) 에 대하여 <보기>에서 옳은 것만을 있는 대로 고른 것은?"},
-  {"order": 4, "type": "IMAGE", "content":"https://goorm-opener.s3.ap-northeast-2.amazonaws.com/questions/2023/csat/agl14p.JPG"}
+  {"order": 4, "type": "IMAGE", "content":"https://goorm-opener.s3.ap-northeast-2.amazonaws.com/questions/2023/csat/alg14p.JPG"}
 ]'::jsonb
         ,14
         ,'[
@@ -285,7 +285,7 @@ values ((SELECT id FROM exam)
     ((SELECT id FROM exam)
         , '[
   {"order": 1, "type": "TEXT", "content":"모든 항이 자연수이고 다음 조건을 만족시키는 모든 수열 \\(\\left\\{a_n\\right\\}\\) 에 대하여 \\(a_9\\) 의 최댓값과 최솟값을 각각 \\(M, m\\) 이라 할 때, \\(M+m\\) 의 값은?"},
-  {"order": 2, "type": "IMAGE", "content":"https://goorm-opener.s3.ap-northeast-2.amazonaws.com/questions/2023/csat/agl15p.JPG"}
+  {"order": 2, "type": "IMAGE", "content":"https://goorm-opener.s3.ap-northeast-2.amazonaws.com/questions/2023/csat/alg15p.JPG"}
 ]'::jsonb
         ,15
         ,'[
@@ -354,7 +354,7 @@ values ((SELECT id FROM exam)
     ((SELECT id FROM exam)
         , '[
   {"order": 1, "type": "TEXT", "content":"수직선 위를 움직이는 점 P 의 시각 \\(t(t \\geq 0)\\) 에서의 속도 \\(v(t)\\) 와 가속도 \\(a(t)\\) 가 다음 조건을 만족시킨다."},
-  {"order": 2, "type": "IMAGE", "content":"https://goorm-opener.s3.ap-northeast-2.amazonaws.com/questions/2023/csat/agl20p.JPG"},
+  {"order": 2, "type": "IMAGE", "content":"https://goorm-opener.s3.ap-northeast-2.amazonaws.com/questions/2023/csat/alg20p.JPG"},
   {"order": 3, "type": "TEXT", "content":"시각 \\(t=0\\) 에서 \\(t=3\\) 까지 점 P 가 움직인 거리를 구하시오."}
 ]'::jsonb
         ,20
