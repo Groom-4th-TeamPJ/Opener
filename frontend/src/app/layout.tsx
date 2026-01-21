@@ -3,6 +3,7 @@ import localFont from 'next/font/local'
 import './globals.css'
 import 'katex/dist/katex.min.css'
 import QueryProvider from '@/providers/QueryProvider'
+import { Toaster } from '@/components/common/Toast'
 
 const pretendard = localFont({
   src: './fonts/PretendardVariable.woff2',
@@ -26,6 +27,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${pretendard.variable}  antialiased`}>
         <QueryProvider>{children}</QueryProvider>
+        <Toaster />
       </body>
     </html>
   )
