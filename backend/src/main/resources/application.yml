@@ -37,6 +37,8 @@ spring:
 server:
   servlet:
     context-path: /api
+  # 프록시(nginx) 뒤에서 X-Forwarded-* 헤더 신뢰
+  forward-headers-strategy: framework
 
 # 보안 설정
 security:
