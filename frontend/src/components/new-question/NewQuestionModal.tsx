@@ -2,14 +2,16 @@
 import { useState } from 'react'
 import { Modal, ModalContent, ModalFooter, ModalHeader } from '@/components/common/Modal'
 import ResultBanner from '@/components/shared/ResultBanner'
-import { MOCK_DATA } from '@/mocks/exam-variant-mocks'
-import type { NewQuestion } from '@/types/exam-variant'
 import NewQuestionLoading from './NewQuestionLoading'
 import NewQuestionHeader from './NewQuestionHeader'
 import NewQuestionAnswer from './NewQuestionAnswer'
 import NewQuestionAnalysis from './NewQuestionAnalysis'
 import NewQuestionAction from './NewQuestionAction'
 import NewQuestionExam from './NewQuestionExam'
+import { useGenerateQuestion } from '@/hooks/exam/queries/use-generate-question'
+import { useSubmitResult } from '@/hooks/exam/queries/use-submit-answer'
+import { useExamStore } from '@/stores/use-exam-store'
+import useCurrentExam from '@/hooks/exam/use-current-exam'
 
 interface NewQuestionModalProps {
   open: boolean
@@ -17,21 +19,29 @@ interface NewQuestionModalProps {
 }
 
 export default function NewQuestionModal({ open, onClose }: NewQuestionModalProps) {
-  // 데이터 불러오는 상태 (현재 Mock 데이터를 사용하므로 set 함수 제외)
-  const [loading] = useState(false)
-  //   문제 불러오기 (현재 Mock 데이터를 사용하므로 set 함수 제외)
-  const [data] = useState<NewQuestion | null>(MOCK_DATA.data[0])
-  //   문제 제출하기
+  const examData = useCurrentExam()
+  const { currentIndex } = useExamStore()
+  const questionId = examData?.questions[currentIndex]?.questionId ?? 0
+  const { data: submitResult } = useSubmitResult(questionId)
+  const questionResultId = submitResult?.questionResultId ?? 0
+  const { data, isFetching } = useGenerateQuestion({ questionId, questionResultId })
+
+  // 문제 제출하기
   const [isSubmitted, setSubmitted] = useState<boolean>(false)
-  //   문제 정답 상태
+  // 문제 정답 상태
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
-  //   선택지 선택 상태
+  // 선택지 선택 상태
   const [selected, setIsSelected] = useState<number | null>(null)
   const [frqAnswer, setFrqAnswer] = useState<number | null>(null)
 
+  // 변형문제는 MCQ만 지원 (options가 있으면 MCQ)
+  const questionType = data?.options ? 'MCQ' : 'FRQ'
+  // passages 배열의 첫 번째 content를 passage로 사용
+  const passage = data?.passages?.[0]?.content ?? ''
+
   const handleSubmit = () => {
     if (!data) return
-    const answer = data.type === 'MCQ' ? selected : frqAnswer
+    const answer = questionType === 'MCQ' ? selected : frqAnswer
     if (answer == null) return
 
     setSubmitted(true)
@@ -46,10 +56,10 @@ export default function NewQuestionModal({ open, onClose }: NewQuestionModalProp
       open={open}
       onClose={onClose}
       zIndex={150}
-      className="h-145 max-w-145 
+      className="h-145 max-w-145
        lg:max-w-198 lg:h-198"
     >
-      {loading ? (
+      {isFetching ? (
         <NewQuestionLoading />
       ) : (
         data && (
@@ -60,7 +70,7 @@ export default function NewQuestionModal({ open, onClose }: NewQuestionModalProp
             {/* 문제 */}
             <div className="flex-1 min-h-0 overflow-y-auto">
               <ModalContent className="flex flex-col gap-4 ">
-                <NewQuestionExam passage={data.passage} />
+                <NewQuestionExam passage={passage} />
               </ModalContent>
 
               {/* 구분선 */}
@@ -76,7 +86,7 @@ export default function NewQuestionModal({ open, onClose }: NewQuestionModalProp
                 </div>
                 {/* 답안 선택지 */}
                 <NewQuestionAnswer
-                  type={data.type}
+                  type={questionType}
                   options={data.options ?? []}
                   answer={data.answer}
                   selected={selected}
@@ -96,7 +106,7 @@ export default function NewQuestionModal({ open, onClose }: NewQuestionModalProp
             {/* 제출버튼 및 원래 페이지로 돌아가기 */}
             <ModalFooter>
               <NewQuestionAction
-                type={data.type}
+                type={questionType}
                 isSubmitted={isSubmitted}
                 selected={selected}
                 frqAnswer={frqAnswer}
