@@ -28,6 +28,7 @@ import spring.backend.shared.infrastructure.security.handler.FormAuthenticationS
 import spring.backend.shared.infrastructure.security.handler.OAuth2AuthenticationFailureHandler;
 import spring.backend.shared.infrastructure.security.handler.OAuth2AuthenticationSuccessHandler;
 import spring.backend.shared.infrastructure.security.oauth2.CustomOAuth2UserService;
+import spring.backend.shared.infrastructure.security.oauth2.HttpCookieOAuth2AuthorizationRequestRepository;
 
 @Configuration
 @RequiredArgsConstructor
@@ -40,6 +41,7 @@ public class SecurityConfig {
     private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
     private final OAuth2AuthenticationFailureHandler oAuth2AuthenticationFailureHandler;
     private final CustomOAuth2UserService customOAuth2UserService;
+    private final HttpCookieOAuth2AuthorizationRequestRepository cookieAuthorizationRequestRepository;
     private final UserDetailsService userDetailsService;
     private final ObjectMapper objectMapper;
 
@@ -74,6 +76,9 @@ public class SecurityConfig {
 
                 // OAuth2 로그인 설정
                 .oauth2Login(oauth2 -> oauth2
+                        .authorizationEndpoint(authorization -> authorization
+                                .authorizationRequestRepository(cookieAuthorizationRequestRepository)
+                        )
                         .userInfoEndpoint(userInfo -> userInfo
                                 .userService(customOAuth2UserService)
                         )
