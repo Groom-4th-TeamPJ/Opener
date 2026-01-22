@@ -78,6 +78,7 @@ export interface ScrapbookQuestion extends Question {
   createdAt: string
   selected: number
   chat: ScrapbookChatMessage[]
+  promptSummary?: string
 }
 
 export type ResultData = {

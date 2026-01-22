@@ -52,7 +52,7 @@ export default function HistoryDetail() {
             <ScrapbookQuestionCard data={historyDetailData} />
           </div>
           <div className="shrink-0">
-            <PromptAnalysisCard />
+            <PromptAnalysisCard data={historyDetailData.promptSummary} />
           </div>
         </div>
 
