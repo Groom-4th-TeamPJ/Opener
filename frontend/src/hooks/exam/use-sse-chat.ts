@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react'
 import { API_PATHS } from '@/constants/api-path'
 
 interface SSEChunkData {
-  type: 'chunk' | 'done'
+  type: 'chunk' | 'done' | 'connected'
   sessionId: string
   chunk?: string
 }
@@ -50,9 +50,14 @@ export function useSSEChat({
     eventSource.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data) as SSEChunkData
-        console.log('[SSE] New AI Message:', data)
+
+        if (data.type === 'connected') {
+          console.log('[SSE] Received First Message', data)
+        }
 
         if (data.type === 'chunk' && data.chunk) {
+          console.log('[SSE] AI New Message', data)
+
           messageBufferRef.current += data.chunk
           onChunkRef.current?.(data.chunk, messageBufferRef.current)
         } else if (data.type === 'done') {
