@@ -1,6 +1,7 @@
 package spring.backend.shared.infrastructure.security.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.Arrays;
 import java.util.List;
@@ -59,6 +60,8 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
                 .authorizeHttpRequests(auth -> auth
+                        // SSE async dispatch 시 SecurityContext 전파 문제 해결
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                         .requestMatchers(
                                 "/auth/**",
                                 "/oauth2/**",
