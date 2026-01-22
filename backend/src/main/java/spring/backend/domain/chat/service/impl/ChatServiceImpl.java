@@ -345,7 +345,7 @@ public class ChatServiceImpl implements ChatService {
 
             emitter.send(
                     SseEmitter.event()
-//                            .name("connected")
+                            .name("connected")
                             .data(objectMapper.writeValueAsString(message)));
 
             log.debug("[SSE] 연결 성공 이벤트 전송 완료 - sessionId: {}", sessionId);
@@ -367,7 +367,7 @@ public class ChatServiceImpl implements ChatService {
 
             emitter.send(
                     SseEmitter.event()
-//                            .name("message")
+                            .name("message")
                             .data(objectMapper.writeValueAsString(message)));
 
         } catch (Exception e) {
@@ -385,7 +385,7 @@ public class ChatServiceImpl implements ChatService {
 
             emitter.send(
                     SseEmitter.event()
-//                            .name("complete")
+                            .name("complete")
                             .data(objectMapper.writeValueAsString(message)));
 
         } catch (Exception e) {
