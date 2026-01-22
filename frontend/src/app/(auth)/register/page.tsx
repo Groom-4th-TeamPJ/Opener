@@ -4,11 +4,12 @@ import Image from 'next/image'
 interface RegisterProps {
   searchParams: Promise<{
     signupToken?: string
+    name?: string
   }>
 }
 
 export default async function Register({ searchParams }: RegisterProps) {
-  const { signupToken } = await searchParams
+  const { signupToken, name } = await searchParams
 
   return (
     <div className="min-h-screen flex flex-col justify-center">
@@ -16,7 +17,7 @@ export default async function Register({ searchParams }: RegisterProps) {
         <div className="relative w-full h-12 mb-6">
           <Image src={'/image/logo_h56_p.svg'} alt="오프너" fill className="object-contain" />
         </div>
-        <RegisterForm signupToken={signupToken} />
+        <RegisterForm signupToken={signupToken} name={name} />
       </main>
     </div>
   )

@@ -31,9 +31,10 @@ const formRegisterSchema = registerSchema.extend({
 
 interface RegisterFormProps {
   signupToken?: string
+  name?: string
 }
 
-export default function RegisterForm({ signupToken }: RegisterFormProps) {
+export default function RegisterForm({ signupToken, name }: RegisterFormProps) {
   const router = useRouter()
 
   const decodedToken = useMemo(() => {
@@ -59,14 +60,14 @@ export default function RegisterForm({ signupToken }: RegisterFormProps) {
     if (decodedToken) {
       return {
         schema: registerSchema,
-        defaultValues: { name: decodedToken.nickname.trim() ?? '' },
+        defaultValues: { name: name ?? '' },
       }
     }
     return {
       schema: formRegisterSchema,
       defaultValues: { name: '', email: '', password: '' },
     }
-  }, [decodedToken])
+  }, [name, decodedToken])
 
   const {
     control,
