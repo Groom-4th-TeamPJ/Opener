@@ -1,6 +1,7 @@
 package spring.backend.domain.chat.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -8,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.IntStream;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -24,12 +26,10 @@ import spring.backend.domain.chat.dto.request.OpenerAnalysisRequest;
 import spring.backend.domain.chat.dto.response.ChatHistoryResponse;
 import spring.backend.domain.chat.dto.response.ChatMessageDto;
 import spring.backend.domain.chat.dto.response.SseMessageResponse;
-import java.util.List;
-import java.util.stream.IntStream;
 import spring.backend.domain.chat.mapper.RedisMessageMapper;
+import spring.backend.domain.chat.messaging.ChatMessageProducer;
 import spring.backend.domain.chat.model.entity.ChatMessage;
 import spring.backend.domain.chat.model.entity.ChatMessageContent;
-import spring.backend.domain.chat.messaging.ChatMessageProducer;
 import spring.backend.domain.chat.repository.spec.ChatMessageRepository;
 import spring.backend.domain.chat.service.spec.ChatRedisService;
 import spring.backend.domain.chat.service.spec.ChatService;
@@ -345,7 +345,7 @@ public class ChatServiceImpl implements ChatService {
 
             emitter.send(
                     SseEmitter.event()
-                            .name("connected")
+//                            .name("connected")
                             .data(objectMapper.writeValueAsString(message)));
 
             log.debug("[SSE] 연결 성공 이벤트 전송 완료 - sessionId: {}", sessionId);
@@ -367,7 +367,7 @@ public class ChatServiceImpl implements ChatService {
 
             emitter.send(
                     SseEmitter.event()
-                            .name("message")
+//                            .name("message")
                             .data(objectMapper.writeValueAsString(message)));
 
         } catch (Exception e) {
@@ -385,7 +385,7 @@ public class ChatServiceImpl implements ChatService {
 
             emitter.send(
                     SseEmitter.event()
-                            .name("complete")
+//                            .name("complete")
                             .data(objectMapper.writeValueAsString(message)));
 
         } catch (Exception e) {
@@ -533,8 +533,7 @@ public class ChatServiceImpl implements ChatService {
     }
 
     /**
-     * 클라이언트 연결 끊김 관련 예외인지 확인
-     * 이러한 예외들은 정상적인 상황이므로 ERROR 대신 DEBUG로 처리
+     * 클라이언트 연결 끊김 관련 예외인지 확인 이러한 예외들은 정상적인 상황이므로 ERROR 대신 DEBUG로 처리
      */
     private boolean isClientDisconnectException(Throwable e) {
         if (e == null) {
