@@ -212,6 +212,7 @@ public class ChatServiceImpl implements ChatService {
         }
     }
     
+    @Async
     @Override
     public void processMessageAsync(ChatSendRequest req, UUID userId) {
 
