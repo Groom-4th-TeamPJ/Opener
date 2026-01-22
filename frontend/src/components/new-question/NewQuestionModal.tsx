@@ -44,6 +44,16 @@ export default function NewQuestionModal({ open, onClose }: NewQuestionModalProp
   const [selected, setIsSelected] = useState<number | null>(null)
   const [frqAnswer, setFrqAnswer] = useState<number | null>(null)
 
+  // 모달이 열릴 때마다 상태를 초기화
+  useEffect(() => {
+    if (open) {
+      setSubmitted(false)
+      setIsCorrect(null)
+      setIsSelected(null)
+      setFrqAnswer(null)
+    }
+  }, [open])
+
   // 변형문제는 MCQ만 지원 (options가 있으면 MCQ)
   const questionType = data?.options ? 'MCQ' : 'FRQ'
   // passages 배열의 첫 번째 content를 passage로 사용
@@ -67,7 +77,7 @@ export default function NewQuestionModal({ open, onClose }: NewQuestionModalProp
       onClose={onClose}
       zIndex={150}
       className="h-145 max-w-145
-       lg:max-w-198 lg:h-198"
+       lg:max-w-198 lg:h-198 overflow-hidden"
     >
       {isFetching ? (
         <NewQuestionLoading />
@@ -83,7 +93,7 @@ export default function NewQuestionModal({ open, onClose }: NewQuestionModalProp
             </ModalHeader>
             {/* 문제 */}
             <div className="flex-1 min-h-0 overflow-y-auto scrollbar-overlay">
-              <ModalContent className="flex flex-col gap-4 p-4 2xl:p-6 min-h-50">
+              <ModalContent className="flex flex-col gap-4 p-4 2xl:p-6 min-h-67">
                 <NewQuestionExam passage={passage} />
               </ModalContent>
 
