@@ -213,7 +213,7 @@ public class ChatServiceImpl implements ChatService {
             throw new BusinessException(ErrorCode.INVALID_SESSION);
         }
     }
-    
+
     @Async
     @Override
     public void processMessageAsync(ChatSendRequest req, UUID userId) {
@@ -459,7 +459,7 @@ public class ChatServiceImpl implements ChatService {
             CompletableFuture.runAsync(() -> {
                 try {
                     // 15초 대기, 타임아웃 시 예외 발생
-                    firstChunkReceived.orTimeout(15, TimeUnit.SECONDS).join();
+                    firstChunkReceived.orTimeout(30, TimeUnit.SECONDS).join();
                 } catch (CompletionException e) {
                     if (e.getCause() instanceof TimeoutException) {
                         log.error("[OpenerAnalysis] RAG 응답 타임아웃 (30초 초과) - sessionId: {}", sessionId);
@@ -625,8 +625,7 @@ public class ChatServiceImpl implements ChatService {
     }
 
     /**
-     * SSE Heartbeat - 30초마다 모든 활성 연결에 ping 전송
-     * 유휴 연결이 중간 장비(Nginx, 방화벽 등)에 의해 끊어지는 것을 방지
+     * SSE Heartbeat - 30초마다 모든 활성 연결에 ping 전송 유휴 연결이 중간 장비(Nginx, 방화벽 등)에 의해 끊어지는 것을 방지
      */
     @Scheduled(fixedRate = 30000)
     public void sendHeartbeat() {
