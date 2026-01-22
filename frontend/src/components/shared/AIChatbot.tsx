@@ -178,9 +178,10 @@ export default function AIChatbot({
                   </div>
                   <div className="flex flex-col gap-2 flex-1">
                     <div className="max-w-64 min-w-44 px-3 py-2.5 bg-neutral-50 rounded-tr-lg rounded-bl-lg rounded-br-lg flex flex-col gap-1">
-                      <p className="text-text-primary text-sm whitespace-pre-wrap">
-                        {streamingMessage}
-                      </p>
+                      <div
+                        className="text-text-primary text-sm whitespace-pre-wrap [&_.katex]:text-base"
+                        dangerouslySetInnerHTML={{ __html: streamingMessage }}
+                      />
                     </div>
                   </div>
                 </div>
