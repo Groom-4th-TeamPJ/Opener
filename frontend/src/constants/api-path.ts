@@ -18,7 +18,6 @@ export const API_PATHS = {
   EXAM: {
     ROOT: '/exams',
     SUBMIT: '/exams/results',
-    GENERATE: '/exams/generate',
     SAVE_CHAT: '/exams/save-chat',
   },
   CHAT: {
@@ -26,6 +25,7 @@ export const API_PATHS = {
     DISCONNECT: '/chat/disconnect',
     ANALYSIS: '/chat/analysis',
     MESSAGE: '/chat/message',
+    GENERATE: '/chat/generate',
   },
   USERS: {
     ME: '/users/me/cans/count',

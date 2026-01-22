@@ -4,6 +4,8 @@ import { QUERY_KEYS } from '@/constants/query-key'
 import { useMutationState } from '@tanstack/react-query'
 import { useExamStore } from '@/stores/use-exam-store'
 import useCurrentExam from '@/hooks/exam/use-current-exam'
+import { useSubmitResult } from '@/hooks/exam/queries/use-submit-answer'
+import { useGenerateQuestion } from '@/hooks/exam/queries/use-generate-question'
 
 interface QuestionActionButtonProps {
   onSubmit: () => void
@@ -22,6 +24,13 @@ export default function QuestionActionButton({
     }).length > 0
   const examData = useCurrentExam()
   const { currentIndex, getQuestionState } = useExamStore()
+  const questionId = examData?.questions[currentIndex]?.questionId ?? 0
+  const submitResult = useSubmitResult(questionId)
+  const questionResultId = submitResult?.questionResultId ?? 0
+  const { refetch } = useGenerateQuestion({
+    questionId,
+    questionResultId,
+  })
 
   if (!examData) return null
 
@@ -49,14 +58,20 @@ export default function QuestionActionButton({
   }
 
   if (isAnalysisActive) {
-    const isDisabledVariation = isCorrect !== false || hasNewQuestion
+    const isDisabledVariation = isCorrect !== false || hasNewQuestion || !questionResultId
+
+    const handleVariationClick = () => {
+      if (!questionResultId) return
+      onVariationClick()
+      refetch()
+    }
 
     return (
       <Button
         variant="default"
         size="lg"
         widthFull
-        onClick={onVariationClick}
+        onClick={handleVariationClick}
         disabled={isDisabledVariation}
         leftIcon={<OutlineCanIcon />}
       >

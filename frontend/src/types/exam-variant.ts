@@ -1,6 +1,6 @@
 export type Option = {
   order: number
-  text: string
+  content: string
 }
 
 export type NewQuestion = {
@@ -12,6 +12,7 @@ export type NewQuestion = {
   answer: number
   analysis: string
 }
+
 export type NewQuestionModalValues = {
   data: NewQuestion[]
 }

@@ -104,7 +104,7 @@ export default function NewQuestionAnswer({
               isWrong={isWrongChecked}
               isCorrect={isCorrectChecked}
               name={'answer'}
-              optionText={option.text}
+              optionText={option.content}
             />
           </FRQAnswer>
         )

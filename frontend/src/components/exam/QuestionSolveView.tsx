@@ -54,7 +54,7 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
   const currentQuestionId = examData?.questions[currentIndex]?.questionId
 
   // 현재 문제의 제출 결과 (questionResultId 조회용)
-  const { data: submitResult } = useSubmitResult(currentQuestionId ?? 0)
+  const submitResult = useSubmitResult(currentQuestionId ?? 0)
 
   // 마운트 시 모달 상태 초기화
   useEffect(() => {
