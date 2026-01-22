@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { ExamRequestParams } from '@/types/exam'
+import type { ExamRequestParams, ChatMessage } from '@/types/exam'
 
 interface QuestionState {
   selectedChoice: number | null
@@ -10,6 +10,8 @@ interface QuestionState {
   correctAnswer: number | null
   isAnalysisActive: boolean
   hasNewQuestion: boolean
+  chatMessages: ChatMessage[]
+  streamingMessage: string
 }
 
 interface ExamState {
@@ -29,6 +31,12 @@ interface ExamState {
   updateQuestionState: (questionId: number, updates: Partial<QuestionState>) => void
   // 특정 문제 상태 가져오기
   getQuestionState: (questionId: number) => QuestionState
+  // 채팅 메시지 추가
+  addChatMessage: (questionId: number, message: ChatMessage) => void
+  // 스트리밍 메시지 업데이트
+  setStreamingMessage: (questionId: number, message: string) => void
+  // 스트리밍 완료 (스트리밍 메시지를 채팅 메시지로 변환)
+  completeStreaming: (questionId: number) => void
   // 전체 초기화
   resetExam: () => void
 }
@@ -41,6 +49,8 @@ const initialQuestionState: QuestionState = {
   correctAnswer: null,
   isAnalysisActive: false,
   hasNewQuestion: false,
+  chatMessages: [],
+  streamingMessage: '',
 }
 
 export const useExamStore = create<ExamState>()(
@@ -86,6 +96,58 @@ export const useExamStore = create<ExamState>()(
 
       getQuestionState: (questionId) =>
         get().questionStates[questionId] ?? { ...initialQuestionState },
+
+      addChatMessage: (questionId, message) =>
+        set((state) => {
+          const currentState = state.questionStates[questionId] ?? { ...initialQuestionState }
+          return {
+            questionStates: {
+              ...state.questionStates,
+              [questionId]: {
+                ...currentState,
+                chatMessages: [...currentState.chatMessages, message],
+              },
+            },
+          }
+        }),
+
+      setStreamingMessage: (questionId, message) =>
+        set((state) => {
+          const currentState = state.questionStates[questionId] ?? { ...initialQuestionState }
+          return {
+            questionStates: {
+              ...state.questionStates,
+              [questionId]: {
+                ...currentState,
+                streamingMessage: message,
+              },
+            },
+          }
+        }),
+
+      completeStreaming: (questionId) =>
+        set((state) => {
+          const currentState = state.questionStates[questionId] ?? { ...initialQuestionState }
+          if (!currentState.streamingMessage) return state
+
+          const newMessage: ChatMessage = {
+            id: currentState.chatMessages.length + 1,
+            role: 'ASSISTANT',
+            content: currentState.streamingMessage,
+            timestamp: new Date().toISOString(),
+          }
+
+          return {
+            questionStates: {
+              ...state.questionStates,
+              [questionId]: {
+                ...currentState,
+                chatMessages: [...currentState.chatMessages, newMessage],
+                streamingMessage: '',
+              },
+            },
+          }
+        }),
 
       resetExam: () =>
         set({

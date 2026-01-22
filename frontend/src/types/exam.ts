@@ -63,6 +63,7 @@ export interface ChatMessage {
   role: 'USER' | 'ASSISTANT'
   content: string
   timestamp: string
+  isStreaming?: boolean
 }
 
 export interface SendChatMessageRequest {
