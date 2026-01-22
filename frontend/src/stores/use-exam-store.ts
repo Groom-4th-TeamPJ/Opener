@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { ExamRequestParams, ChatMessage } from '@/types/exam'
+import { formatChatTimestamp } from '@/utils/format'
 
 interface QuestionState {
   selectedChoice: number | null
@@ -134,7 +135,7 @@ export const useExamStore = create<ExamState>()(
             id: currentState.chatMessages.length + 1,
             role: 'ASSISTANT',
             content: currentState.streamingMessage,
-            timestamp: new Date().toISOString(),
+            timestamp: formatChatTimestamp(new Date()),
           }
 
           return {
