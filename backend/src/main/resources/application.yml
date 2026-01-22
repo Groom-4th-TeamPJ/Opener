@@ -35,7 +35,7 @@ management:
   # SSE 및 Async 설정
   mvc:
     async:
-      request-timeout: 300000  # 5분 (SSE 타임아웃)
+      request-timeout: 1800000  # 30분 (SSE 타임아웃)
 
 server:
   servlet:
