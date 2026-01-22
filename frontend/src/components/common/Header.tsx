@@ -2,13 +2,14 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import Button from './Button'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import useLogout from '@/hooks/auth/use-logout'
 import { useState } from 'react'
 import cn from '@/utils/cn'
 import SolidCanIcon from '@/components/icons/SolidCanIcon'
 import useCanCount from '@/hooks/header/use-can-count'
 import { ROUTES } from '@/constants/routes'
+import { useQueryClient } from '@tanstack/react-query'
 
 const MENU = [
   { label: '대시보드', href: ROUTES.DASHBOARD },
@@ -19,14 +20,26 @@ const MENU = [
 
 export default function Header() {
   const pathName = usePathname()
-  const { mutate: logout } = useLogout()
+  const { mutateAsync: logout } = useLogout()
   const [isOpen, setIsOpen] = useState(false)
   const { data } = useCanCount()
+  const queryClient = useQueryClient()
+  const router = useRouter()
   const toggleMenu = () => {
     setIsOpen((prev) => !prev)
   }
   const closeMenu = () => {
     setIsOpen(false)
+  }
+
+  const handleLogout = async () => {
+    queryClient.clear()
+
+    try {
+      await logout()
+    } finally {
+      router.replace('/login')
+    }
   }
 
   return (
@@ -91,7 +104,7 @@ export default function Header() {
             variant="ghost"
             size="sm"
             className="w-16 p-0 border border-neutral-200"
-            onClick={() => logout()}
+            onClick={handleLogout}
           >
             로그아웃
           </Button>
