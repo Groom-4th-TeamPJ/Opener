@@ -19,7 +19,8 @@ import ExamResultModal from './ExamResultModal'
 import useCurrentExam from '@/hooks/exam/use-current-exam'
 import usePreventRefresh from '@/hooks/exam/use-prevent-refresh'
 import { useSSEChat } from '@/hooks/exam/use-sse-chat'
-import { useSubmitAnswer } from '@/hooks/exam/queries/use-submit-answer'
+import { useSubmitAnswer, useSubmitResult } from '@/hooks/exam/queries/use-submit-answer'
+import { useStartAnalysis } from '@/hooks/exam/queries/use-start-analysis'
 import { useExamModalStore } from '@/stores/use-exam-modal-store'
 import { useExamStore } from '@/stores/use-exam-store'
 import { EXAM_MODAL } from '@/constants/exam'
@@ -45,11 +46,15 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
     completeStreaming,
   } = useExamStore()
   const { mutate: submitAnswer, isPending: isSubmitting } = useSubmitAnswer()
+  const { mutate: startAnalysis } = useStartAnalysis()
   const examData = useCurrentExam()
   const { handleContextMenu, handleCopy, handleDragStart } = useContentProtection()
 
   // 현재 문제 ID (SSE 콜백에서 사용하기 위해 early return 전에 계산)
   const currentQuestionId = examData?.questions[currentIndex]?.questionId
+
+  // 현재 문제의 제출 결과 (questionResultId 조회용)
+  const { data: submitResult } = useSubmitResult(currentQuestionId ?? 0)
 
   // 마운트 시 모달 상태 초기화
   useEffect(() => {
@@ -154,9 +159,22 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
     }
   }
 
-  // TODO: 오프너 분석 API 연동
+  // 오프너 분석 API 요청
   const handleShowAnalysis = () => {
-    updateQuestionState(currentQuestion.questionId, { isAnalysisActive: true })
+    if (!submitResult?.questionResultId) return
+
+    startAnalysis(
+      {
+        sessionId: examData.examResultId,
+        questionResultId: submitResult.questionResultId,
+        questionId: currentQuestion.questionId,
+      },
+      {
+        onSuccess: () => {
+          updateQuestionState(currentQuestion.questionId, { isAnalysisActive: true })
+        },
+      }
+    )
   }
 
   // TODO: 비활성 상태 60분 자동으로 대시보드 이동하도록
