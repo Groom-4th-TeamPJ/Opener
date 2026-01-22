@@ -35,11 +35,17 @@ public class ChatController {
             value = "/connect",
             produces = MediaType.TEXT_EVENT_STREAM_VALUE
     )
-    public SseEmitter connectSession(
+    public ResponseEntity<SseEmitter> connectSession(
             @RequestParam Long sessionId,
             @AuthenticationPrincipal AuthUser authUser) {
 
-        return chatService.connectSession(sessionId, authUser.id());
+        SseEmitter emitter = chatService.connectSession(sessionId, authUser.id());
+
+        return ResponseEntity.ok()
+                .header("Connection", "keep-alive")
+                .header("Cache-Control", "no-cache")
+                .header("X-Accel-Buffering", "no")
+                .body(emitter);
     }
 
     // 메시지 전송 (사용자 → 서버) POST /api/chat/message
