@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Modal, ModalContent, ModalFooter, ModalHeader } from '@/components/common/Modal'
 import ResultBanner from '@/components/shared/ResultBanner'
 import NewQuestionLoading from './NewQuestionLoading'
@@ -13,6 +13,7 @@ import { useSubmitResult } from '@/hooks/exam/queries/use-submit-answer'
 import { useExamStore } from '@/stores/use-exam-store'
 import useCurrentExam from '@/hooks/exam/use-current-exam'
 import { toast } from 'sonner'
+import type { StopwatchRef } from '@/types/exam'
 
 interface NewQuestionModalProps {
   open: boolean
@@ -20,6 +21,7 @@ interface NewQuestionModalProps {
 }
 
 export default function NewQuestionModal({ open, onClose }: NewQuestionModalProps) {
+  const stopwatchRef = useRef<StopwatchRef>(null)
   const examData = useCurrentExam()
   const { currentIndex, updateQuestionState } = useExamStore()
   const questionId = examData?.questions[currentIndex]?.questionId ?? 0
@@ -52,6 +54,8 @@ export default function NewQuestionModal({ open, onClose }: NewQuestionModalProp
       setIsSelected(null)
       setFrqAnswer(null)
     }
+    // 모달이 닫힐 때 스톱워치 리셋
+    stopwatchRef.current?.reset()
   }, [open])
 
   // 변형문제는 MCQ만 지원 (options가 있으면 MCQ)
@@ -64,6 +68,7 @@ export default function NewQuestionModal({ open, onClose }: NewQuestionModalProp
     const answer = questionType === 'MCQ' ? selected : frqAnswer
     if (answer == null) return
 
+    stopwatchRef.current?.stop()
     setSubmitted(true)
     setIsCorrect(answer === data.answer)
   }
@@ -77,7 +82,7 @@ export default function NewQuestionModal({ open, onClose }: NewQuestionModalProp
       onClose={onClose}
       zIndex={150}
       className="h-145 max-w-145
-       lg:max-w-198 lg:h-198 overflow-hidden"
+      lg:max-w-198 lg:h-198 overflow-hidden"
     >
       {isFetching ? (
         <NewQuestionLoading />
@@ -89,7 +94,7 @@ export default function NewQuestionModal({ open, onClose }: NewQuestionModalProp
               onClose={onClose}
               className="flex border-b border-neutral-200"
             >
-              <NewQuestionHeader />
+              <NewQuestionHeader stopwatchRef={stopwatchRef} />
             </ModalHeader>
             {/* 문제 */}
             <div className="flex-1 min-h-0 overflow-y-auto scrollbar-overlay">
