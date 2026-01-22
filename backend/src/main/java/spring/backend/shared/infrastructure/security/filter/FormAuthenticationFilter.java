@@ -36,6 +36,9 @@ public class FormAuthenticationFilter extends UsernamePasswordAuthenticationFilt
               FormLoginRequest.class
       );
 
+      // FailureHandler에서 사용할 수 있도록 email을 request attribute에 저장
+      request.setAttribute("loginEmail", loginRequest.email());
+
       // UsernamePasswordAuthenticationToken 생성
       UsernamePasswordAuthenticationToken authToken =
               new UsernamePasswordAuthenticationToken(

@@ -3,6 +3,8 @@ package spring.backend.domain.scrapbook.dto.response.detail;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
+import spring.backend.domain.chat.dto.response.ChatHistoryResponse;
+import spring.backend.domain.chat.dto.response.ChatMessageDto;
 import spring.backend.domain.exam.dto.response.ExamInfo;
 import spring.backend.domain.exam.model.dto.Option;
 import spring.backend.domain.exam.model.dto.Passage;
@@ -63,7 +65,10 @@ public class ScrapbookDetailResponse {
     private LocalDateTime createdAt;
 
     // chat
-
+    @Schema(description = "챗 히스토리")
+    private List<ChatMessageDto> chat;
     // prompt, response
+    @Schema(description = "프롬포트 요약")
+    private String promptSummary;
 
 }

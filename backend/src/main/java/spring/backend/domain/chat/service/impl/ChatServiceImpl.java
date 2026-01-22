@@ -1,6 +1,8 @@
 package spring.backend.domain.chat.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -8,10 +10,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.IntStream;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -21,9 +25,13 @@ import spring.backend.domain.chat.dto.redis_dto.RedisMessageDto;
 import spring.backend.domain.chat.dto.request.ChatSaveRequest;
 import spring.backend.domain.chat.dto.request.ChatSendRequest;
 import spring.backend.domain.chat.dto.request.OpenerAnalysisRequest;
+import spring.backend.domain.chat.dto.response.ChatHistoryResponse;
+import spring.backend.domain.chat.dto.response.ChatMessageDto;
 import spring.backend.domain.chat.dto.response.SseMessageResponse;
 import spring.backend.domain.chat.mapper.RedisMessageMapper;
 import spring.backend.domain.chat.messaging.ChatMessageProducer;
+import spring.backend.domain.chat.model.entity.ChatMessage;
+import spring.backend.domain.chat.model.entity.ChatMessageContent;
 import spring.backend.domain.chat.repository.spec.ChatMessageRepository;
 import spring.backend.domain.chat.service.spec.ChatRedisService;
 import spring.backend.domain.chat.service.spec.ChatService;
@@ -137,11 +145,17 @@ public class ChatServiceImpl implements ChatService {
                         SSE_TIMEOUT, sessionId, emitters.size());
             });
 
-            // 세션 예외 발생 처리
+            // 세션 예외 발생 처리 (클라이언트 연결 끊김은 정상적인 상황이므로 DEBUG로 처리)
             newEmitter.onError(e -> {
                 emitters.remove(sessionId);
-                log.error("[SSE] 연결 오류 발생 - sessionId: {}, 오류: {}, 남은 연결 수: {}",
-                        sessionId, e.getMessage(), emitters.size(), e);
+                // 클라이언트 연결 끊김 관련 예외는 DEBUG 레벨로 처리
+                if (isClientDisconnectException(e)) {
+                    log.debug("[SSE] 클라이언트 연결 끊김 - sessionId: {}, 오류: {}, 남은 연결 수: {}",
+                            sessionId, e.getMessage(), emitters.size());
+                } else {
+                    log.warn("[SSE] 연결 오류 발생 - sessionId: {}, 오류: {}, 남은 연결 수: {}",
+                            sessionId, e.getMessage(), emitters.size());
+                }
             });
 
             // sessionId로 Emitter 저장
@@ -161,6 +175,9 @@ public class ChatServiceImpl implements ChatService {
 
             // 세션용 레디스 초기화
             chatRedisService.initializeSession(sessionId, userId);
+
+            // 연결 성공 테스트 데이터 전송
+            sendSseConnected(newEmitter, sessionId.toString());
 
             log.info("[SSE] ✅ 새 연결 성공 - sessionId: {}, userId: {}, userName: {}, 현재 활성 연결 수: {}",
                     sessionId, userId, user.getName(), emitters.size());
@@ -237,12 +254,12 @@ public class ChatServiceImpl implements ChatService {
             CompletableFuture.runAsync(() -> {
                 try {
                     // 15초 대기, 타임아웃 시 예외 발생
-                    firstChunkReceived.orTimeout(15, TimeUnit.SECONDS).join();
+                    firstChunkReceived.orTimeout(30, TimeUnit.SECONDS).join();
                 } catch (CompletionException e) {
                     if (e.getCause() instanceof TimeoutException) {
-                        log.error("[Chat] LLM 응답 타임아웃 (15초 초과) - sessionId: {}", sessionId);
+                        log.error("[Chat] LLM 응답 타임아웃 (30초 초과) - sessionId: {}", sessionId);
                         timedOut.set(true);
-                        sendSseError(sseEmitter, sessionId.toString(), "LLM 응답 시간이 초과되었습니다");
+                        sendSseError(sseEmitter, sessionId.toString(), "LLM 응답 시간(30초)이 초과되었습니다");
                     }
                 }
             });
@@ -317,6 +334,27 @@ public class ChatServiceImpl implements ChatService {
         chatMessageProducer.publishSaveMessageEvent(sessionId, userId, questionResultId);
 
         log.info("[Chat] 대화 저장 이벤트 발행 완료 - sessionId: {}", sessionId);
+    }
+
+    // sse 연결 성공 알림
+    private void sendSseConnected(SseEmitter emitter, String sessionId) {
+        try {
+            SseMessageResponse message =
+                    SseMessageResponse.builder()
+                            .type("connected")
+                            .sessionId(sessionId)
+                            .build();
+
+            emitter.send(
+                    SseEmitter.event()
+                            .name("connected")
+                            .data(objectMapper.writeValueAsString(message)));
+
+            log.debug("[SSE] 연결 성공 이벤트 전송 완료 - sessionId: {}", sessionId);
+
+        } catch (Exception e) {
+            log.warn("[SSE] 연결 성공 이벤트 전송 실패 - sessionId: {}, error: {}", sessionId, e.getMessage());
+        }
     }
 
     // sse 청크 전송
@@ -421,10 +459,10 @@ public class ChatServiceImpl implements ChatService {
             CompletableFuture.runAsync(() -> {
                 try {
                     // 15초 대기, 타임아웃 시 예외 발생
-                    firstChunkReceived.orTimeout(15, TimeUnit.SECONDS).join();
+                    firstChunkReceived.orTimeout(30, TimeUnit.SECONDS).join();
                 } catch (CompletionException e) {
                     if (e.getCause() instanceof TimeoutException) {
-                        log.error("[OpenerAnalysis] RAG 응답 타임아웃 (15초 초과) - sessionId: {}", sessionId);
+                        log.error("[OpenerAnalysis] RAG 응답 타임아웃 (30초 초과) - sessionId: {}", sessionId);
                         timedOut.set(true);
                         sendSseError(sseEmitter, sessionId.toString(), "RAG 응답 시간이 초과되었습니다");
                         // Can 복구
@@ -496,6 +534,27 @@ public class ChatServiceImpl implements ChatService {
         }
     }
 
+    /**
+     * 클라이언트 연결 끊김 관련 예외인지 확인 이러한 예외들은 정상적인 상황이므로 ERROR 대신 DEBUG로 처리
+     */
+    private boolean isClientDisconnectException(Throwable e) {
+        if (e == null) {
+            return false;
+        }
+        String message = e.getMessage();
+        if (message != null) {
+            String lowerMessage = message.toLowerCase();
+            return lowerMessage.contains("broken pipe") ||
+                    lowerMessage.contains("connection reset") ||
+                    lowerMessage.contains("client disconnected") ||
+                    lowerMessage.contains("disconnected client") ||
+                    lowerMessage.contains("closed") ||
+                    lowerMessage.contains("aborted");
+        }
+        // 원인(cause)도 확인
+        return isClientDisconnectException(e.getCause());
+    }
+
     // Question의 모든 정보를 하나의 문자열로 변환
     private String buildProblemContext(Question question) {
         if (question.getPassages() == null || question.getPassages().isEmpty()) {
@@ -530,5 +589,69 @@ public class ChatServiceImpl implements ChatService {
         }
 
         return context.toString();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ChatHistoryResponse getChatHistoryByQuestionResultId(Long questionResultId) {
+        ChatMessage chatMessage = chatMessageRepository.findByQuestionResultId(questionResultId)
+                .orElse(null);
+
+        // 채팅 기록이 없는 경우 빈 응답 반환
+        if (chatMessage == null) {
+            return ChatHistoryResponse.builder()
+                    .chat(List.of())
+                    .summary(null)
+                    .build();
+        }
+
+        // ChatMessageContent → ChatMessageDto 변환 (order 추가)
+        List<ChatMessageDto> chatDtos = IntStream.range(0, chatMessage.getMessages().size())
+                .mapToObj(index -> {
+                    ChatMessageContent content = chatMessage.getMessages().get(index);
+                    return ChatMessageDto.builder()
+                            .order(index + 1)
+                            .role(content.getRole())
+                            .content(content.getContent())
+                            .timestamp(content.getTimestamp())
+                            .build();
+                })
+                .toList();
+
+        return ChatHistoryResponse.builder()
+                .chat(chatDtos)
+                .summary(chatMessage.getSummary())
+                .build();
+    }
+
+    /**
+     * SSE Heartbeat - 30초마다 모든 활성 연결에 ping 전송 유휴 연결이 중간 장비(Nginx, 방화벽 등)에 의해 끊어지는 것을 방지
+     */
+    @Scheduled(fixedRate = 30000)
+    public void sendHeartbeat() {
+        if (emitters.isEmpty()) {
+            return;
+        }
+
+        List<Long> deadSessions = new ArrayList<>();
+
+        emitters.forEach((sessionId, emitter) -> {
+            try {
+                // SSE comment로 heartbeat 전송 (클라이언트에서 이벤트로 처리되지 않음)
+                emitter.send(SseEmitter.event().comment("ping"));
+            } catch (Exception e) {
+                // 전송 실패 시 죽은 연결로 표시
+                deadSessions.add(sessionId);
+                log.debug("[SSE] Heartbeat 전송 실패, 연결 제거 - sessionId: {}", sessionId);
+            }
+        });
+
+        // 죽은 연결 정리
+        deadSessions.forEach(emitters::remove);
+
+        if (!deadSessions.isEmpty()) {
+            log.info("[SSE] Heartbeat로 {}개의 죽은 연결 정리, 남은 연결 수: {}",
+                    deadSessions.size(), emitters.size());
+        }
     }
 }

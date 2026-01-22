@@ -24,6 +24,7 @@ import spring.backend.domain.chat.dto.request.GenerateQuestionRequest;
 import spring.backend.domain.chat.dto.response.GenerateQuestionResponse;
 import spring.backend.domain.chat.model.entity.QuestionNew;
 import spring.backend.domain.chat.model.enums.Category;
+import spring.backend.domain.chat.model.enums.PassageType;
 import spring.backend.domain.chat.model.enums.QuestionType;
 import spring.backend.domain.chat.model.vo.Option;
 import spring.backend.domain.chat.model.vo.Passage;
@@ -98,10 +99,10 @@ public class QuestionNewServiceImpl implements QuestionNewService {
             // 5. RAG: 유사 문서 검색
             String retrievedContext = searchSimilarDocuments(problemContext);
 
-            // 6. LLM으로 변형 문제 생성 (15초 타임아웃)
+            // 6. LLM으로 변형 문제 생성 (30초 타임아웃)
             String llmResponse = CompletableFuture
                     .supplyAsync(() -> generateWithLLM(retrievedContext, problemContext))
-                    .orTimeout(15, TimeUnit.SECONDS)
+                    .orTimeout(30, TimeUnit.SECONDS)
                     .join();
             log.debug("[QuestionNew] LLM 응답 길이: {}", llmResponse.length());
 
@@ -295,12 +296,8 @@ public class QuestionNewServiceImpl implements QuestionNewService {
             // JSON 파싱
             JsonNode rootNode = objectMapper.readTree(jsonStr);
 
-            // passages 파싱
-            List<Passage> passages = objectMapper.convertValue(
-                    rootNode.get("passages"),
-                    new TypeReference<List<Passage>>() {
-                    }
-            );
+            // passages 파싱 (null 체크 및 단수/복수 처리)
+            List<Passage> passages = parsePassages(rootNode, jsonStr);
 
             // options 파싱
             List<Option> options = objectMapper.convertValue(
@@ -309,11 +306,19 @@ public class QuestionNewServiceImpl implements QuestionNewService {
                     }
             );
 
-            // answer 파싱
-            Integer answer = rootNode.get("answer").asInt();
+            // answer 파싱 (null 체크)
+            JsonNode answerNode = rootNode.get("answer");
+            if (answerNode == null || answerNode.isNull()) {
+                log.error("[QuestionNew] LLM 응답에 answer 필드가 없거나 null입니다. 응답: {}", jsonStr);
+                throw new BusinessException(ErrorCode.LLM_GENERATE_FAIL);
+            }
+            Integer answer = answerNode.asInt();
 
-            // analysis 파싱
-            String analysis = rootNode.get("analysis").asText();
+            // analysis 파싱 (null 체크)
+            JsonNode analysisNode = rootNode.get("analysis");
+            String analysis = (analysisNode != null && !analysisNode.isNull())
+                    ? analysisNode.asText()
+                    : "";
 
             // Category 매핑 (exam domain → chat domain)
             Category category = mapCategory(originalCategory);
@@ -342,7 +347,7 @@ public class QuestionNewServiceImpl implements QuestionNewService {
             log.error("[QuestionNew] 엔티티 생성 실패 - LLM 응답 처리 중 예외 발생", e);
             log.error("[QuestionNew] LLM 응답 (처음 500자): {}",
                     llmResponse.substring(0, Math.min(500, llmResponse.length())));
-            throw new BusinessException(ErrorCode.INVALID_INPUT);
+            throw new BusinessException(ErrorCode.LLM_GENERATE_FAIL);
         }
     }
 
@@ -356,5 +361,84 @@ public class QuestionNewServiceImpl implements QuestionNewService {
             case PROB -> Category.PROB;
             case CALC -> Category.CALC;
         };
+    }
+
+    /**
+     * LLM 응답에서 passages 파싱 (단수/복수, 문자열/배열 모두 지원)
+     * - "passages": [...] → 그대로 파싱
+     * - "passage": [...] → 그대로 파싱
+     * - "passage": "..." → 단일 Passage로 변환
+     */
+    private List<Passage> parsePassages(JsonNode rootNode, String jsonStr) {
+        // 1. "passages" (복수형) 먼저 확인
+        JsonNode passagesNode = rootNode.get("passages");
+        if (passagesNode != null && !passagesNode.isNull() && passagesNode.isArray()) {
+            List<Passage> passages = parsePassageArray(passagesNode);
+            if (passages != null && !passages.isEmpty()) {
+                log.debug("[QuestionNew] passages 배열 파싱 성공 - 개수: {}", passages.size());
+                return passages;
+            }
+        }
+
+        // 2. "passage" (단수형) 확인
+        JsonNode passageNode = rootNode.get("passage");
+        if (passageNode != null && !passageNode.isNull()) {
+            // 2-1. 배열인 경우 (기대하는 형식)
+            if (passageNode.isArray() && passageNode.size() > 0) {
+                List<Passage> passages = parsePassageArray(passageNode);
+                if (passages != null && !passages.isEmpty()) {
+                    log.debug("[QuestionNew] passage 배열 파싱 성공 - 개수: {}", passages.size());
+                    return passages;
+                }
+            }
+            // 2-2. 문자열인 경우 → 단일 Passage로 변환
+            if (passageNode.isTextual()) {
+                String passageContent = passageNode.asText();
+                if (passageContent != null && !passageContent.isBlank()) {
+                    log.info("[QuestionNew] passage(문자열) → Passage 객체 변환 수행");
+                    return List.of(new Passage(1, PassageType.TEXT, passageContent));
+                }
+            }
+        }
+
+        // 3. 둘 다 없는 경우
+        log.error("[QuestionNew] LLM 응답에 passages/passage 필드가 없거나 null입니다. 응답: {}", jsonStr);
+        throw new BusinessException(ErrorCode.LLM_GENERATE_FAIL);
+    }
+
+    /**
+     * JSON 배열을 List<Passage>로 파싱 (order가 없으면 인덱스+1로 자동 설정)
+     */
+    private List<Passage> parsePassageArray(JsonNode arrayNode) {
+        List<Passage> passages = new java.util.ArrayList<>();
+        int index = 1;
+        for (JsonNode node : arrayNode) {
+            // order: 없으면 인덱스 사용
+            Integer order = node.has("order") && !node.get("order").isNull()
+                    ? node.get("order").asInt()
+                    : index;
+
+            // type: 없으면 TEXT 기본값
+            PassageType type = PassageType.TEXT;
+            if (node.has("type") && !node.get("type").isNull()) {
+                String typeStr = node.get("type").asText();
+                try {
+                    type = PassageType.fromValue(typeStr);
+                } catch (IllegalArgumentException e) {
+                    log.warn("[QuestionNew] 알 수 없는 PassageType: {}, TEXT로 대체", typeStr);
+                }
+            }
+
+            // content: 필수
+            String content = node.has("content") ? node.get("content").asText() : null;
+            if (content == null || content.isBlank()) {
+                log.warn("[QuestionNew] passage[{}]의 content가 비어있습니다", index);
+                continue;
+            }
+
+            passages.add(new Passage(order, type, content));
+            index++;
+        }
+        return passages;
     }
 }

@@ -48,6 +48,7 @@ public enum ErrorCode {
     LLM_RESPONSE_FAIL(401, "C_006", "LLM 응답에 실패하였습니다."),
     INVALID_QUESTION(400, "C_007", "변형문제를 생성할 권한이 없습니다."),
     LLM_TIMEOUT(408, "C_008", "LLM 응답 시간이 초과되었습니다."),
+    LLM_GENERATE_FAIL(400, "C_009", "변형문제 생성에 실패하였습니다."),
 
     // Can 관련 에러 (N_xxx)
     INSUFFICIENT_CANS(400, "N_001", "CAN이 부족합니다"),
@@ -70,7 +71,8 @@ public enum ErrorCode {
 
     // Scrapbook 관련 에러 (S_xxx)
     SCRAPBOOK_NOT_FOUND(404, "S_001", "스크랩북을 찾을 수 없습니다"),
-    SCRAPBOOK_DETAIL_NOT_FOUND(404, "S_002", "스크랩북 상세보기를 찾을 수 없습니다");
+    SCRAPBOOK_DETAIL_NOT_FOUND(404, "S_002", "스크랩북 상세보기를 찾을 수 없습니다"),
+    SCRAPBOOK_CHAT_HISTORY_NOT_FOUND(404, "S_003", "스크랩북 채팅 기록을 찾을 수 없습니다");
 
 
     private final int status;
