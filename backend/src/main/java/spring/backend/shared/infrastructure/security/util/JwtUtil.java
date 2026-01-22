@@ -179,7 +179,7 @@ public class JwtUtil {
         ResponseCookie accessCookie = ResponseCookie.from("accessToken", accessToken)
                 .httpOnly(true)
                 .secure(true)
-                .path("/api")
+                .path("/")
                 .sameSite("None")
                 .maxAge(Duration.ofMinutes(60)) // 수명 : 1시간
                 .build();
