@@ -63,6 +63,13 @@ export interface ChatMessage {
   role: 'USER' | 'ASSISTANT'
   content: string
   timestamp: string
+  isStreaming?: boolean
+}
+
+export interface SendChatMessageRequest {
+  sessionId: number
+  questionId: number
+  message: string
 }
 
 export interface ScrapbookChatMessage {
@@ -82,10 +89,10 @@ export interface ScrapbookQuestion extends Question {
 }
 
 export type ResultData = {
-  solveTime: string
+  totalTimeSpent: number
   correctCount: number
-  wrongCount: number
-  openerCount: number
+  incorrectCount: number
+  openerUsageCount: number
 }
 
 export interface StopwatchRef {

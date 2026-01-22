@@ -1,16 +1,24 @@
 import katex from 'katex'
 
-export default function renderLatex(text: string): string {
+type RenderLatexOptions = {
+  blockDisplayMode?: boolean
+}
+export default function renderLatex(text: string, option: RenderLatexOptions = {}): string {
+  const { blockDisplayMode = true } = option
+
   return (
     text
-      // 먼저 블록 수식 처리 ($$...$$)
-      .replace(/\$\$([\s\S]+?)\$\$/g, (_, latex) => {
-        return katex.renderToString(latex.trim(), { displayMode: true, throwOnError: false })
+      // 블록 수식 처리 (\[...\])
+      .replace(/\\\[([\s\S]+?)\\\]/g, (_, latex) => {
+        return katex.renderToString(latex.trim(), {
+          displayMode: blockDisplayMode,
+          throwOnError: false,
+        })
       })
 
-      // 그 다음 인라인 수식 처리 ($...$)
-      .replace(/\$([^$]+)\$/g, (_, latex) => {
-        return katex.renderToString(latex, { displayMode: false, throwOnError: false })
+      // 인라인 수식 처리 (\(...\))
+      .replace(/\\\(([\s\S]+?)\\\)/g, (_, latex) => {
+        return katex.renderToString(latex.trim(), { displayMode: false, throwOnError: false })
       })
   )
 }

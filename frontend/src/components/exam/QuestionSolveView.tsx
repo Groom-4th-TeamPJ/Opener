@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 'use client'
 
 import { useEffect, useRef } from 'react'
@@ -35,18 +36,43 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
   const router = useRouter()
   const stopwatchRef = useRef<StopwatchRef>(null)
   const { openModal, closeModal, isOpen } = useExamModalStore()
-  const { currentIndex, goNextQuestion, updateQuestionState, getQuestionState } = useExamStore()
+  const {
+    currentIndex,
+    goNextQuestion,
+    updateQuestionState,
+    getQuestionState,
+    setStreamingMessage,
+    completeStreaming,
+  } = useExamStore()
   const { mutate: submitAnswer, isPending: isSubmitting } = useSubmitAnswer()
   const examData = useCurrentExam()
   const { handleContextMenu, handleCopy, handleDragStart } = useContentProtection()
+
+  // 현재 문제 ID (SSE 콜백에서 사용하기 위해 early return 전에 계산)
+  const currentQuestionId = examData?.questions[currentIndex]?.questionId
 
   // 마운트 시 모달 상태 초기화
   useEffect(() => {
     closeModal()
   }, [closeModal])
 
-  // SSE 연결 (examResultId가 있을 때만 연결)
-  useSSEChat({ sessionId: examData?.examResultId ?? 0, enabled: !!examData?.examResultId })
+  // SSE 스트리밍 연결
+  useSSEChat({
+    sessionId: examData?.examResultId ?? 0,
+    enabled: !!examData?.examResultId,
+    onChunk: (_chunk, fullMessage) => {
+      console.log('[SSE onChunk] questionId:', currentQuestionId, 'message:', fullMessage)
+      if (currentQuestionId) {
+        setStreamingMessage(currentQuestionId, fullMessage)
+      }
+    },
+    onComplete: (fullMessage) => {
+      console.log('[SSE onComplete] questionId:', currentQuestionId, 'message:', fullMessage)
+      if (currentQuestionId) {
+        completeStreaming(currentQuestionId)
+      }
+    },
+  })
 
   // 비활성 감지
   useInactivityDetection({

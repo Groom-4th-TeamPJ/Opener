@@ -9,13 +9,14 @@ import Button from '@/components/common/Button'
 import { formatChatTimestamp } from '@/utils/format'
 import AISparklesIcon from '@/components/icons/AISparklesIcon'
 import { InfoTooltip } from '@/components/common/InfoTooltip'
+import { useSendChatMessage } from '@/hooks/exam/queries/use-send-chat-message'
+import { useExamStore } from '@/stores/use-exam-store'
 
 interface AIChatbotProps {
   isActive: boolean
   question: Question
   selectedChoice: number | null
   frqAnswer: string
-  initialMessages?: ChatMessage[]
   placeholder?: string
   isDisabled?: boolean
 }
@@ -23,76 +24,90 @@ interface AIChatbotProps {
 const INFO_TOOLTIP_TEXT =
   'AI 대화는 문제별로 진행됩니다.\n대화를 종료하거나 다음 문제로 이동하면 현재 대화는 종료되며, 대화 기록은 스크랩북에 자동 저장됩니다.'
 
+const defaultQuestionState = {
+  chatMessages: [] as ChatMessage[],
+  streamingMessage: '',
+}
+
 export default function AIChatbot({
   isActive,
   question,
   selectedChoice,
   frqAnswer,
-  initialMessages,
   placeholder = '질문을 입력하세요.',
   isDisabled = false,
 }: AIChatbotProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages || [])
   const [inputValue, setInputValue] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const { mutate: sendChatMessage, isPending } = useSendChatMessage()
+  const examResultId = useExamStore((state) => state.examResultId)
+  const addChatMessage = useExamStore((state) => state.addChatMessage)
 
-  // 문제가 변경되면 채팅 내용 리셋
-  useEffect(() => {
-    if (!initialMessages) {
-      setMessages([])
-      setInputValue('')
-    }
-  }, [question.questionId, initialMessages])
+  // Store에서 메시지와 스트리밍 상태 가져오기
+  const questionState = useExamStore((state) => state.questionStates[question.questionId])
+  const { chatMessages, streamingMessage } = questionState ?? defaultQuestionState
+  const isStreaming = !!streamingMessage
 
+  // 문제가 변경되면 인풋 리셋
   useEffect(() => {
-    if (isActive && messages.length === 0 && !initialMessages) {
+    setInputValue('')
+  }, [question.questionId])
+
+  // 분석 활성화 시 초기 AI 메시지 추가
+  useEffect(() => {
+    if (isActive && chatMessages.length === 0) {
       const userAnswer =
         question.questionType === 'MCQ' ? `${selectedChoice}번이` : `${frqAnswer}이/가`
       const contentText = `왜 ${userAnswer} 정답이라고 생각하셨나요?\n어떤 근거로 그렇게 판단하셨는지 설명해주세요!`
 
-      setMessages([
-        {
-          id: 1,
-          role: 'ASSISTANT',
-          content: contentText,
-          timestamp: formatChatTimestamp(new Date()),
-        },
-      ])
+      addChatMessage(question.questionId, {
+        id: 1,
+        role: 'ASSISTANT',
+        content: contentText,
+        timestamp: formatChatTimestamp(new Date()),
+      })
     }
-  }, [isActive, messages.length, question.questionType, selectedChoice, frqAnswer, initialMessages])
+  }, [
+    isActive,
+    chatMessages.length,
+    question.questionType,
+    question.questionId,
+    selectedChoice,
+    frqAnswer,
+    addChatMessage,
+  ])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [chatMessages, streamingMessage])
 
   const handleSend = () => {
-    if (!inputValue.trim() || !isActive || isDisabled) return
+    if (!inputValue.trim() || !isActive || isDisabled || isPending || isStreaming || !examResultId)
+      return
 
     const userMessage: ChatMessage = {
-      id: messages.length + 1,
+      id: chatMessages.length + 1,
       role: 'USER',
       content: inputValue,
       timestamp: formatChatTimestamp(new Date()),
     }
 
-    setMessages((prev) => [...prev, userMessage])
-    setInputValue('')
+    addChatMessage(question.questionId, userMessage)
 
-    setTimeout(() => {
-      const assistantMessage: ChatMessage = {
-        id: messages.length + 2,
-        role: 'ASSISTANT',
-        content:
-          '네, 좋은 질문이에요! 미분 공식 중 다항함수의 미분법을 적용하면 됩니다. xⁿ을 미분하면 n·xⁿ⁻¹이 되는 것을 기억하세요.',
-        timestamp: formatChatTimestamp(new Date()),
-      }
-      setMessages((prev) => [...prev, assistantMessage])
-    }, 1000)
+    sendChatMessage({
+      sessionId: examResultId,
+      questionId: question.questionId,
+      message: inputValue,
+    })
+
+    // 한글 IME 조합 완료 후 인풋 비우기
+    setTimeout(() => setInputValue(''), 0)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
+      e.stopPropagation()
       handleSend()
     }
   }
@@ -119,7 +134,7 @@ export default function AIChatbot({
           <div />
         ) : (
           <div className="space-y-4">
-            {messages.map((message) => (
+            {chatMessages.map((message) => (
               <div
                 key={message.id}
                 className={cn(
@@ -153,6 +168,25 @@ export default function AIChatbot({
                 )}
               </div>
             ))}
+
+            {/* 스트리밍 중인 AI 메시지 */}
+            {streamingMessage && (
+              <div className="animate-fade-in flex flex-col gap-2 items-start">
+                <div className="flex gap-2 w-full">
+                  <div className="shrink-0 w-8 h-8 bg-primary-50 rounded-full flex items-center justify-center">
+                    <AISparklesIcon className="w-5 h-5" />
+                  </div>
+                  <div className="flex flex-col gap-2 flex-1">
+                    <div className="max-w-64 min-w-44 px-3 py-2.5 bg-neutral-50 rounded-tr-lg rounded-bl-lg rounded-br-lg flex flex-col gap-1">
+                      <p className="text-text-primary text-sm whitespace-pre-wrap">
+                        {streamingMessage}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div ref={messagesEndRef} />
           </div>
         )}
@@ -172,7 +206,7 @@ export default function AIChatbot({
           rightIcon={
             <Button
               onClick={handleSend}
-              disabled={!isActive || isDisabled || !inputValue.trim()}
+              disabled={!isActive || isDisabled || isPending || isStreaming || !inputValue.trim()}
               variant="ghost"
               className="p-0 h-auto min-h-0 text-primary-600 hover:bg-transparent hover:opacity-80"
             >

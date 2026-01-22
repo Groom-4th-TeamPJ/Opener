@@ -12,6 +12,7 @@ interface LoginFormViewProps {
   onSubmit: () => void
   errors: FieldErrors<LoginFormValues>
   isSubmitting: boolean
+  handleOauthLogin: () => void
 }
 
 const OAUTH_URL =
@@ -22,6 +23,7 @@ export default function LoginFormView({
   onSubmit,
   errors,
   isSubmitting,
+  handleOauthLogin,
 }: LoginFormViewProps) {
   return (
     <form onSubmit={onSubmit} className="w-full flex flex-col gap-2">
@@ -53,13 +55,12 @@ export default function LoginFormView({
         로그인
       </Button>
       <Link
-        // TODO: 링크 경로 서버 주소에 맞춰 변경
         href={OAUTH_URL}
-        onClick={(e) => isSubmitting && e.preventDefault()}
+        onClick={handleOauthLogin}
         className={cn(
           'inline-flex items-center justify-center gap-2',
           'rounded-lg cursor-pointer h-10 px-4',
-          isSubmitting ? 'bg-[#E6CC00]' : 'bg-[#fee500]',
+          isSubmitting ? 'bg-[#E6CC00] pointer-events-none' : 'bg-[#fee500]',
           'leading-0 transition-colors duration-200 hover:bg-[#F2D700]'
         )}
         prefetch={false}

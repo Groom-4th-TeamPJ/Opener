@@ -62,7 +62,6 @@ export default function HistoryDetail() {
           question={historyDetailData}
           selectedChoice={historyDetailData.selected}
           frqAnswer=""
-          initialMessages={chatMessages}
           placeholder="대화가 종료되었습니다."
           isDisabled={true}
         />
