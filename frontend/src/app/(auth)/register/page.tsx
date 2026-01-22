@@ -3,12 +3,13 @@ import Image from 'next/image'
 
 interface RegisterProps {
   searchParams: Promise<{
-    token?: string
+    signupToken?: string
   }>
 }
 
 export default async function Register({ searchParams }: RegisterProps) {
-  const { token: signupToken } = await searchParams
+  const { signupToken } = await searchParams
+
   return (
     <div className="min-h-screen flex flex-col justify-center">
       <main className="min-w-sm flex flex-col gap-4 items-center mx-auto py-4 px-8">
