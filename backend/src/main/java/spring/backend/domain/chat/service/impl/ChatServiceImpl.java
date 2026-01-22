@@ -143,11 +143,17 @@ public class ChatServiceImpl implements ChatService {
                         SSE_TIMEOUT, sessionId, emitters.size());
             });
 
-            // 세션 예외 발생 처리
+            // 세션 예외 발생 처리 (클라이언트 연결 끊김은 정상적인 상황이므로 DEBUG로 처리)
             newEmitter.onError(e -> {
                 emitters.remove(sessionId);
-                log.error("[SSE] 연결 오류 발생 - sessionId: {}, 오류: {}, 남은 연결 수: {}",
-                        sessionId, e.getMessage(), emitters.size(), e);
+                // 클라이언트 연결 끊김 관련 예외는 DEBUG 레벨로 처리
+                if (isClientDisconnectException(e)) {
+                    log.debug("[SSE] 클라이언트 연결 끊김 - sessionId: {}, 오류: {}, 남은 연결 수: {}",
+                            sessionId, e.getMessage(), emitters.size());
+                } else {
+                    log.warn("[SSE] 연결 오류 발생 - sessionId: {}, 오류: {}, 남은 연결 수: {}",
+                            sessionId, e.getMessage(), emitters.size());
+                }
             });
 
             // sessionId로 Emitter 저장
@@ -524,6 +530,28 @@ public class ChatServiceImpl implements ChatService {
             sendSseError(sseEmitter, sessionId.toString(), e.getMessage());
             canService.recoverUserCan(userId, 1);
         }
+    }
+
+    /**
+     * 클라이언트 연결 끊김 관련 예외인지 확인
+     * 이러한 예외들은 정상적인 상황이므로 ERROR 대신 DEBUG로 처리
+     */
+    private boolean isClientDisconnectException(Throwable e) {
+        if (e == null) {
+            return false;
+        }
+        String message = e.getMessage();
+        if (message != null) {
+            String lowerMessage = message.toLowerCase();
+            return lowerMessage.contains("broken pipe") ||
+                    lowerMessage.contains("connection reset") ||
+                    lowerMessage.contains("client disconnected") ||
+                    lowerMessage.contains("disconnected client") ||
+                    lowerMessage.contains("closed") ||
+                    lowerMessage.contains("aborted");
+        }
+        // 원인(cause)도 확인
+        return isClientDisconnectException(e.getCause());
     }
 
     // Question의 모든 정보를 하나의 문자열로 변환
