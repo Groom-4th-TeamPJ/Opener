@@ -4,7 +4,7 @@ import { useState } from 'react'
 import AIChatbot from '@/components/shared/AIChatbot'
 import PromptAnalysisCard from './PromptAnalysisCard'
 import ScrapbookQuestionCard from './ScrapbookQuestionCard'
-import type { ScrapbookQuestion, ChatMessage } from '@/types/exam'
+import type { ScrapbookQuestion } from '@/types/exam'
 
 export default function HistoryDetail() {
   // TODO: API 연동 필요
@@ -17,13 +17,6 @@ export default function HistoryDetail() {
       </div>
     )
   }
-
-  const chatMessages: ChatMessage[] = data.chat.map((msg) => ({
-    id: msg.order,
-    role: msg.role,
-    content: msg.content,
-    timestamp: msg.timestamp,
-  }))
 
   return (
     <div className="h-dvh overflow-hidden bg-neutral-50 px-8 py-6">
@@ -44,7 +37,6 @@ export default function HistoryDetail() {
           question={data}
           selectedChoice={data.selected}
           frqAnswer=""
-          initialMessages={chatMessages}
           placeholder="대화가 종료되었습니다."
           isDisabled={true}
         />

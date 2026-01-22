@@ -1,31 +1,69 @@
 /* eslint-disable no-console */
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { API_PATHS } from '@/constants/api-path'
 
-interface UseSSEChatProps {
-  sessionId: number
-  enabled?: boolean
+interface SSEChunkData {
+  type: 'chunk' | 'done' | 'connected'
+  sessionId: string
+  chunk?: string
 }
 
-export function useSSEChat({ sessionId, enabled = true }: UseSSEChatProps): void {
+interface UseSSEChatProps {
+  sessionId: number | null
+  enabled?: boolean
+  onChunk?: (chunk: string, fullMessage: string) => void
+  onComplete?: (fullMessage: string) => void
+}
+
+export function useSSEChat({
+  sessionId,
+  enabled = true,
+  onChunk,
+  onComplete,
+}: UseSSEChatProps): void {
+  const messageBufferRef = useRef('')
+  const onChunkRef = useRef(onChunk)
+  const onCompleteRef = useRef(onComplete)
+
+  // 콜백 참조 최신 상태로 유지
   useEffect(() => {
-    if (!enabled || sessionId === 0) return
+    onChunkRef.current = onChunk
+    onCompleteRef.current = onComplete
+  }, [onChunk, onComplete])
+
+  useEffect(() => {
+    if (!enabled || !sessionId) {
+      return
+    }
 
     const BASE_URL = process.env.NEXT_PUBLIC_API_URL
     const SSE_URL = `${BASE_URL}${API_PATHS.CHAT.CONNECT}?sessionId=${sessionId}`
 
     // 표준 EventSource 사용
-    const eventSource = new EventSource(SSE_URL)
+    const eventSource = new EventSource(SSE_URL, { withCredentials: true })
 
     eventSource.onopen = () => {
-      console.log('[SSE] Connected successfully')
+      console.log('[SSE] Connected successfully, sessionId:', sessionId)
+      messageBufferRef.current = ''
     }
 
     eventSource.onmessage = (event) => {
-      // 실시간 메시지 수신 시 처리 로직
       try {
-        const data = JSON.parse(event.data)
-        console.log('[SSE] New Message:', data)
+        const data = JSON.parse(event.data) as SSEChunkData
+
+        if (data.type === 'connected') {
+          console.log('[SSE] Received First Message', data)
+        }
+
+        if (data.type === 'chunk' && data.chunk) {
+          console.log('[SSE] AI New Message', data)
+
+          messageBufferRef.current += data.chunk
+          onChunkRef.current?.(data.chunk, messageBufferRef.current)
+        } else if (data.type === 'done') {
+          onCompleteRef.current?.(messageBufferRef.current)
+          messageBufferRef.current = ''
+        }
       } catch {
         console.error('[SSE] Invalid JSON payload:', event.data)
       }
