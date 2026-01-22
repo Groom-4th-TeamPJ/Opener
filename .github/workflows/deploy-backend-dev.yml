@@ -46,7 +46,7 @@ jobs:
       - name: Build and push monitoring
         uses: docker/build-push-action@v4
         with:
-          context: ./monitoring
+          context: ./monitoring/prometheus
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/opener-monitoring:dev
 
