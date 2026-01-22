@@ -3,7 +3,6 @@
 import AIChatbot from '@/components/shared/AIChatbot'
 import PromptAnalysisCard from './PromptAnalysisCard'
 import ScrapbookQuestionCard from './ScrapbookQuestionCard'
-import type { ChatMessage } from '@/types/exam'
 import useScrapBookHistoryDetail from '@/hooks/scrapbook/use-scrapbook-history-detail'
 import { useParams } from 'next/navigation'
 
@@ -34,14 +33,6 @@ export default function HistoryDetail() {
       </div>
     )
   }
-
-  const chat = Array.isArray(historyDetailData.chat) ? historyDetailData.chat : []
-  const chatMessages: ChatMessage[] = chat.map((msg) => ({
-    id: msg.order,
-    role: msg.role,
-    content: msg.content,
-    timestamp: msg.timestamp,
-  }))
 
   return (
     <div className="h-dvh overflow-hidden bg-neutral-50 px-8 py-6">
