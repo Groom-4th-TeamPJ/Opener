@@ -211,8 +211,7 @@ public class ChatServiceImpl implements ChatService {
             throw new BusinessException(ErrorCode.INVALID_SESSION);
         }
     }
-
-    @Async
+    
     @Override
     public void processMessageAsync(ChatSendRequest req, UUID userId) {
 
