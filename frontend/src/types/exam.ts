@@ -74,7 +74,7 @@ export interface SendChatMessageRequest {
 
 export interface ScrapbookChatMessage {
   order: number
-  role: 'USER' | 'ASSISTANT'
+  role: 'USER' | 'LLM'
   content: string
   timestamp: string
 }
