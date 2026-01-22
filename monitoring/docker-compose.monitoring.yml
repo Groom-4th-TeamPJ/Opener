@@ -1,0 +1,55 @@
+services:
+  Prometheus:
+    image: prom/prometheus:latest
+    container_name: Prometheus
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"  # 설정 파일 경로
+      - "--storage.tsdb.path=/prometheus" # 데이터 저장 경로
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    networks:
+      - monitoring-network
+
+  Grafana:
+    image: grafana/grafana:latest
+    container_name: Grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin1234
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    restart: unless-stopped
+    networks:
+      - monitoring-network
+    depends_on:
+      - Prometheus
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    pid: host   # 호스트의 프로세스 ID 네임스페이스 사용
+    network_mode: host # 호스트 네트워크 사용
+    ports:
+      - "9100:9100"
+    restart: unless-stopped
+    command:
+      - "--path.rootfs=/rootfs"     # 호스트의 루트 파일 시스템 경로 설정
+    volumes:
+      - "/:/host:ro,rslave"  # 호스트 파일 시스템을 읽기 전용으로 마운트
+
+volumes:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  monitoring-network:
+    driver: bridge
