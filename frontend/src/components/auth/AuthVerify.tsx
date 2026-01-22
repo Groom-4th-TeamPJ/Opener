@@ -1,22 +1,24 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { refreshOnce } from '@/utils/api'
 import { toast } from 'sonner'
 
 const PUBLIC_PATHS = ['/login', '/register']
 
-export default function AuthVerifyHandler() {
+interface AuthVerifyHandlerProps {
+  callback?: string
+}
+
+export default function AuthVerifyHandler({ callback }: AuthVerifyHandlerProps) {
   const router = useRouter()
-  const searchParams = useSearchParams()
 
   useEffect(() => {
     const performRefresh = async () => {
       const isSuccess = await refreshOnce()
 
       if (isSuccess) {
-        const callback = searchParams.get('callback')
         const decodedPath = callback ? decodeURIComponent(callback) : '/'
 
         // 역방향 가드 (성공했는데 가려는 곳이 로그인/회원가입인 경우)
@@ -33,7 +35,7 @@ export default function AuthVerifyHandler() {
     }
 
     performRefresh()
-  }, [router, searchParams])
+  }, [router, callback])
 
   return (
     <div className="text-center">
