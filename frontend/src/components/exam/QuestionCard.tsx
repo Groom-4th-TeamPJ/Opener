@@ -20,7 +20,7 @@ export default function QuestionCard({ stopwatchRef }: QuestionCardProps) {
   const question = questions[currentIndex]
 
   return (
-    <Card className="flex flex-col flex-1 overflow-hidden min-h-70">
+    <Card className="flex flex-col flex-1 overflow-hidden min-h-50">
       <CardHeader className="p-6 shrink-0">
         <QuestionTitle question={question} stopwatchRef={stopwatchRef} />
       </CardHeader>

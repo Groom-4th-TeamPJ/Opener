@@ -115,7 +115,7 @@ export default function AIChatbot({
   return (
     <div
       className={cn(
-        'hidden sm:flex md:w-86 lg:w-96 bg-white rounded-20 shadow-1 flex-col overflow-hidden',
+        'hidden sm:flex md:w-86 lg:w-96 h-full bg-white rounded-20 shadow-1 flex-col overflow-hidden',
         !isActive && 'opacity-30'
       )}
     >
@@ -200,7 +200,7 @@ export default function AIChatbot({
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          disabled={!isActive || isDisabled}
+          disabled={!isActive || isDisabled || isStreaming}
           size="lg"
           className="disabled:border-neutral-200"
           rightIcon={
