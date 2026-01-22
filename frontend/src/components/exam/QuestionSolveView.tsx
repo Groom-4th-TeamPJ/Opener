@@ -1,4 +1,4 @@
-/* eslint-disable no-console */
+ 
 'use client'
 
 import { useEffect, useRef } from 'react'
@@ -37,14 +37,7 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
   const router = useRouter()
   const stopwatchRef = useRef<StopwatchRef>(null)
   const { openModal, closeModal, isOpen } = useExamModalStore()
-  const {
-    currentIndex,
-    goNextQuestion,
-    updateQuestionState,
-    getQuestionState,
-    setStreamingMessage,
-    completeStreaming,
-  } = useExamStore()
+  const { currentIndex, goNextQuestion, updateQuestionState, getQuestionState } = useExamStore()
   const { mutate: submitAnswer, isPending: isSubmitting } = useSubmitAnswer()
   const { mutate: startAnalysis } = useStartAnalysis()
   const examData = useCurrentExam()
@@ -64,19 +57,8 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
   // SSE 스트리밍 연결
   useSSEChat({
     sessionId: examData?.examResultId ?? 0,
+    questionId: currentQuestionId ?? null,
     enabled: !!examData?.examResultId,
-    onChunk: (_chunk, fullMessage) => {
-      console.log('[SSE onChunk] questionId:', currentQuestionId, 'message:', fullMessage)
-      if (currentQuestionId) {
-        setStreamingMessage(currentQuestionId, fullMessage)
-      }
-    },
-    onComplete: (fullMessage) => {
-      console.log('[SSE onComplete] questionId:', currentQuestionId, 'message:', fullMessage)
-      if (currentQuestionId) {
-        completeStreaming(currentQuestionId)
-      }
-    },
   })
 
   // 비활성 감지

@@ -160,12 +160,21 @@ export const useExamStore = create<ExamState>()(
     }),
     {
       name: 'exam-storage',
-      partialize: (state) => ({
-        examParams: state.examParams,
-        examResultId: state.examResultId,
-        currentIndex: state.currentIndex,
-        questionStates: state.questionStates,
-      }),
+      partialize: (state) => {
+        // streamingMessage는 persist에서 제외 (성능 이슈 방지)
+        const questionStatesWithoutStreaming = Object.fromEntries(
+          Object.entries(state.questionStates).map(([key, value]) => [
+            key,
+            { ...value, streamingMessage: '' },
+          ])
+        )
+        return {
+          examParams: state.examParams,
+          examResultId: state.examResultId,
+          currentIndex: state.currentIndex,
+          questionStates: questionStatesWithoutStreaming,
+        }
+      },
     }
   )
 )
