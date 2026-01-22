@@ -42,6 +42,14 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/opener-nginx:dev
 
+      # 7. monitoring 이미지 빌드 및 푸시
+      - name: Build and push monitoring
+        uses: docker/build-push-action@v4
+        with:
+          context: ./monitoring
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/opener-monitoring:dev
+
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest

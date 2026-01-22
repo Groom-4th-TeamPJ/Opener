@@ -1,0 +1,47 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # 1) Prometheus 자체
+  - job_name: "infra-prometheus"
+    static_configs:
+      - targets: [ "prometheus:9090" ]
+        labels:
+          env: "prod"
+          service: "prometheus"
+
+  # 2) NODE (EC2 OS)
+  - job_name: "node"
+    static_configs:
+      - targets: ["host.docker.internal:9100"]
+        labels:
+          env: "prod"
+          node: "ip-172-31-0-57"
+          service: "node"
+
+  # 3) APP (Spring)
+  - job_name: "app-backend"
+    metrics_path: "/api/actuator/prometheus"
+    static_configs:
+      - targets: ["backend:8080"]
+        labels:
+            env: "prod"
+            service: "backend"
+
+  # 4) INFRA (Redis)
+  - job_name: "infra-redis"
+    static_configs:
+      - targets: [ "redis-exporter:9121" ]
+        labels:
+          env: "prod"
+          service: "redis"
+
+  # 5) INFRA (Nginx)
+  - job_name: "infra-nginx"
+    static_configs:
+      - targets: ["nginx-exporter:9113"]
+        labels:
+          env: "prod"
+          service: "nginx"
+
