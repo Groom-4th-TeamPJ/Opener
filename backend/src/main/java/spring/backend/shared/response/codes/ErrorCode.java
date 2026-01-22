@@ -71,7 +71,8 @@ public enum ErrorCode {
 
     // Scrapbook 관련 에러 (S_xxx)
     SCRAPBOOK_NOT_FOUND(404, "S_001", "스크랩북을 찾을 수 없습니다"),
-    SCRAPBOOK_DETAIL_NOT_FOUND(404, "S_002", "스크랩북 상세보기를 찾을 수 없습니다");
+    SCRAPBOOK_DETAIL_NOT_FOUND(404, "S_002", "스크랩북 상세보기를 찾을 수 없습니다"),
+    SCRAPBOOK_CHAT_HISTORY_NOT_FOUND(404, "S_003", "스크랩북 채팅 기록을 찾을 수 없습니다");
 
 
     private final int status;

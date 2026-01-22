@@ -8,8 +8,11 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import spring.backend.domain.chat.dto.response.ChatHistoryResponse;
+import spring.backend.domain.chat.service.spec.ChatService;
 import spring.backend.domain.exam.model.entity.Exam;
 import spring.backend.domain.exam.model.entity.ExamResult;
+import spring.backend.domain.exam.model.entity.Question;
 import spring.backend.domain.exam.model.entity.QuestionResult;
 import spring.backend.domain.exam.repository.spec.ExamRepository;
 import spring.backend.domain.exam.repository.spec.ExamResultRepository;
@@ -35,13 +38,16 @@ public class ScrapbookServiceImpl implements ScrapbookService {
     private final ExamResultRepository examResultRepository;
     private final ExamRepository examRepository;
     private final QuestionResultRepository questionResultRepository;
+    private final ChatService chatService;
 
     public ScrapbookServiceImpl(ExamResultRepository examResultRepository,
                                 ExamRepository examRepository,
-                                QuestionResultRepository questionResultRepository) {
+                                QuestionResultRepository questionResultRepository,
+                                ChatService chatService) {
         this.examResultRepository = examResultRepository;
         this.examRepository = examRepository;
         this.questionResultRepository = questionResultRepository;
+        this.chatService = chatService;
     }
 
     @Override
@@ -129,8 +135,14 @@ public class ScrapbookServiceImpl implements ScrapbookService {
 
         // 2. ExamResult에 연관된 ExamResult 조회 및 사용자 검증
         ExamResult examResult = questionResult.getExamResult();
-        if(examResult == null) {
+        if (examResult == null) {
+            log.info("스크랩북 상세보기 조회 실패 - ExamResult를 찾을 수 없음. questionResultId: {}", questionResultId);
             throw new BusinessException(ErrorCode.RESULT_NOT_FOUND);
+        }
+
+        if (examResult.getExam() == null) {
+            log.info("스크랩북 상세보기 조회 실패 - Exam을 찾을 수 없음. examResultId: {}", examResult.getId());
+            throw new BusinessException(ErrorCode.EXAM_NOT_FOUND);
         }
 
         if (!examResult.getUserId().equals(userId)) {
@@ -139,29 +151,43 @@ public class ScrapbookServiceImpl implements ScrapbookService {
         }
 
         // 2-1. 오프너 사용 이력 검증
+        if (questionResult.getQuestion() == null) {
+            log.warn("스크랩북 상세보기 조회 실패 - 연관된 Question이 없음. questionResultId: {}", questionResultId);
+            throw new BusinessException(ErrorCode.QUESTION_NOT_FOUND);
+        }
+
         if (!questionResult.isOpener()) {
             log.warn("스크랩북 상세보기 조회 실패 - 오프너 사용 이력이 없는 문제. questionResultId: {}", questionResultId);
             throw new BusinessException(ErrorCode.SCRAPBOOK_DETAIL_NOT_FOUND);
         }
 
-        // 3. TODO :: Chat message 조회 추가 작업 필요
+        // 3. Chat message 조회 추가 작업
+        ChatHistoryResponse chatHistory = chatService.getChatHistoryByQuestionResultId(questionResultId);
 
-        // 4. TODO :: 프롬포트 내용 요약 추출 추가 작업 필요
+        if (chatHistory == null) {
+            log.warn("스크랩북 상세보기 조회 실패 - Chat history not found for questionResultId: {}", questionResultId);
+            throw new BusinessException(ErrorCode.SCRAPBOOK_CHAT_HISTORY_NOT_FOUND);
+        }
+
+        Exam exam = examResult.getExam();
+        Question question = questionResult.getQuestion();
 
         // 5. ScrapbookDetailResponse 생성 및 반환
         return ScrapbookDetailResponse.builder()
                 .questionResultId(questionResult.getId())
-                .examYear(examResult.getExam().getExamYear())
-                .examType(examResult.getExam().getExamType())
-                .passages(questionResult.getQuestion().getPassages())
-                .options(questionResult.getQuestion().getOptions())
-                .answer(questionResult.getQuestion().getAnswer())
-                .point(questionResult.getQuestion().getPoint())
-                .questionNo(questionResult.getQuestion().getQuestionNo())
-                .questionType(questionResult.getQuestion().getQuestionType())
+                .examYear(exam.getExamYear())
+                .examType(exam.getExamType())
+                .passages(question.getPassages())
+                .options(question.getOptions())
+                .answer(question.getAnswer())
+                .point(question.getPoint())
+                .questionNo(question.getQuestionNo())
+                .questionType(question.getQuestionType())
                 .selected(questionResult.getSelected())
                 .isCorrect(questionResult.isCorrect())
                 .createdAt(questionResult.getCreatedAt())
+                .chat(chatHistory.chat())
+                .promptSummary(chatHistory.summary())
                 .build();
     }
 }
