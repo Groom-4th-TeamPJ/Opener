@@ -81,7 +81,7 @@ public class ChatController {
     }
 
     // 오프너 분석
-    @PostMapping("/opener-analysis")
+    @PostMapping("/analysis")
     public ResponseEntity<Void> openerAnalysis(
             @RequestBody OpenerAnalysisRequest req,
             @AuthenticationPrincipal AuthUser authUser
