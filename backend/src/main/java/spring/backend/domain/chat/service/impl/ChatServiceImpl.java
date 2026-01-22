@@ -1,6 +1,7 @@
 package spring.backend.domain.chat.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -14,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -620,5 +622,37 @@ public class ChatServiceImpl implements ChatService {
                 .chat(chatDtos)
                 .summary(chatMessage.getSummary())
                 .build();
+    }
+
+    /**
+     * SSE Heartbeat - 30초마다 모든 활성 연결에 ping 전송
+     * 유휴 연결이 중간 장비(Nginx, 방화벽 등)에 의해 끊어지는 것을 방지
+     */
+    @Scheduled(fixedRate = 30000)
+    public void sendHeartbeat() {
+        if (emitters.isEmpty()) {
+            return;
+        }
+
+        List<Long> deadSessions = new ArrayList<>();
+
+        emitters.forEach((sessionId, emitter) -> {
+            try {
+                // SSE comment로 heartbeat 전송 (클라이언트에서 이벤트로 처리되지 않음)
+                emitter.send(SseEmitter.event().comment("ping"));
+            } catch (Exception e) {
+                // 전송 실패 시 죽은 연결로 표시
+                deadSessions.add(sessionId);
+                log.debug("[SSE] Heartbeat 전송 실패, 연결 제거 - sessionId: {}", sessionId);
+            }
+        });
+
+        // 죽은 연결 정리
+        deadSessions.forEach(emitters::remove);
+
+        if (!deadSessions.isEmpty()) {
+            log.info("[SSE] Heartbeat로 {}개의 죽은 연결 정리, 남은 연결 수: {}",
+                    deadSessions.size(), emitters.size());
+        }
     }
 }
