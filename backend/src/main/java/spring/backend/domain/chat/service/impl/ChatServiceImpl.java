@@ -168,6 +168,9 @@ public class ChatServiceImpl implements ChatService {
             // 세션용 레디스 초기화
             chatRedisService.initializeSession(sessionId, userId);
 
+            // 연결 성공 테스트 데이터 전송
+            sendSseConnected(newEmitter, sessionId.toString());
+
             log.info("[SSE] ✅ 새 연결 성공 - sessionId: {}, userId: {}, userName: {}, 현재 활성 연결 수: {}",
                     sessionId, userId, user.getName(), emitters.size());
 
@@ -323,6 +326,27 @@ public class ChatServiceImpl implements ChatService {
         chatMessageProducer.publishSaveMessageEvent(sessionId, userId, questionResultId);
 
         log.info("[Chat] 대화 저장 이벤트 발행 완료 - sessionId: {}", sessionId);
+    }
+
+    // sse 연결 성공 알림
+    private void sendSseConnected(SseEmitter emitter, String sessionId) {
+        try {
+            SseMessageResponse message =
+                    SseMessageResponse.builder()
+                            .type("connected")
+                            .sessionId(sessionId)
+                            .build();
+
+            emitter.send(
+                    SseEmitter.event()
+                            .name("connected")
+                            .data(objectMapper.writeValueAsString(message)));
+
+            log.debug("[SSE] 연결 성공 이벤트 전송 완료 - sessionId: {}", sessionId);
+
+        } catch (Exception e) {
+            log.warn("[SSE] 연결 성공 이벤트 전송 실패 - sessionId: {}, error: {}", sessionId, e.getMessage());
+        }
     }
 
     // sse 청크 전송
