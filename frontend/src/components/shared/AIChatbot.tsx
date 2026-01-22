@@ -115,7 +115,7 @@ export default function AIChatbot({
   return (
     <div
       className={cn(
-        'hidden sm:flex md:w-86 lg:w-96 bg-white rounded-20 shadow-1 flex-col overflow-hidden',
+        'hidden sm:flex md:w-86 lg:w-96 h-full bg-white rounded-20 shadow-1 flex-col overflow-hidden',
         !isActive && 'opacity-30'
       )}
     >
@@ -178,9 +178,10 @@ export default function AIChatbot({
                   </div>
                   <div className="flex flex-col gap-2 flex-1">
                     <div className="max-w-64 min-w-44 px-3 py-2.5 bg-neutral-50 rounded-tr-lg rounded-bl-lg rounded-br-lg flex flex-col gap-1">
-                      <p className="text-text-primary text-sm whitespace-pre-wrap">
-                        {streamingMessage}
-                      </p>
+                      <div
+                        className="text-text-primary text-sm whitespace-pre-wrap [&_.katex]:text-base"
+                        dangerouslySetInnerHTML={{ __html: streamingMessage }}
+                      />
                     </div>
                   </div>
                 </div>
@@ -200,7 +201,7 @@ export default function AIChatbot({
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          disabled={!isActive || isDisabled}
+          disabled={!isActive || isDisabled || isStreaming}
           size="lg"
           className="disabled:border-neutral-200"
           rightIcon={
