@@ -1,5 +1,5 @@
 import { ModalContent } from '@/components/common/Modal'
-import AISparklesIcon from '../icons/AISparklesIcon'
+import AISparklesIcon from '@/components/icons/AISparklesIcon'
 
 export default function NewQuestionLoading() {
   return (
