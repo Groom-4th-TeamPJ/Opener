@@ -63,6 +63,13 @@ export interface ChatMessage {
   role: 'USER' | 'ASSISTANT'
   content: string
   timestamp: string
+  isStreaming?: boolean
+}
+
+export interface SendChatMessageRequest {
+  sessionId: number
+  questionId: number
+  message: string
 }
 
 export interface ScrapbookChatMessage {
