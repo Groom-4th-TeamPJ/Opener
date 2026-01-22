@@ -36,6 +36,8 @@ export const QUERY_KEYS = {
     SUBMIT: ['exam', 'question', 'submit'] as const,
     // 답안 제출 결과 (questionId별)
     SUBMIT_RESULT: (questionId: number) => ['exam', 'question', 'submit', questionId] as const,
+    // 학습 결과 (examResultId별)
+    RESULT: (examResultId: number) => ['exam', 'result', examResultId] as const,
     // 오프너 분석
     ANALYZE: ['exam', 'question', 'analyze'] as const,
     // 변형 문제 생성
