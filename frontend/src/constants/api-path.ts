@@ -19,13 +19,13 @@ export const API_PATHS = {
     ROOT: '/exams',
     SUBMIT: '/exams/results',
     ANALYSIS: '/exams/analysis',
-    SAVE_CHAT: '/exams/save-chat',
   },
   CHAT: {
     CONNECT: '/chat/connect',
     DISCONNECT: '/chat/disconnect',
     GENERATE: '/chat/generate',
     MESSAGE: '/chat/message',
+    SAVE_CHAT: '/chat/save-message',
   },
   USERS: {
     ME: '/users/me/cans/count',
