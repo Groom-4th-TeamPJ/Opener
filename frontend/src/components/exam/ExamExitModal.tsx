@@ -4,6 +4,11 @@ import { Modal, ModalContent, ModalFooter } from '@/components/common/Modal'
 import { memo } from 'react'
 import useCurrentExam from '@/hooks/exam/use-current-exam'
 import { useDisconnectChat } from '@/hooks/exam/queries/use-disconnect-chat'
+import { useExamStore } from '@/stores/use-exam-store'
+import { SubmitAnswerResponse } from '@/types/exam'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@/constants/query-key'
+import { useSaveChatMessage } from '@/hooks/exam/queries/use-save-message'
 
 interface ExamExitModalProps {
   open: boolean
@@ -14,9 +19,27 @@ interface ExamExitModalProps {
 export default memo(function ExamExitModal({ open, onCancel, onConfirm }: ExamExitModalProps) {
   const examData = useCurrentExam()
   const { mutate: disconnectChat } = useDisconnectChat()
+  const { currentIndex, getQuestionState } = useExamStore()
+  const queryClient = useQueryClient()
+  const { mutate: saveChatMessage } = useSaveChatMessage()
+
+  if (!examData) return
+
+  const { questions } = examData
+  const question = questions[currentIndex]
+  const { isAnalysisActive } = getQuestionState(question.questionId)
+  const submitResult = queryClient.getQueryData<SubmitAnswerResponse>(
+    QUERY_KEYS.EXAM.SUBMIT_RESULT(question.questionId)
+  )
 
   const handleConfirm = () => {
     if (examData) {
+      if (submitResult?.questionResultId && isAnalysisActive) {
+        saveChatMessage({
+          sessionId: examData.examResultId,
+          questionResultId: submitResult.questionResultId,
+        })
+      }
       disconnectChat(examData.examResultId)
     }
     onConfirm()
