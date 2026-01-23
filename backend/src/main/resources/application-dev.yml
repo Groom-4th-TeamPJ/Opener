@@ -65,13 +65,13 @@ spring:
       api-key: ${OPENAI_API_KEY}
       chat:
         options:
-          model: ${OPENAI_CHAT_MODEL:gpt-4o-mini}
+          model: ${OPENAI_CHAT_MODEL:gpt-4.1}
           temperature: 0.7
-          max-tokens: 2000
+          max-tokens: 8000
         base-url: https://api.openai.com
       embedding:
         options:
-          model: text-embedding-ada-002
+          model: text-embedding-3-small
 
     # PgVector Store 설정 (Spring AI 2.0 자동 설정)
     vectorstore:
