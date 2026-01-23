@@ -23,8 +23,9 @@ export const API_PATHS = {
   CHAT: {
     CONNECT: '/chat/connect',
     DISCONNECT: '/chat/disconnect',
-    GENERATE: '/chat/generate',
+    ANALYSIS: '/chat/analysis',
     MESSAGE: '/chat/message',
+    GENERATE: '/chat/generate',
     SAVE_CHAT: '/chat/save-message',
   },
   USERS: {

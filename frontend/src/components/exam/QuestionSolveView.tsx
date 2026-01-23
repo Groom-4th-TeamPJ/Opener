@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 'use client'
 
 import { useEffect, useRef } from 'react'
@@ -11,15 +10,16 @@ import QuestionActionButton from './QuestionActionButton'
 import NavigationButton from './NavigationButton'
 import useInactivityDetection from '@/hooks/exam/use-inactivity-detection'
 import QuestionCard from './QuestionCard'
-import AIChatbot from '@/components/shared/AIChatbot'
-import InactivityModal from '@/components/exam/InactivityModal'
+import AIChatbot from '@/components/exam/chat/AIChatbot'
+import InactivityModal from './modal/InactivityModal'
 import NewQuestionModal from '@/components/new-question/NewQuestionModal'
-import ExamExitModal from './ExamExitModal'
-import ExamResultModal from './ExamResultModal'
+import ExamExitModal from './modal/ExamExitModal'
+import ExamResultModal from './modal/ExamResultModal'
 import useCurrentExam from '@/hooks/exam/use-current-exam'
 import usePreventRefresh from '@/hooks/exam/use-prevent-refresh'
 import { useSSEChat } from '@/hooks/exam/use-sse-chat'
-import { useSubmitAnswer } from '@/hooks/exam/queries/use-submit-answer'
+import { useSubmitAnswer, useSubmitResult } from '@/hooks/exam/queries/use-submit-answer'
+import { useStartAnalysis } from '@/hooks/exam/queries/use-start-analysis'
 import { useExamModalStore } from '@/stores/use-exam-modal-store'
 import { useExamStore } from '@/stores/use-exam-store'
 import { EXAM_MODAL } from '@/constants/exam'
@@ -36,20 +36,17 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
   const router = useRouter()
   const stopwatchRef = useRef<StopwatchRef>(null)
   const { openModal, closeModal, isOpen } = useExamModalStore()
-  const {
-    currentIndex,
-    goNextQuestion,
-    updateQuestionState,
-    getQuestionState,
-    setStreamingMessage,
-    completeStreaming,
-  } = useExamStore()
+  const { currentIndex, goNextQuestion, updateQuestionState, getQuestionState } = useExamStore()
   const { mutate: submitAnswer, isPending: isSubmitting } = useSubmitAnswer()
+  const { mutate: startAnalysis } = useStartAnalysis()
   const examData = useCurrentExam()
   const { handleContextMenu, handleCopy, handleDragStart } = useContentProtection()
 
   // 현재 문제 ID (SSE 콜백에서 사용하기 위해 early return 전에 계산)
   const currentQuestionId = examData?.questions[currentIndex]?.questionId
+
+  // 현재 문제의 제출 결과 (questionResultId 조회용)
+  const submitResult = useSubmitResult(currentQuestionId ?? 0)
 
   // 마운트 시 모달 상태 초기화
   useEffect(() => {
@@ -59,19 +56,8 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
   // SSE 스트리밍 연결
   useSSEChat({
     sessionId: examData?.examResultId ?? 0,
+    questionId: currentQuestionId ?? null,
     enabled: !!examData?.examResultId,
-    onChunk: (_chunk, fullMessage) => {
-      console.log('[SSE onChunk] questionId:', currentQuestionId, 'message:', fullMessage)
-      if (currentQuestionId) {
-        setStreamingMessage(currentQuestionId, fullMessage)
-      }
-    },
-    onComplete: (fullMessage) => {
-      console.log('[SSE onComplete] questionId:', currentQuestionId, 'message:', fullMessage)
-      if (currentQuestionId) {
-        completeStreaming(currentQuestionId)
-      }
-    },
   })
 
   // 비활성 감지
@@ -154,9 +140,22 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
     }
   }
 
-  // TODO: 오프너 분석 API 연동
+  // 오프너 분석 API 요청
   const handleShowAnalysis = () => {
-    updateQuestionState(currentQuestion.questionId, { isAnalysisActive: true })
+    if (!submitResult?.questionResultId) return
+
+    startAnalysis(
+      {
+        sessionId: examData.examResultId,
+        questionResultId: submitResult.questionResultId,
+        questionId: currentQuestion.questionId,
+      },
+      {
+        onSuccess: () => {
+          updateQuestionState(currentQuestion.questionId, { isAnalysisActive: true })
+        },
+      }
+    )
   }
 
   // TODO: 비활성 상태 60분 자동으로 대시보드 이동하도록

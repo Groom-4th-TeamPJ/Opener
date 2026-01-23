@@ -11,6 +11,7 @@ import AISparklesIcon from '@/components/icons/AISparklesIcon'
 import { InfoTooltip } from '@/components/common/InfoTooltip'
 import { useSendChatMessage } from '@/hooks/exam/queries/use-send-chat-message'
 import { useExamStore } from '@/stores/use-exam-store'
+import StreamdownRenderer from './StreamdownRenderer'
 
 interface AIChatbotProps {
   isActive: boolean
@@ -24,10 +25,8 @@ interface AIChatbotProps {
 const INFO_TOOLTIP_TEXT =
   'AI 대화는 문제별로 진행됩니다.\n대화를 종료하거나 다음 문제로 이동하면 현재 대화는 종료되며, 대화 기록은 스크랩북에 자동 저장됩니다.'
 
-const defaultQuestionState = {
-  chatMessages: [] as ChatMessage[],
-  streamingMessage: '',
-}
+// 빈 배열 기본값 (참조 안정성을 위해 컴포넌트 외부에 정의)
+const EMPTY_CHAT_MESSAGES: ChatMessage[] = []
 
 export default function AIChatbot({
   isActive,
@@ -42,10 +41,17 @@ export default function AIChatbot({
   const { mutate: sendChatMessage, isPending } = useSendChatMessage()
   const examResultId = useExamStore((state) => state.examResultId)
   const addChatMessage = useExamStore((state) => state.addChatMessage)
+  const { setStreamingMessage } = useExamStore.getState()
 
-  // Store에서 메시지와 스트리밍 상태 가져오기
-  const questionState = useExamStore((state) => state.questionStates[question.questionId])
-  const { chatMessages, streamingMessage } = questionState ?? defaultQuestionState
+  // Store에서 메시지 가져오기
+  const chatMessages = useExamStore(
+    (state) => state.questionStates[question.questionId]?.chatMessages ?? EMPTY_CHAT_MESSAGES
+  )
+
+  const streamingMessage = useExamStore(
+    (state) => state.questionStates[question.questionId]?.streamingMessage ?? ''
+  )
+
   const isStreaming = !!streamingMessage
 
   // 문제가 변경되면 인풋 리셋
@@ -84,6 +90,8 @@ export default function AIChatbot({
   const handleSend = () => {
     if (!inputValue.trim() || !isActive || isDisabled || isPending || isStreaming || !examResultId)
       return
+
+    setStreamingMessage(question.questionId, '')
 
     const userMessage: ChatMessage = {
       id: chatMessages.length + 1,
@@ -149,9 +157,9 @@ export default function AIChatbot({
                     </div>
                     <div className="flex flex-col gap-2 flex-1">
                       <div className="max-w-64 min-w-44 px-3 py-2.5 bg-neutral-50 rounded-tr-lg rounded-bl-lg rounded-br-lg flex flex-col gap-1">
-                        <p className="text-text-primary text-sm whitespace-pre-wrap">
-                          {message.content}
-                        </p>
+                        <div className="text-text-primary text-sm whitespace-pre-wrap [&_.katex]:text-base [&_p]:m-0">
+                          <StreamdownRenderer content={message.content} />
+                        </div>
                       </div>
                       <span className="text-neutral-300 text-xs">{message.timestamp}</span>
                     </div>
@@ -178,10 +186,7 @@ export default function AIChatbot({
                   </div>
                   <div className="flex flex-col gap-2 flex-1">
                     <div className="max-w-64 min-w-44 px-3 py-2.5 bg-neutral-50 rounded-tr-lg rounded-bl-lg rounded-br-lg flex flex-col gap-1">
-                      <div
-                        className="text-text-primary text-sm whitespace-pre-wrap [&_.katex]:text-base"
-                        dangerouslySetInnerHTML={{ __html: streamingMessage }}
-                      />
+                      <StreamdownRenderer content={streamingMessage} />
                     </div>
                   </div>
                 </div>

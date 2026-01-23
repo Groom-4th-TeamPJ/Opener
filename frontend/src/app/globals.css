@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@source "../node_modules/streamdown/dist/*.js";
 
 :root {
   --background: #ffffff;
@@ -225,16 +226,26 @@ body {
  * KaTeX Styles
  * ========================= */
 .katex {
-  font-size: 1.1em;
+  font-size: 1.05em;
+}
+
+.katex-display {
+  font-size: 0.9em;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .katex * {
   box-sizing: border-box;
 }
 
-/* 모바일에서 수식 크기 조정 */
 @media (max-width: 768px) {
   .katex {
     font-size: 0.9em;
+  }
+
+  .katex-display {
+    font-size: 0.8em;
   }
 }
