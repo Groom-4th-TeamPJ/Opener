@@ -9,6 +9,7 @@ import Button from '@/components/common/Button'
 import AISparklesIcon from '@/components/icons/AISparklesIcon'
 import { InfoTooltip } from '@/components/common/InfoTooltip'
 import renderLatex from '@/utils/render-latex'
+import { formatChatTimestamp } from '@/utils/format'
 
 interface AIChatbotProps {
   isActive: boolean
@@ -66,7 +67,9 @@ export default function ScrapbookAIChatbot({
                         }}
                       />
                     </div>
-                    <span className="text-neutral-300 text-xs">{message.timestamp}</span>
+                    <span className="text-neutral-300 text-xs">
+                      {formatChatTimestamp(new Date(message.timestamp))}
+                    </span>
                   </div>
                 </div>
               ) : (
@@ -79,7 +82,9 @@ export default function ScrapbookAIChatbot({
                       }}
                     />
                   </div>
-                  <span className="text-neutral-300 text-xs">{message.timestamp}</span>
+                  <span className="text-neutral-300 text-xs">
+                    {formatChatTimestamp(new Date(message.timestamp))}
+                  </span>
                 </div>
               )}
             </div>
