@@ -4,29 +4,55 @@ import { marked } from 'marked'
 type RenderLatexOptions = {
   blockDisplayMode?: boolean
 }
+
 export default function renderLatex(text: string, option: RenderLatexOptions = {}): string {
   if (!text) return ''
 
   const { blockDisplayMode = true } = option
 
-  // 1. LaTeX 수식 치환
-  const latexProcessed = text
-    .replace(/\\\[([\s\S]+?)\\\]/g, (_, latex) => {
-      return katex.renderToString(latex.trim(), {
-        displayMode: blockDisplayMode,
-        throwOnError: false,
-      })
-    })
-    .replace(/\\\(([\s\S]+?)\\\)/g, (_, latex) => {
-      return katex.renderToString(latex.trim(), {
-        displayMode: false,
-        throwOnError: false,
-      })
+  const render = (latex: string, displayMode: boolean) =>
+    katex.renderToString(latex.trim(), {
+      displayMode,
+      throwOnError: false,
+      trust: true,
     })
 
-  // 2. 마크다운 변환
-  // marked.parse는 최신 버전에서 기본적으로 string을 반환하도록 설정되어 있습니다.
-  return marked.parse(latexProcessed, {
+  let processed = text
+
+  /**
+   * 1. Block math
+   * $$ ... $$
+   */
+  processed = processed.replace(/\$\$([\s\S]+?)\$\$/g, (_, latex) =>
+    render(latex, blockDisplayMode)
+  )
+
+  /**
+   * 2. Block math
+   * \[ ... \]
+   */
+  processed = processed.replace(/\\\[([\s\S]+?)\\\]/g, (_, latex) =>
+    render(latex, blockDisplayMode)
+  )
+
+  /**
+   * 3. Inline math
+   * \( ... \)
+   */
+  processed = processed.replace(/\\\(([\s\S]+?)\\\)/g, (_, latex) => render(latex, false))
+
+  /**
+   * 4. Inline math
+   * $ ... $
+   */
+  processed = processed.replace(/(?<!\$)\$(?!\$)([^$\n]+?)\$(?!\$)/g, (_, latex) =>
+    render(latex, false)
+  )
+
+  /**
+   * 5. Markdown 처리
+   */
+  return marked.parse(processed, {
     breaks: true,
     gfm: true,
   }) as string
