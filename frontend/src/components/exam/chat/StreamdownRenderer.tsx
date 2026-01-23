@@ -1,9 +1,13 @@
 'use client'
 
 import { Streamdown } from 'streamdown'
-import { math } from '@streamdown/math'
+import { createMathPlugin } from '@streamdown/math'
 import { cjk } from '@streamdown/cjk'
 import 'katex/dist/katex.min.css'
+
+const math = createMathPlugin({
+  singleDollarTextMath: true, // Enable $...$ syntax (default: false)
+})
 
 interface StreamdownRendererProps {
   content: string
