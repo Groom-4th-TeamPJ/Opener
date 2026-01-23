@@ -1,4 +1,4 @@
-/* eslint-disable no-console */
+ 
 import { useEffect, useRef } from 'react'
 import { API_PATHS } from '@/constants/api-path'
 import { useExamStore } from '@/stores/use-exam-store'
@@ -31,7 +31,6 @@ export function useSSEChat({ sessionId, questionId, enabled = true }: UseSSEChat
     const eventSource = new EventSource(SSE_URL, { withCredentials: true })
 
     eventSource.onopen = () => {
-      console.log('[SSE] Connected successfully, sessionId:', sessionId)
       fullMessageRef.current = ''
     }
 
@@ -39,8 +38,6 @@ export function useSSEChat({ sessionId, questionId, enabled = true }: UseSSEChat
     eventSource.addEventListener('message', (event) => {
       try {
         const data = JSON.parse(event.data) as { chunk: string }
-        console.log('[SSE] Message:', data)
-
         const currentStreaming =
           useExamStore.getState().questionStates[questionIdRef.current ?? 0]?.streamingMessage
 
@@ -60,9 +57,7 @@ export function useSSEChat({ sessionId, questionId, enabled = true }: UseSSEChat
     })
 
     // 'complete' 이벤트: 스트리밍 완료
-    eventSource.addEventListener('complete', (event) => {
-      console.log('[SSE] Complete:', event.data)
-
+    eventSource.addEventListener('complete', () => {
       const currentQuestionId = questionIdRef.current
       if (currentQuestionId) {
         completeStreaming(currentQuestionId)
@@ -76,7 +71,6 @@ export function useSSEChat({ sessionId, questionId, enabled = true }: UseSSEChat
     }
 
     return () => {
-      console.log('[SSE] Cleanup: Closing connection')
       eventSource.close()
     }
   }, [sessionId, enabled, setStreamingMessage, completeStreaming])
