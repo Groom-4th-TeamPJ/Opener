@@ -3,6 +3,7 @@ import Button from '@/components/common/Button'
 import { useExamStore } from '@/stores/use-exam-store'
 import useCurrentExam from '@/hooks/exam/use-current-exam'
 import { useExamResult } from '@/hooks/exam/queries/use-exam-result'
+import { useDisconnectChat } from '@/hooks/exam/queries/use-disconnect-chat'
 import { toast } from 'sonner'
 
 interface NavigationButtonProps {
@@ -14,6 +15,7 @@ export default function NavigationButton({ isLastQuestion, onNext }: NavigationB
   const { currentIndex, getQuestionState } = useExamStore()
   const examData = useCurrentExam()
   const { refetch, isFetching } = useExamResult()
+  const { mutate: disconnectChat } = useDisconnectChat()
 
   if (!examData) return null
 
@@ -23,6 +25,8 @@ export default function NavigationButton({ isLastQuestion, onNext }: NavigationB
 
   const handleClick = async () => {
     if (isLastQuestion) {
+      disconnectChat(examData.examResultId)
+
       const { isSuccess } = await refetch()
       if (isSuccess) {
         onNext()

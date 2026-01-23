@@ -2,6 +2,8 @@ import Image from 'next/image'
 import Button from '@/components/common/Button'
 import { Modal, ModalContent, ModalFooter } from '@/components/common/Modal'
 import { memo } from 'react'
+import useCurrentExam from '@/hooks/exam/use-current-exam'
+import { useDisconnectChat } from '@/hooks/exam/queries/use-disconnect-chat'
 
 interface ExamExitModalProps {
   open: boolean
@@ -10,6 +12,16 @@ interface ExamExitModalProps {
 }
 
 export default memo(function ExamExitModal({ open, onCancel, onConfirm }: ExamExitModalProps) {
+  const examData = useCurrentExam()
+  const { mutate: disconnectChat } = useDisconnectChat()
+
+  const handleConfirm = () => {
+    if (examData) {
+      disconnectChat(examData.examResultId)
+    }
+    onConfirm()
+  }
+
   return (
     <Modal
       open={open}
@@ -54,7 +66,7 @@ export default memo(function ExamExitModal({ open, onCancel, onConfirm }: ExamEx
           variant="secondary"
           size="lg"
           widthFull
-          onClick={onConfirm}
+          onClick={handleConfirm}
           className="text-base font-medium"
         >
           학습 종료하기
