@@ -21,7 +21,8 @@
   --color-neutral-300: #bcbdbc;
   --color-neutral-400: #80838b;
   --color-neutral-500: #929393;
-  --color-neutral-600: #7d7e7f; /* P */
+  --color-neutral-600: #7d7e7f;
+  /* P */
   --color-neutral-700: #57585b;
   --color-neutral-800: #3d3f42;
   --color-neutral-900: #282a2e;
@@ -35,7 +36,8 @@
   --color-primary-300: #54d8d2;
   --color-primary-400: #33d1c9;
   --color-primary-500: #00c5bc;
-  --color-primary-600: #00b3ab; /* Main Brand - P */
+  --color-primary-600: #00b3ab;
+  /* Main Brand - P */
   --color-primary-700: #008c85;
   --color-primary-800: #006c67;
   --color-primary-900: #00534f;
@@ -49,7 +51,8 @@
   --color-danger-300: #ffccd2;
   --color-danger-400: #f49898;
   --color-danger-500: #fb6f70;
-  --color-danger-600: #f64c4c; /* Main Danger - P */
+  --color-danger-600: #f64c4c;
+  /* Main Danger - P */
   --color-danger-700: #ec2d30;
 
   /* =========================
@@ -61,7 +64,8 @@
   --color-warning-300: #ffeab3;
   --color-warning-400: #ffdd82;
   --color-warning-500: #ffc62b;
-  --color-warning-600: #ffad0d; /* Main Warning - P */
+  --color-warning-600: #ffad0d;
+  /* Main Warning - P */
   --color-warning-700: #f29b0e;
 
   /* =========================
@@ -73,7 +77,8 @@
   --color-success-300: #c0e5d1;
   --color-success-400: #97d4b4;
   --color-success-500: #6bc497;
-  --color-success-600: #47b881; /* Main Success - P */
+  --color-success-600: #47b881;
+  /* Main Success - P */
   --color-success-700: #0c9d61;
 
   /* =========================
@@ -85,21 +90,27 @@
   --color-info-300: #bdddff;
   --color-info-400: #93c8ff;
   --color-info-500: #4ba1ff;
-  --color-info-600: #3b82f6; /* Main Info - P */
+  --color-info-600: #3b82f6;
+  /* Main Info - P */
   --color-info-700: #3a70e2;
 
   /* =========================
    * Semantic — Text
    * ========================= */
-  --color-text-primary: var(--color-neutral-900); /* 기본 텍스트 (Primary) */
-  --color-text-secondary: var(--color-neutral-600); /* 보조 텍스트 */
-  --color-text-tertiary: var(--color-neutral-500); /* 3차 텍스트: 플레이스 홀더 */
-  --color-text-disabled: var(--color-neutral-200); /* 비활성 텍스트 */
+  --color-text-primary: var(--color-neutral-900);
+  /* 기본 텍스트 (Primary) */
+  --color-text-secondary: var(--color-neutral-600);
+  /* 보조 텍스트 */
+  --color-text-tertiary: var(--color-neutral-500);
+  /* 3차 텍스트: 플레이스 홀더 */
+  --color-text-disabled: var(--color-neutral-200);
+  /* 비활성 텍스트 */
 
   /* =========================
    * Overlay — Dimmer
    * ========================= */
-  --color-dimmer: rgba(0, 0, 0, 0.36); /* Modal/Overlay 배경 (Black 36%) */
+  --color-dimmer: rgba(0, 0, 0, 0.36);
+  /* Modal/Overlay 배경 (Black 36%) */
 
   /* =========================
    * Border Radius - Custom
@@ -116,11 +127,13 @@
   --animate-pulse-wave: pulse-wave 1s ease-in-out infinite;
 
   @keyframes pulse-scale {
+
     0%,
     100% {
       transform: scale(1);
       opacity: 1;
     }
+
     50% {
       transform: scale(1.1);
       opacity: 0.7;
@@ -128,27 +141,33 @@
   }
 
   @keyframes bounce-scale {
+
     0%,
     100% {
       transform: scale(0.889);
     }
+
     50% {
       transform: scale(1);
     }
   }
 
   @keyframes pulse-wave {
+
     0%,
     80%,
     100% {
       background-color: var(--color-neutral-100);
     }
+
     20% {
       background-color: var(--color-neutral-200);
     }
+
     40% {
       background-color: var(--color-neutral-300);
     }
+
     60% {
       background-color: var(--color-neutral-200);
     }
@@ -158,6 +177,7 @@
 @theme inline {
   --font-sans: var(--font-pretendard);
 }
+
 html {
   font-family: var(--font-pretendard), system-ui, sans-serif;
 }
@@ -207,6 +227,10 @@ body {
   box-shadow:
     0px 4px 30px 0px rgba(0, 179, 171, 0.08),
     0px 2px 12px 0px rgba(0, 179, 171, 0.04);
+}
+
+@utility shadow-3 {
+  box-shadow: 0px 4px 30px 0px rgba(40, 42, 46, 0.08);
 }
 
 /* =========================
