@@ -1,5 +1,6 @@
 import { Card, CardHeader, CardContent } from '@/components/common/Card'
 import AISparklesIcon from '@/components/icons/AISparklesIcon'
+import renderLatex from '@/utils/render-latex'
 
 interface PromptAnalysisCardProps {
   data?: string
@@ -14,9 +15,10 @@ export default function PromptAnalysisCard({ data }: PromptAnalysisCardProps) {
 
       <CardContent className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col justify-start items-start p-0 px-4 2xl:px-6 wrap-break-word">
         {data && (
-          <p className="text-sm 2xl:text-base text-text-primary leading-relaxed whitespace-pre-wrap">
-            {data}
-          </p>
+          <div
+            className="text-sm 2xl:text-base text-text-primary leading-relaxed whitespace-pre-wrap break-all"
+            dangerouslySetInnerHTML={{ __html: renderLatex(data, { blockDisplayMode: false }) }}
+          />
         )}
       </CardContent>
     </Card>

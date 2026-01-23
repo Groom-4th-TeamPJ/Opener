@@ -60,8 +60,10 @@ export default function ScrapbookAIChatbot({
                   <div className="flex flex-col gap-2 flex-1">
                     <div className="max-w-64 min-w-44 px-3 py-2.5 bg-neutral-50 rounded-tr-lg rounded-bl-lg rounded-br-lg flex flex-col gap-1">
                       <p
-                        className="text-text-primary text-sm whitespace-pre-wrap"
-                        dangerouslySetInnerHTML={{ __html: renderLatex(message.content) }}
+                        className="text-text-primary text-sm whitespace-pre-wrap break-all"
+                        dangerouslySetInnerHTML={{
+                          __html: renderLatex(message.content, { blockDisplayMode: false }),
+                        }}
                       />
                     </div>
                     <span className="text-neutral-300 text-xs">{message.timestamp}</span>
@@ -70,9 +72,11 @@ export default function ScrapbookAIChatbot({
               ) : (
                 <div className="flex flex-col items-end gap-2">
                   <div className="max-w-64 min-w-44 px-3 py-2.5 bg-primary-100 rounded-tl-lg rounded-bl-lg rounded-br-lg">
-                    <p
-                      className="text-text-primary text-sm whitespace-pre-wrap"
-                      dangerouslySetInnerHTML={{ __html: renderLatex(message.content) }}
+                    <div
+                      className="text-text-primary text-sm whitespace-pre-wrap break-all"
+                      dangerouslySetInnerHTML={{
+                        __html: renderLatex(message.content, { blockDisplayMode: false }),
+                      }}
                     />
                   </div>
                   <span className="text-neutral-300 text-xs">{message.timestamp}</span>
