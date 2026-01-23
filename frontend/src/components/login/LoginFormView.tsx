@@ -11,6 +11,7 @@ interface LoginFormViewProps {
   control: Control<LoginFormValues>
   onSubmit: () => void
   errors: FieldErrors<LoginFormValues>
+  isDisabled: boolean
   isSubmitting: boolean
   handleOauthLogin: () => void
 }
@@ -22,6 +23,7 @@ export default function LoginFormView({
   control,
   onSubmit,
   errors,
+  isDisabled,
   isSubmitting,
   handleOauthLogin,
 }: LoginFormViewProps) {
@@ -51,7 +53,12 @@ export default function LoginFormView({
           {errors.root.message}
         </p>
       ) : null}
-      <Button type="submit" className="w-full leading-0 mt-4" isLoading={isSubmitting}>
+      <Button
+        type="submit"
+        className="w-full leading-0 mt-4"
+        isLoading={isSubmitting}
+        disabled={isDisabled}
+      >
         로그인
       </Button>
       <Link
@@ -60,7 +67,7 @@ export default function LoginFormView({
         className={cn(
           'inline-flex items-center justify-center gap-2',
           'rounded-lg cursor-pointer h-10 px-4',
-          isSubmitting ? 'bg-[#E6CC00] pointer-events-none' : 'bg-[#fee500]',
+          isSubmitting || isDisabled ? 'bg-[#E6CC00] pointer-events-none' : 'bg-[#fee500]',
           'leading-0 transition-colors duration-200 hover:bg-[#F2D700]'
         )}
         prefetch={false}
