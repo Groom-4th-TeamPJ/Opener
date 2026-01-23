@@ -7,6 +7,7 @@ import { useSaveChatMessage } from '@/hooks/exam/queries/use-save-message'
 import { useQueryClient } from '@tanstack/react-query'
 import { QUERY_KEYS } from '@/constants/query-key'
 import type { SubmitAnswerResponse } from '@/types/exam'
+import { useDisconnectChat } from '@/hooks/exam/queries/use-disconnect-chat'
 import { toast } from 'sonner'
 
 interface NavigationButtonProps {
@@ -20,6 +21,7 @@ export default function NavigationButton({ isLastQuestion, onNext }: NavigationB
   const { refetch, isFetching } = useExamResult()
   const { mutate: saveChatMessage } = useSaveChatMessage()
   const queryClient = useQueryClient()
+  const { mutate: disconnectChat } = useDisconnectChat()
 
   if (!examData) return null
 
@@ -39,6 +41,8 @@ export default function NavigationButton({ isLastQuestion, onNext }: NavigationB
     }
 
     if (isLastQuestion) {
+      disconnectChat(examData.examResultId)
+
       const { isSuccess } = await refetch()
       if (isSuccess) {
         onNext()
