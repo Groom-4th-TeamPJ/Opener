@@ -18,7 +18,7 @@ export const API_PATHS = {
   EXAM: {
     ROOT: '/exams',
     SUBMIT: '/exams/results',
-    SAVE_CHAT: '/exams/save-chat',
+    ANALYSIS: '/exams/analysis',
   },
   CHAT: {
     CONNECT: '/chat/connect',
@@ -26,6 +26,7 @@ export const API_PATHS = {
     ANALYSIS: '/chat/analysis',
     MESSAGE: '/chat/message',
     GENERATE: '/chat/generate',
+    SAVE_CHAT: '/chat/save-message',
   },
   USERS: {
     ME: '/users/me/cans/count',
@@ -33,5 +34,6 @@ export const API_PATHS = {
   SCRAPBOOK: {
     LIST: '/scrapbooks',
     EXAM_LIST: '/scrapbooks/filters',
+    DETAIL: '/scrapbooks/question-results',
   },
 } as const

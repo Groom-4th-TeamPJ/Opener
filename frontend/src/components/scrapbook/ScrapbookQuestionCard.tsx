@@ -7,6 +7,7 @@ import CorrectAnswerIcon from '@/components/icons/CorrectAnswerIcon'
 import WrongAnswerIcon from '@/components/icons/WrongAnswerIcon'
 import FRQAnswer from '@/components/shared/FRQAnswer'
 import ResultAnswer from '@/components/shared/ResultAnswer'
+import renderLatex from '@/utils/render-latex'
 
 interface ScrapbookQuestionCardProps {
   data: ScrapbookQuestion
@@ -25,7 +26,12 @@ export default function ScrapbookQuestionCard({ data }: ScrapbookQuestionCardPro
         {/* 임시 이미지 추후 변경 */}
         {data.passages.map((passage) => (
           <div key={passage.order} className="flex flex-col justify-start items-start">
-            {passage.type === 'TEXT' && <p className="leading-6">{passage.content}</p>}
+            {passage.type === 'TEXT' && (
+              <p
+                className="leading-6"
+                dangerouslySetInnerHTML={{ __html: renderLatex(passage.content) }}
+              />
+            )}
             {passage.type === 'IMAGE' && passage.url && (
               <Image
                 src={passage.url}

@@ -87,7 +87,7 @@ export interface SendChatMessageRequest {
 
 export interface ScrapbookChatMessage {
   order: number
-  role: 'USER' | 'ASSISTANT'
+  role: 'USER' | 'LLM'
   content: string
   timestamp: string
 }
@@ -98,6 +98,7 @@ export interface ScrapbookQuestion extends Question {
   createdAt: string
   selected: number
   chat: ScrapbookChatMessage[]
+  promptSummary?: string
 }
 
 export type ResultData = {
