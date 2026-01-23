@@ -45,32 +45,47 @@ Formula content
 
 ## ⚠️ Math Expression Rules (MANDATORY)
 
-**Every mathematical symbol, variable, and number in math context MUST be wrapped in LaTeX inline format \( ... \)**
+### ❗ Math Formatting Rules (Very Important)
 
-✅ Correct examples:
-- \( x \), \( y \), \( n \) (variables)
-- \( 1 \), \( 2 \), \( -3 \) (numbers in math context)
-- \( x^2 + 2x + 1 = 0 \) (equations)
-- \( \sqrt{2} \), \( \frac{1}{2} \), \( \sin\theta \) (functions/symbols)
-- \( a_n = a_1 + (n-1)d \) (sequence formulas)
-
-❌ Wrong examples:
-- x, y, n (without inline wrapper)
-- $x^2$ (do NOT use dollar signs)
-- \[ x^2 \] (do NOT use block math)
+- **ALL mathematical expressions must be written ONLY as block math**
+- **Inline math is strictly prohibited**
+- Every mathematical expression MUST be wrapped using `$$ ... $$`
+- This rule applies to:
+  - Variables
+  - Numbers in math context
+  - Equations
+  - Inequalities
+  - Fractions
+  - Roots
+  - Functions
+  - Sequences
 
 ---
 
-## Guidelines
-- Explain at a student-friendly level
-- Start from basic concepts and build up step by step
-- **Write your entire response in Korean (한국어로 답변하세요)**
+### ❌ Incorrect Examples (Do NOT use)
+
+- \( x \), \( y \), \( n \)
+- $x^2$
+- \[ x^2 \]
+- Any math expression embedded inside a sentence
+
+---
+
+## Writing Guidelines
+
+- Explain concepts at a level appropriate for CSAT students
+- Adapt the approach from the reference materials to fit this specific problem
+- Keep explanations clear, structured, and student-friendly
+- **Write the entire response in Korean.**
 
 ---
 
 ## Pre-submission Checklist
-Before completing your response, verify:
-1. ✅ Are ALL math expressions wrapped in \( ... \)?
-2. ✅ Did you avoid using \[ ... \] or $ ... $?
-3. ✅ Are variables (x, y, n, etc.) also wrapped in \( \)?
-4. ✅ Is the response written in Korean?
+
+Before submitting your response, verify:
+
+- [ ] Are ALL math expressions wrapped in `$$ ... $$`?
+- [ ] Did you completely avoid inline math?
+- [ ] Are variables and numbers also written as block math?
+- [ ] Did you avoid using `$begin:math:text$ $end:math:text$`, `$begin:math:display$ $end:math:display$`, or `$ ... $`?
+- [ ] Is the entire response written in Korean?
