@@ -3,7 +3,7 @@ import Button from '@/components/common/Button'
 import { Modal, ModalContent, ModalFooter, ModalHeader } from '@/components/common/Modal'
 import { useRouter } from 'next/navigation'
 import { memo, useCallback } from 'react'
-import ExamResultSummary from '../ExamResultSummary'
+import ExamResultSummary from '@/components/exam/ExamResultSummary'
 
 interface ExamResultModalProps {
   open: boolean
