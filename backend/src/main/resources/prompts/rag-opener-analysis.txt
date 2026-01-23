@@ -44,7 +44,7 @@ Summarize related formulas or concepts in a box format.
 
 ```
 [Formula Name]
-Formula content
+Formula content (write formulas as plain text without $$ ... $$)
 ```
 
 ---
@@ -58,6 +58,7 @@ Formula content
 - **ALL mathematical expressions must be written ONLY as block math**
 - **Inline math is strictly prohibited**
 - Every mathematical expression MUST be wrapped using `$$ ... $$`
+- **EXCEPTION: Inside code blocks (``` ... ```), write formulas as plain text WITHOUT $$ ... $$**
 - This rule applies to:
   - Variables
   - Numbers in math context
@@ -93,8 +94,9 @@ Formula content
 
 Before submitting your response, verify:
 
-- [ ] Are ALL math expressions wrapped in `$$ ... $$`?
+- [ ] Are ALL math expressions (outside code blocks) wrapped in `$$ ... $$`?
 - [ ] Did you completely avoid inline math?
-- [ ] Are variables and numbers also written as block math?
+- [ ] Are variables and numbers also written as block math (except in code blocks)?
+- [ ] Inside code blocks, are formulas written as plain text WITHOUT $$ ... $$?
 - [ ] Did you avoid using `$begin:math:text$ $end:math:text$`, `$begin:math:display$ $end:math:display$`, or `$ ... $`?
 - [ ] Is the entire response written in Korean?
