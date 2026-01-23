@@ -42,9 +42,8 @@ export default function HistoryDetail() {
           <div className="flex-1 overflow-y-auto min-h-0">
             <ScrapbookQuestionCard data={historyDetailData} />
           </div>
-          <div className="shrink-0">
-            <PromptAnalysisCard data={historyDetailData.promptSummary} />
-          </div>
+
+          <PromptAnalysisCard data={historyDetailData.promptSummary} />
         </div>
 
         {/* Right: AI Chatbot */}

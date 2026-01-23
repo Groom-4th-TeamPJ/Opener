@@ -89,7 +89,7 @@ export interface ScrapbookChatMessage {
   order: number
   role: 'USER' | 'LLM'
   content: string
-  timestamp: string
+  timestamp: Date
 }
 
 export interface ScrapbookQuestion extends Question {
