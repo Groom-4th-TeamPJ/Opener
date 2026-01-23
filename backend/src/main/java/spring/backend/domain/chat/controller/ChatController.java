@@ -6,7 +6,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -71,9 +70,9 @@ public class ChatController {
     }
 
     // 명시적 세션 해제
-    @PostMapping("/disconnect/{sessionId}")
+    @PostMapping("/disconnect")
     public ResponseEntity<Void> disconnectSession(
-            @PathVariable Long sessionId,
+            @RequestParam Long sessionId,
             @AuthenticationPrincipal AuthUser authUser) {
         chatService.disconnectSession(sessionId, authUser.id());
 
