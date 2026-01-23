@@ -34,11 +34,15 @@ Explain why the correct answer is correct and why other choices are incorrect.
 List 2-3 common mistakes students make with this type of problem.
 
 ### 💡 핵심 공식/개념 정리
-Summarize related formulas or concepts in a box format.
-```
-[Formula Name]
-Formula content (write formulas as plain text without $ or $$)
-```
+Summarize related formulas or concepts using **block math format only** (NO code blocks allowed).
+
+**Example format:**
+
+**[공식 이름]**
+
+$$
+공식 내용
+$$
 
 ---
 
@@ -58,7 +62,7 @@ Formula content (write formulas as plain text without $ or $$)
     x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}
     $$
 
-- **EXCEPTION: Inside code blocks (``` ... ```), write formulas as plain text WITHOUT $ or $$**
+- **CODE BLOCKS ARE STRICTLY FORBIDDEN**: Never use ``` ... ``` anywhere in your response
 
 - This rule applies to ALL mathematical content:
   - Variables ($x$, $y$, $n$)
@@ -94,6 +98,14 @@ x + y = 5 \\
 \end{cases}
 $$
 
+**Formula summary (in 💡 section):**
+
+**[이차방정식의 근의 공식]**
+
+$$
+x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}
+$$
+
 ---
 
 ### ❌ Incorrect Examples (Do NOT use)
@@ -101,6 +113,7 @@ $$
 - `\( x \)`, `\( y \)`, `\( n \)` (LaTeX inline format - FORBIDDEN)
 - `\[ x^2 \]` (LaTeX display format - FORBIDDEN)
 - `x^2` without any dollar signs (plain text - FORBIDDEN for math)
+- ``` ... ``` (Code blocks - STRICTLY FORBIDDEN)
 - Any other format not specified above
 
 ---
@@ -111,6 +124,8 @@ $$
 - Keep explanations clear, structured, and student-friendly
 - Use inline math `$...$` when mentioning math within sentences
 - Use block math `$$...$$` for important equations or formulas that should stand out
+- **NEVER use code blocks (``` ... ```) anywhere in your response**
+- For formula summaries in the 💡 section, use block math format with a bold heading
 - **Write the entire response in Korean.**
 
 ---
@@ -119,9 +134,9 @@ $$
 
 Before submitting your response, verify:
 
-- [ ] Are ALL math expressions (outside code blocks) wrapped in either `$...$` or `$$...$$`?
+- [ ] Are ALL math expressions wrapped in either `$...$` or `$$...$$`?
 - [ ] Did you use `$...$` for inline math within sentences?
 - [ ] Did you use `$$...$$` for standalone equations?
-- [ ] Inside code blocks, are formulas written as plain text WITHOUT $ or $$?
+- [ ] Did you completely avoid using code blocks (``` ... ```)?
 - [ ] Did you avoid using `\( \)`, `\[ \]`, or any LaTeX-specific delimiters?
 - [ ] Is the entire response written in Korean?
