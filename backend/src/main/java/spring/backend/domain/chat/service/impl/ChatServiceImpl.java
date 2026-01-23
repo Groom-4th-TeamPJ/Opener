@@ -197,18 +197,27 @@ public class ChatServiceImpl implements ChatService {
     @Transactional
     public void disconnectSession(Long sessionId, UUID userId) {
 
+        log.info("[SSE] 세션 해제 요청 - sessionId: {}, userId: {}", sessionId, userId);
+
         // 스프링 인메모리 힙에 기존 SSE 연결이 있으는지 확인
         if (emitters.containsKey(sessionId)) {
 
             // DB에서 sessionId와 userId로 세션 권한 검증
             chatRedisService.validateSessionOwner(sessionId, userId);
 
+            log.debug("[SSE] 세션 권한 검증 완료 - sessionId: {}", sessionId);
+
             // 검증 통과시 emitter 삭제
             emitters.remove(sessionId);
 
             // redis에서 세션 삭제
             chatRedisService.deleteSession(sessionId);
+
+            log.info("[SSE] ✅ 세션 해제 완료 - sessionId: {}, userId: {}, 남은 연결 수: {}",
+                    sessionId, userId, emitters.size());
         } else {
+            log.warn("[SSE] ❌ 세션 해제 실패 - 존재하지 않는 세션 - sessionId: {}, userId: {}, 활성 세션 목록: {}",
+                    sessionId, userId, emitters.keySet());
             // 본인 세션이 아닌 오류
             throw new BusinessException(ErrorCode.INVALID_SESSION);
         }
