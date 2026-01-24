@@ -19,7 +19,7 @@ export default function NavigationButton({ isLastQuestion, onNext }: NavigationB
   const { currentIndex, getQuestionState } = useExamStore()
   const examData = useCurrentExam()
   const { refetch, isFetching } = useExamResult()
-  const { mutate: saveChatMessage } = useSaveChatMessage()
+  const { mutateAsync: saveChatMessage } = useSaveChatMessage()
   const queryClient = useQueryClient()
   const { mutate: disconnectChat } = useDisconnectChat()
 
@@ -34,7 +34,7 @@ export default function NavigationButton({ isLastQuestion, onNext }: NavigationB
 
   const handleClick = async () => {
     if (submitResult?.questionResultId && isAnalysisActive) {
-      saveChatMessage({
+      await saveChatMessage({
         sessionId: examData.examResultId,
         questionResultId: submitResult.questionResultId,
       })
