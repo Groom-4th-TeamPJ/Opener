@@ -12,6 +12,7 @@ import { InfoTooltip } from '@/components/common/InfoTooltip'
 import { useSendChatMessage } from '@/hooks/exam/queries/use-send-chat-message'
 import { useExamStore } from '@/stores/use-exam-store'
 import StreamdownRenderer from './StreamdownRenderer'
+import Loading from '@/components/shared/Loading'
 
 interface AIChatbotProps {
   isActive: boolean
@@ -37,8 +38,9 @@ export default function AIChatbot({
   isDisabled = false,
 }: AIChatbotProps) {
   const [inputValue, setInputValue] = useState('')
+  const [isWaitingResponse, setIsWaitingResponse] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const { mutate: sendChatMessage, isPending } = useSendChatMessage()
+  const { mutate: sendChatMessage } = useSendChatMessage()
   const examResultId = useExamStore((state) => state.examResultId)
   const addChatMessage = useExamStore((state) => state.addChatMessage)
   const { setStreamingMessage } = useExamStore.getState()
@@ -54,12 +56,13 @@ export default function AIChatbot({
 
   const isStreaming = !!streamingMessage
 
-  // 문제가 변경되면 인풋 리셋
+  // 문제가 변경되면 상태 리셋
   useEffect(() => {
     setInputValue('')
+    setIsWaitingResponse(false)
   }, [question.questionId])
 
-  // 분석 활성화 시 초기 AI 메시지 추가
+  // 분석 활성화 시 초기 AI 메시지 추가 + 로딩 표시
   useEffect(() => {
     if (isActive && chatMessages.length === 0) {
       const userAnswer =
@@ -72,6 +75,7 @@ export default function AIChatbot({
         content: contentText,
         timestamp: formatChatTimestamp(new Date()),
       })
+      setIsWaitingResponse(true)
     }
   }, [
     isActive,
@@ -83,14 +87,31 @@ export default function AIChatbot({
     addChatMessage,
   ])
 
+  // 스트리밍이 시작되면 대기 상태 해제
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [chatMessages, streamingMessage])
+    if (isStreaming) {
+      setIsWaitingResponse(false)
+    }
+  }, [isStreaming])
+
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    })
+  }, [chatMessages, streamingMessage, isWaitingResponse])
 
   const handleSend = () => {
-    if (!inputValue.trim() || !isActive || isDisabled || isPending || isStreaming || !examResultId)
+    if (
+      !inputValue.trim() ||
+      !isActive ||
+      isDisabled ||
+      isWaitingResponse ||
+      isStreaming ||
+      !examResultId
+    )
       return
 
+    setIsWaitingResponse(true)
     setStreamingMessage(question.questionId, '')
 
     const userMessage: ChatMessage = {
@@ -102,11 +123,16 @@ export default function AIChatbot({
 
     addChatMessage(question.questionId, userMessage)
 
-    sendChatMessage({
-      sessionId: examResultId,
-      questionId: question.questionId,
-      message: inputValue,
-    })
+    sendChatMessage(
+      {
+        sessionId: examResultId,
+        questionId: question.questionId,
+        message: inputValue,
+      },
+      {
+        onError: () => setIsWaitingResponse(false),
+      }
+    )
 
     // 한글 IME 조합 완료 후 인풋 비우기
     setTimeout(() => setInputValue(''), 0)
@@ -177,6 +203,22 @@ export default function AIChatbot({
               </div>
             ))}
 
+            {/* AI 응답 대기 중 로딩 */}
+            {isWaitingResponse && (
+              <div className="animate-fade-in flex flex-col gap-2 items-start">
+                <div className="flex gap-2 w-full">
+                  <div className="shrink-0 w-8 h-8 bg-primary-50 rounded-full flex items-center justify-center">
+                    <AISparklesIcon className="w-5 h-5" />
+                  </div>
+                  <div className="flex flex-col gap-2 flex-1">
+                    <div className="max-w-64 min-w-44 px-3 py-2.5 bg-neutral-50 rounded-tr-lg rounded-bl-lg rounded-br-lg flex items-center">
+                      <Loading dotClassName="bg-neutral-300" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* 스트리밍 중인 AI 메시지 */}
             {streamingMessage && (
               <div className="animate-fade-in flex flex-col gap-2 items-start">
@@ -206,13 +248,15 @@ export default function AIChatbot({
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          disabled={!isActive || isDisabled || isStreaming}
+          disabled={!isActive || isDisabled || isWaitingResponse || isStreaming}
           size="lg"
           className="disabled:border-neutral-200"
           rightIcon={
             <Button
               onClick={handleSend}
-              disabled={!isActive || isDisabled || isPending || isStreaming || !inputValue.trim()}
+              disabled={
+                !isActive || isDisabled || isWaitingResponse || isStreaming || !inputValue.trim()
+              }
               variant="ghost"
               className="p-0 h-auto min-h-0 text-primary-600 hover:bg-transparent hover:opacity-80"
             >
