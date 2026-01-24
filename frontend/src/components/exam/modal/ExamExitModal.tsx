@@ -21,7 +21,7 @@ export default memo(function ExamExitModal({ open, onCancel, onConfirm }: ExamEx
   const { mutate: disconnectChat } = useDisconnectChat()
   const { currentIndex, getQuestionState } = useExamStore()
   const queryClient = useQueryClient()
-  const { mutate: saveChatMessage } = useSaveChatMessage()
+  const { mutateAsync: saveChatMessage } = useSaveChatMessage()
 
   if (!examData) return
 
@@ -32,10 +32,10 @@ export default memo(function ExamExitModal({ open, onCancel, onConfirm }: ExamEx
     QUERY_KEYS.EXAM.SUBMIT_RESULT(question.questionId)
   )
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (examData) {
       if (submitResult?.questionResultId && isAnalysisActive) {
-        saveChatMessage({
+        await saveChatMessage({
           sessionId: examData.examResultId,
           questionResultId: submitResult.questionResultId,
         })
