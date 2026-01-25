@@ -32,17 +32,27 @@ spring:
   data:
     redis:
 
-      # 토큰용 redis 접속 설정
+      # 토큰용 redis 접속 설정 (Standalone)
       auth:
         host: ${REDIS_HOST:localhost}
         port: ${REDIS_PORT:6379}
         timeout: ${REDIS_TIMEOUT:3000}ms
-      
-      # 채팅용 redis 접속 설정
+
+      # 채팅용 Redis Cluster 설정
+      # 실무 권장: 리스트 형태로 각 노드별 환경변수 지원
+      # 기본값: host.docker.internal (Mac /etc/hosts에 127.0.0.1 host.docker.internal 추가 필요)
+      # 배포시 .env에서 실제 호스트로 오버라이드
       chat:
-        host: ${REDIS_CHAT_HOST:localhost}
-        port: ${REDIS_CHAT_PORT:6380}
-        timeout: ${REDIS_CHAT_TIMEOUT:3000}ms
+        cluster:
+          nodes:
+            - ${REDIS_CLUSTER_NODE_0:host.docker.internal:6380}
+            - ${REDIS_CLUSTER_NODE_1:host.docker.internal:6381}
+            - ${REDIS_CLUSTER_NODE_2:host.docker.internal:6382}
+            - ${REDIS_CLUSTER_NODE_3:host.docker.internal:6383}
+            - ${REDIS_CLUSTER_NODE_4:host.docker.internal:6384}
+            - ${REDIS_CLUSTER_NODE_5:host.docker.internal:6385}
+          max-redirects: ${REDIS_CLUSTER_MAX_REDIRECTS:3}
+        timeout: ${REDIS_CHAT_TIMEOUT:3000}
 
   # RabbitMQ 설정
   rabbitmq:
