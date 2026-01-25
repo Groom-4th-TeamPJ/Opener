@@ -2,6 +2,13 @@ import AccountInfoCard from '@/components/mypage/AccountInfoCard'
 import CustomerSupportCard from '@/components/mypage/CustomerSupportCard'
 import FAQCard from '@/components/mypage/FAQCard'
 import ProfileCard from '@/components/mypage/ProfileCard'
+import { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  title: '마이페이지',
+  description: '내 정보와 학습 설정을 관리하세요',
+  robots: { index: false, follow: false },
+}
 
 export default function MyPage() {
   return (

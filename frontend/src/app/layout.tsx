@@ -13,9 +13,26 @@ const pretendard = localFont({
 })
 
 export const metadata: Metadata = {
-  title: 'Opener',
-  description: '오프너 홈페이지',
-  keywords: ['오프너', 'Opener', '수험생', '수학'],
+  metadataBase: new URL('https://opener.deving.xyz'),
+  title: {
+    default: '오프너',
+    template: '%s | 오프너',
+  },
+  description: '시험 문제 풀이와 오답 정리를 통해 학습 흐름을 관리하는 문제 풀이 서비스',
+  keywords: ['오프너', 'Opener', '수험생', '수학', '문제풀이', '오답노트', '학습관리'],
+  openGraph: {
+    title: '오프너',
+    description: '문제 풀이부터 오답 정리까지, 학습의 흐름을 여는 AI 서비스',
+    type: 'website',
+    images: [
+      {
+        url: '/image/logo_h56_p.svg',
+        width: 1200,
+        height: 630,
+        alt: '오프너',
+      },
+    ],
+  },
 }
 
 export default function RootLayout({
