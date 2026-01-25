@@ -3,7 +3,6 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { refreshOnce } from '@/utils/api'
-import { toast } from 'sonner'
 
 const PUBLIC_PATHS = ['/login', '/register']
 
@@ -29,7 +28,6 @@ export default function AuthVerifyHandler({ callback }: AuthVerifyHandlerProps) 
         router.replace(isRedirectingToPublic ? '/' : decodedPath)
       } else {
         // 갱신 실패 시 로그인 페이지로
-        toast.error('세션이 만료되었습니다. 다시 로그인해주세요.', { duration: 3000 })
         router.replace('/login')
       }
     }

@@ -20,7 +20,7 @@ export default function ScrapbookCardView({
 }: ScrapbookData) {
   return (
     <Link href={`${ROUTES.SCRAPBOOK}/${examId}`} prefetch={false}>
-      <Card className="hover:shadow-2">
+      <Card className="hover:shadow-3 transition-shadow duration-100 ease-in-out">
         <CardHeader className="py-4">
           <Badge label={examYear.toString()} variant="secondary" type="solid-pastel" />
         </CardHeader>

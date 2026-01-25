@@ -98,6 +98,7 @@ export default function RegisterForm({ signupToken, name }: RegisterFormProps) {
     clearErrors()
     if (!agreed) {
       setTermError('약관에 동의해주세요.')
+      return
     }
     try {
       await register(form, {

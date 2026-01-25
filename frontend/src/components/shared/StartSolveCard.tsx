@@ -29,7 +29,13 @@ export default function StartSolveCard({
     >
       <CardContent className="text-center space-y-6 mx-auto">
         <div className="relative size-15 lg:size-20 mx-auto">
-          <Image src="icons/writing_gray.svg" alt="필기 아이콘" fill />
+          <Image
+            src="icons/writing_gray.svg"
+            alt="필기 아이콘"
+            fill
+            priority
+            fetchPriority="high"
+          />
         </div>
 
         <div className="lg:space-y-2">
