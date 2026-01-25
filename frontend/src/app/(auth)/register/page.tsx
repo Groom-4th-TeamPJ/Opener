@@ -1,4 +1,5 @@
 import RegisterForm from '@/components/register/RegisterForm'
+import { Metadata } from 'next'
 import Image from 'next/image'
 
 interface RegisterProps {
@@ -6,6 +7,12 @@ interface RegisterProps {
     signupToken?: string
     name?: string
   }>
+}
+
+export const metadata: Metadata = {
+  title: '회원가입',
+  description: '오프너 회원가입 페이지',
+  robots: { index: false, follow: false },
 }
 
 export default async function Register({ searchParams }: RegisterProps) {

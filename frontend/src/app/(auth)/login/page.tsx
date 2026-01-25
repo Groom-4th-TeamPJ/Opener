@@ -1,5 +1,6 @@
 import LoginErrorHandler from '@/components/login/LoginErrorHandler'
 import LoginForm from '@/components/login/LoginForm'
+import { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
 
@@ -7,6 +8,12 @@ interface LoginProps {
   searchParams: Promise<{
     error?: string
   }>
+}
+
+export const metadata: Metadata = {
+  title: '로그인',
+  description: '오프너 로그인 페이지',
+  robots: { index: false, follow: false },
 }
 
 export default async function Login({ searchParams }: LoginProps) {

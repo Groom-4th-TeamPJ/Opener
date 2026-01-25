@@ -1,4 +1,11 @@
 import ScrapbookCard from '@/components/scrapbook/ScrapbookCard'
+import { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  title: '스크랩북',
+  description: '저장한 문제와 오답을 시험별로 관리하세요',
+  robots: { index: false },
+}
 
 export default function Scrapbook() {
   return (

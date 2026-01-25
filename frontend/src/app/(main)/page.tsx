@@ -1,4 +1,11 @@
 import DashboardContainer from '@/components/dashboard/DashboardContainer'
+import { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  title: '대시보드',
+  description: '나의 문제 풀이 현황과 학습 진행 상황을 확인하세요',
+  robots: { index: false },
+}
 
 export default function HomePage() {
   return (
