@@ -34,24 +34,166 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis - Chat / Realtime
-  redis-chat:
+  # ============================================
+  # Redis Cluster - Chat (6 Nodes: 3 Master + 3 Replica)
+  # ============================================
+
+  redis-chat-1:
     image: redis:7-alpine
-    container_name: redis-chat
-    command: redis-server --port 6380
+    container_name: redis-chat-1
+    # host.docker.internal: 컨테이너 간 통신 가능, 호스트에서는 /etc/hosts 설정 필요
+    command: redis-server /etc/redis/redis.conf --port 6380 --cluster-announce-hostname host.docker.internal --cluster-announce-port 6380 --cluster-announce-bus-port 16380
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - TZ=Asia/Seoul
     ports:
       - "6380:6380"
+      - "16380:16380"
     volumes:
-      - redis_chat_data:/data
+      - ./redis-cluster/redis-node.conf:/etc/redis/redis.conf
+      - redis_chat_1_data:/data
     networks:
       - test-network
     healthcheck:
       test: [ "CMD", "redis-cli", "-p", "6380", "ping" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-chat-2:
+    image: redis:7-alpine
+    container_name: redis-chat-2
+    command: redis-server /etc/redis/redis.conf --port 6381 --cluster-announce-hostname host.docker.internal --cluster-announce-port 6381 --cluster-announce-bus-port 16381
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - TZ=Asia/Seoul
+    ports:
+      - "6381:6381"
+      - "16381:16381"
+    volumes:
+      - ./redis-cluster/redis-node.conf:/etc/redis/redis.conf
+      - redis_chat_2_data:/data
+    networks:
+      - test-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-p", "6381", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-chat-3:
+    image: redis:7-alpine
+    container_name: redis-chat-3
+    command: redis-server /etc/redis/redis.conf --port 6382 --cluster-announce-hostname host.docker.internal --cluster-announce-port 6382 --cluster-announce-bus-port 16382
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - TZ=Asia/Seoul
+    ports:
+      - "6382:6382"
+      - "16382:16382"
+    volumes:
+      - ./redis-cluster/redis-node.conf:/etc/redis/redis.conf
+      - redis_chat_3_data:/data
+    networks:
+      - test-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-p", "6382", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-chat-4:
+    image: redis:7-alpine
+    container_name: redis-chat-4
+    command: redis-server /etc/redis/redis.conf --port 6383 --cluster-announce-hostname host.docker.internal --cluster-announce-port 6383 --cluster-announce-bus-port 16383
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - TZ=Asia/Seoul
+    ports:
+      - "6383:6383"
+      - "16383:16383"
+    volumes:
+      - ./redis-cluster/redis-node.conf:/etc/redis/redis.conf
+      - redis_chat_4_data:/data
+    networks:
+      - test-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-p", "6383", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-chat-5:
+    image: redis:7-alpine
+    container_name: redis-chat-5
+    command: redis-server /etc/redis/redis.conf --port 6384 --cluster-announce-hostname host.docker.internal --cluster-announce-port 6384 --cluster-announce-bus-port 16384
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - TZ=Asia/Seoul
+    ports:
+      - "6384:6384"
+      - "16384:16384"
+    volumes:
+      - ./redis-cluster/redis-node.conf:/etc/redis/redis.conf
+      - redis_chat_5_data:/data
+    networks:
+      - test-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-p", "6384", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-chat-6:
+    image: redis:7-alpine
+    container_name: redis-chat-6
+    command: redis-server /etc/redis/redis.conf --port 6385 --cluster-announce-hostname host.docker.internal --cluster-announce-port 6385 --cluster-announce-bus-port 16385
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - TZ=Asia/Seoul
+    ports:
+      - "6385:6385"
+      - "16385:16385"
+    volumes:
+      - ./redis-cluster/redis-node.conf:/etc/redis/redis.conf
+      - redis_chat_6_data:/data
+    networks:
+      - test-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-p", "6385", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Redis Cluster Initialization
+  redis-cluster-init:
+    image: redis:7-alpine
+    container_name: redis-cluster-init
+    depends_on:
+      redis-chat-1:
+        condition: service_healthy
+      redis-chat-2:
+        condition: service_healthy
+      redis-chat-3:
+        condition: service_healthy
+      redis-chat-4:
+        condition: service_healthy
+      redis-chat-5:
+        condition: service_healthy
+      redis-chat-6:
+        condition: service_healthy
+    volumes:
+      - ./redis-cluster/create-cluster.sh:/scripts/create-cluster.sh
+    entrypoint: [ "/bin/sh", "/scripts/create-cluster.sh" ]
+    networks:
+      - test-network
+    restart: "no"
 
   # RabbitMQ Message Broker with STOMP plugin
   rabbitmq:
@@ -126,5 +268,10 @@ networks:
 volumes:
   postgres_data_test:
   redis_auth_data:
-  redis_chat_data:
+  redis_chat_1_data:
+  redis_chat_2_data:
+  redis_chat_3_data:
+  redis_chat_4_data:
+  redis_chat_5_data:
+  redis_chat_6_data:
   rabbitmq_data:
