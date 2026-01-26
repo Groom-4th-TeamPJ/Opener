@@ -60,12 +60,13 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
     enabled: !!examData?.examResultId,
   })
 
-  // 비활성 감지
+  // 비활성 감지 - 60분 비활성 시 모달 표시 후 대시보드로 이동
   useInactivityDetection({
     timeout: INACTIVITY_TIMEOUT,
     enabled: !!examData && !isOpen(EXAM_MODAL.RESULT),
     onInactive: () => {
       openModal(EXAM_MODAL.INACTIVITY)
+      router.replace(ROUTES.DASHBOARD)
     },
   })
 
@@ -158,9 +159,8 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
     )
   }
 
-  // TODO: 비활성 상태 60분 자동으로 대시보드 이동하도록
   const handleInactivityConfirm = () => {
-    router.push(ROUTES.DASHBOARD)
+    closeModal()
   }
 
   // 변형 문제 풀기 모달 열기
