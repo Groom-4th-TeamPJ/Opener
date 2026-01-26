@@ -39,7 +39,10 @@ export default function AIChatbot({
 }: AIChatbotProps) {
   const [inputValue, setInputValue] = useState('')
   const [isWaitingResponse, setIsWaitingResponse] = useState(false)
+  const [showDelayMessage, setShowDelayMessage] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const prevStreamingMessageRef = useRef('')
   const { mutate: sendChatMessage } = useSendChatMessage()
   const examResultId = useExamStore((state) => state.examResultId)
   const addChatMessage = useExamStore((state) => state.addChatMessage)
@@ -93,6 +96,31 @@ export default function AIChatbot({
       setIsWaitingResponse(false)
     }
   }, [isStreaming])
+
+  // 15초 이상 대기 시 안내 메시지 표시
+  useEffect(() => {
+    if (!isWaitingResponse) {
+      setShowDelayMessage(false)
+      return
+    }
+
+    const timer = setTimeout(() => {
+      setShowDelayMessage(true)
+    }, 15000)
+
+    return () => clearTimeout(timer)
+  }, [isWaitingResponse])
+
+  // AI 응답이 끝나면 입력창에 포커스
+  useEffect(() => {
+    const wasStreaming = prevStreamingMessageRef.current.length > 0
+    const isNowEmpty = streamingMessage === ''
+
+    if (wasStreaming && isNowEmpty && isActive) {
+      inputRef.current?.focus()
+    }
+    prevStreamingMessageRef.current = streamingMessage
+  }, [streamingMessage, isActive])
 
   useEffect(() => {
     requestAnimationFrame(() => {
@@ -211,8 +239,13 @@ export default function AIChatbot({
                     <AISparklesIcon className="w-5 h-5" />
                   </div>
                   <div className="flex flex-col gap-2 flex-1">
-                    <div className="max-w-64 min-w-44 px-3 py-2.5 bg-neutral-50 rounded-tr-lg rounded-bl-lg rounded-br-lg flex items-center">
+                    <div className="max-w-64 min-w-44 px-3 py-2.5 bg-neutral-50 rounded-tr-lg rounded-bl-lg rounded-br-lg flex flex-col gap-1">
                       <Loading dotClassName="bg-neutral-300" />
+                      {showDelayMessage && (
+                        <p className="animate-fade-in text-text-secondary text-xs mt-1">
+                          AI 선생님이 고민 중이에요
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -243,6 +276,7 @@ export default function AIChatbot({
       {/* Input Area */}
       <div className="p-4 border-t border-neutral-100 shrink-0">
         <Input
+          ref={inputRef}
           type="text"
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
