@@ -86,7 +86,8 @@ public class OpenAiLlmService implements LlmService {
                     .map(Message::getText)
                     .orElse(userMessage);
 
-            log.debug("[LLM+RAG] VectorStore 검색 시작 - 쿼리 길이: {}", lastUserMessage.length());
+            log.info("[LLM+RAG] VectorStore 검색 시작 - 쿼리 길이: {}, topK: {}, threshold: {}",
+                    lastUserMessage.length(), topK, similarityThreshold);
 
             // VectorStore에서 유사 문서 검색
             SearchRequest searchRequest = SearchRequest.builder()
@@ -97,7 +98,34 @@ public class OpenAiLlmService implements LlmService {
 
             List<Document> similarDocuments = vectorStore.similaritySearch(searchRequest);
 
-            log.info("[LLM+RAG] 유사 문서 검색 완료 - 검색된 문서 수: {}", similarDocuments.size());
+            log.info("[LLM+RAG] 유사 문서 검색 완료 - 검색된 문서 수: {} (threshold: {})",
+                    similarDocuments.size(), similarityThreshold);
+
+            // 검색된 문서가 없으면 디버깅 정보 제공
+            if (similarDocuments.isEmpty()) {
+                SearchRequest debugRequest = SearchRequest.builder()
+                        .query(lastUserMessage)
+                        .topK(3)
+                        .similarityThreshold(0.0)
+                        .build();
+                List<Document> debugDocs = vectorStore.similaritySearch(debugRequest);
+                if (!debugDocs.isEmpty()) {
+                    log.warn("[LLM+RAG] ⚠️ 임계값({}) 때문에 문서가 필터링됨. 임계값 없이 검색 시 {}개 문서 발견.",
+                            similarityThreshold, debugDocs.size());
+                    for (Document doc : debugDocs) {
+                        Object distanceObj = doc.getMetadata().get("distance");
+                        double distance = distanceObj != null ? ((Number) distanceObj).doubleValue() : 0.0;
+                        double similarity = 1.0 - distance;  // Cosine Similarity = 1 - Cosine Distance
+                        log.warn("[LLM+RAG] - 문서: {}, 거리: {}, 유사도: {} (threshold: {})",
+                                doc.getMetadata().get("source"),
+                                String.format("%.3f", distance),
+                                String.format("%.3f", similarity),
+                                similarityThreshold);
+                    }
+                } else {
+                    log.warn("[LLM+RAG] ⚠️ VectorStore에 문서가 없습니다.");
+                }
+            }
 
             // RAG 컨텍스트를 포함한 메시지 리스트 구성
             List<Message> messagesWithRag = new ArrayList<>();

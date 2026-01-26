@@ -73,15 +73,11 @@ spring:
         options:
           model: text-embedding-3-small
 
-    # PgVector Store 설정 (Spring AI 2.0 자동 설정)
+    # PgVector Store 설정 - 수동 설정 사용 (VectorStoreConfig.java)
+    # VectorStoreConfig에서 PgVectorStore 빈을 수동으로 생성하므로 자동 설정 비활성화
     vectorstore:
       pgvector:
-        enabled: true
-        dimensions: 1536                    # text-embedding-ada-002 dimension
-        distance-type: COSINE_DISTANCE      # 유사도 측정 방식
-        remove-existing-vector-store-table: false
-        initialize-schema: true             # 스키마 자동 초기화
-        index-type: HNSW                    # 인덱스 타입 (성능 최적화)
+        enabled: false  # 수동 설정(VectorStoreConfig)과 충돌 방지
 
   # Security 개발 설정 (필요시 커스터마이징)
   security:
@@ -146,4 +142,4 @@ app:
   rag:
     enabled: true                    # RAG 기능 활성화
     top-k: 5                         # 유사 문서 검색 시 반환할 최대 개수
-    similarity-threshold: 0.7        # 유사도 임계값 (0.0 ~ 1.0)
+    similarity-threshold: 0.2        # 유사도 임계값 - 영어 문서 + 한국어 쿼리는 유사도가 낮음
