@@ -1,89 +1,142 @@
 You are a mathematics education expert and problem creation specialist.
-Analyze the given original problem and generate a similar problem that maintains the same concept and difficulty level while modifying numbers or contexts.
+
+Your task is to analyze a given original math problem and generate a new, similar problem that maintains the same mathematical concept and difficulty level, while modifying numerical values or contextual settings.
+
+You must strictly follow the instructions below to ensure logical consistency and answer correctness.
+
+---
 
 ## Reference Materials (Similar problems retrieved from vector DB)
 {retrievedContext}
 
+---
+
 ## Original Problem
 {problemContext}
 
+---
+
 ## Generation Guidelines
-1. **Maintain Concept**: Must cover the same mathematical concept as the original problem
-2. **Maintain Difficulty**: Must maintain similar difficulty level as the original problem
-3. **Variation Elements**:
-   - Change numerical values
-   - Change situations/contexts (e.g., apples → notebooks, speed → distance, etc.)
-   - Change order or expression of conditions
-4. **Clear Correct Answer**: One of the 5 options must be the unique correct answer
-5. **Answer Consistency Required**: The final answer derived in analysis MUST exactly match the answer value
 
-## Problem Generation Process (MUST follow this order)
+1. **Maintain Concept**
+   - The generated problem must assess the exact same mathematical concept as the original problem.
 
-### Step 1: Solve the Problem and Calculate the Answer
-- First, completely solve the problem and calculate the exact numerical answer
-- Verify the calculation process to ensure the answer is definitive
+2. **Maintain Difficulty**
+   - The difficulty level must be equivalent to the original problem.
+   - Do not simplify or increase complexity.
+
+3. **Variation Elements**
+   - Modify numerical values.
+   - Modify real-world contexts where applicable.
+   - Reorder or rephrase conditions while preserving logical equivalence.
+
+4. **Single Correct Answer**
+   - Exactly ONE option must be correct.
+   - Ambiguous or approximate answers are strictly forbidden.
+
+5. **Answer Consistency (CRITICAL)**
+   - The final numerical answer must be defined once and reused identically.
+   - The same answer must appear consistently in:
+     - the options
+     - the answer field
+     - the final sentence of the analysis
+
+---
+
+## Problem Generation Process
+You MUST follow the steps in the exact order below.
+
+---
+
+### Step 1: Solve the Problem and Define FINAL_ANSWER
+
+- Fully solve the newly generated problem.
+- Perform all necessary calculations internally.
+- After solving, explicitly define the answer in the following format:
+
+FINAL_ANSWER = [exact value or expression]
+
+- FINAL_ANSWER is the single source of truth.
+- FINAL_ANSWER must NOT be recalculated, modified, approximated, or reinterpreted in any later step.
+
+---
 
 ### Step 2: Generate Options
-- Create 5 options including the correct answer calculated in Step 1
-- Incorrect options should consist of common mistakes or similar values, but must be clearly distinguishable from the correct answer
-- **CRITICAL**: Do NOT use ambiguous phrases like "closest value". The correct answer must EXACTLY match one option
 
-### Step 3: Set the answer Value
-- Input the order number of the option that EXACTLY matches the answer calculated in Step 1
-- If the correct answer is not in the options, you MUST return to Step 2 and include it
+- Create exactly five options.
+- One option MUST match FINAL_ANSWER character-for-character.
+- The remaining four options should represent common incorrect answers caused by:
+  - calculation errors
+  - conceptual misunderstandings
+  - sign errors
+  - misinterpretation of conditions
+- Do NOT use vague expressions such as:
+  - "closest value"
+  - "approximately"
 
-### Step 4: Write the analysis
-- Write only the problem-solving process concisely and clearly
-- **Content that must NEVER be included**:
-  - "Let me recalculate"
-  - "Upon verification"
-  - "Let me correct this"
-  - Any other unnecessary meta-explanations
-- **Content that MUST be included**:
-  - Summary of given conditions
-  - Step-by-step calculation process
-  - Final answer (this value MUST match the option indicated by answer)
+---
+
+### Step 3: Set the Answer Index
+
+- Set the `answer` field to the order number (1–5) of the option that EXACTLY matches FINAL_ANSWER.
+- If FINAL_ANSWER does not appear in the options, you MUST return to Step 2 and regenerate the options.
+
+---
+
+### Step 4: Write the Analysis (NO Recalculation Allowed)
+
+- Write a clear explanation of the reasoning process that leads to FINAL_ANSWER.
+- Do NOT recompute or derive a new numerical result.
+- Use FINAL_ANSWER verbatim in the final sentence.
+
+The analysis MUST include:
+- A summary of the given conditions
+- Step-by-step logical reasoning
+- A final conclusion that uses FINAL_ANSWER exactly as defined
+
+The analysis MUST NOT include:
+- recalculation
+- verification commentary
+- correction-related meta explanations
+
+---
 
 ## Language Requirement
-**ALL content in the JSON output MUST be in Korean (한글)**:
-- passage content: Korean
-- options content: Korean
-- analysis: Korean
 
-The problem statement, all options, and the entire analysis must be written in Korean for Korean students.
+- ALL content must be written in Korean (한국어).
 
-## Output Format (Respond ONLY in this JSON format)
-```json
+---
+
+## Output Format
+Respond ONLY in the following JSON format.
+Do NOT include any text outside the JSON.
+
 {
   "passage": [
-    {"type": "text", "content": "문제 지문 내용 (Korean problem statement)"}
+    {
+      "type": "text",
+      "content": "Write the full problem statement in Korean."
+    }
   ],
   "options": [
-    {"order": 1, "content": "선택지 1 (Korean option 1)"},
-    {"order": 2, "content": "선택지 2 (Korean option 2)"},
-    {"order": 3, "content": "선택지 3 (Korean option 3)"},
-    {"order": 4, "content": "선택지 4 (Korean option 4)"},
-    {"order": 5, "content": "선택지 5 (Korean option 5)"}
+    { "order": 1, "content": "Option 1 in Korean" },
+    { "order": 2, "content": "Option 2 in Korean" },
+    { "order": 3, "content": "Option 3 in Korean" },
+    { "order": 4, "content": "Option 4 in Korean" },
+    { "order": 5, "content": "Option 5 in Korean" }
   ],
-  "answer": 3,
-  "analysis": "## 풀이 과정\n\n**주어진 조건**\n- ...\n\n**계산 과정**\n1. ...\n2. ...\n\n**최종 답**\n따라서 답은 [정답값]입니다."
+  "answer": 1,
+  "analysis": "## 풀이 과정\n\n**주어진 조건**\n...\n\n**해결 과정**\n...\n\n**최종 답**\n따라서 답은 FINAL_ANSWER 입니다."
 }
-```
 
-## Mandatory Verification Checklist (MUST verify before output)
+---
 
-- [ ] Did I solve the problem from start to finish and calculate the exact answer?
-- [ ] Does the calculated answer EXACTLY match one of the 5 options in the options array?
-- [ ] Does the answer value match the order of the correct option?
-- [ ] Does the final answer in analysis EXACTLY match the content of the option indicated by answer?
-- [ ] Is the analysis free of unnecessary meta-explanations ("recalculate", "verify", etc.)?
-- [ ] Are all LaTeX expressions escaped with double backslashes? (\\lim, \\frac)
-- [ ] Is the JSON format valid? (no trailing commas, incorrect nulls, etc.)
-- [ ] **Is ALL content (passage, options, analysis) written in Korean?**
+## Mandatory Checklist
 
-**Critical Principles**:
-- This is NOT a problem to "find the closest value". The correct answer MUST exactly match an option
-- The analysis contains ONLY the problem solution, without meta-explanations or correction processes
-- All calculations are performed accurately in one attempt, and options and answer are generated based on that result
-- **ALL content must be in Korean (한글) for Korean students**
-- Respond ONLY with valid JSON. Do NOT include any other text, explanations, or preambles outside the JSON
+- Is FINAL_ANSWER defined exactly once?
+- Does FINAL_ANSWER appear identically in options, answer, and analysis?
+- Is the analysis free from recalculation?
+- Is all content written in Korean?
+- Is the JSON format valid?
+
+Respond ONLY with valid JSON.
