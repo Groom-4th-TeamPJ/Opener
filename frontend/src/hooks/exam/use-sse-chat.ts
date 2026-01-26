@@ -1,7 +1,7 @@
- 
 import { useEffect, useRef } from 'react'
 import { API_PATHS } from '@/constants/api-path'
 import { useExamStore } from '@/stores/use-exam-store'
+import { toast } from 'sonner'
 
 interface UseSSEChatProps {
   sessionId: number | null
@@ -64,6 +64,26 @@ export function useSSEChat({ sessionId, questionId, enabled = true }: UseSSEChat
       }
 
       fullMessageRef.current = ''
+    })
+
+    // 'error' 이벤트: 서버에서 보내는 에러
+    eventSource.addEventListener('error', (event) => {
+      try {
+        const data = JSON.parse((event as MessageEvent).data) as {
+          type: string
+          sessionId: string
+          error: string
+          errorCode: string
+        }
+
+        if (data.errorCode === 'N_001') {
+          toast.error('캔이 부족합니다.', { duration: 3000 })
+        } else {
+          toast.error(data.error || '오류가 발생했습니다.', { duration: 3000 })
+        }
+      } catch {
+        console.error('[SSE] Error parsing error event:', event)
+      }
     })
 
     eventSource.onerror = (error) => {
