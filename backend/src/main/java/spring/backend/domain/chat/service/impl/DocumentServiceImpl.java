@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.reader.pdf.PagePdfDocumentReader;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
+import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -38,8 +39,26 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     public void loadAndIndexDocuments() {
         if (initialized.get()) {
-            log.info("Vector store already initialized");
+            log.info("Vector store already initialized (in-memory flag)");
             return;
+        }
+
+        // DB에 기존 문서가 있는지 확인 (간단한 검색으로 체크)
+        try {
+            SearchRequest checkRequest = SearchRequest.builder()
+                    .query("math")  // 더미 쿼리
+                    .topK(1)
+                    .similarityThreshold(0.0)  // 임계값 0으로 모든 문서 검색
+                    .build();
+            List<Document> existingDocs = vectorStore.similaritySearch(checkRequest);
+
+            if (!existingDocs.isEmpty()) {
+                log.info("Vector store already contains {} document(s). Skipping re-indexing.", existingDocs.size());
+                initialized.set(true);
+                return;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to check existing documents: {}. Proceeding with indexing.", e.getMessage());
         }
 
         List<Document> documents = loadPdfDocuments(documentsDirectory);
@@ -103,15 +122,32 @@ public class DocumentServiceImpl implements DocumentService {
 
     @Override
     public void indexDocuments(List<Document> documents) {
+        log.info("Starting document indexing - Input documents: {}", documents.size());
+
+        // 청킹 전 문서 정보 로깅
+        for (Document doc : documents) {
+            log.debug("Before chunking - Source: {}, Content length: {} chars",
+                    doc.getMetadata().get("source"),
+                    doc.getText().length());
+        }
+
         // 청킹
         List<Document> chunks = textSplitter.apply(documents);
 
-        log.info("Split into {} chunks, indexing into vector store...", chunks.size());
+        log.info("Chunking completed - Input: {} documents → Output: {} chunks", documents.size(), chunks.size());
+
+        // 청킹 결과 상세 로깅
+        if (chunks.size() == documents.size()) {
+            log.warn("⚠️ Chunking may not have worked properly! " +
+                    "Input and output document count are the same ({} each). " +
+                    "Check if PDF content is too short or has special characters.",
+                    documents.size());
+        }
 
         // 벡터 스토어에 저장 (자동으로 임베딩 생성)
         vectorStore.add(chunks);
 
-        log.info("Indexing completed");
+        log.info("✅ Indexing completed - {} chunks stored in vector store", chunks.size());
     }
 
     @Override

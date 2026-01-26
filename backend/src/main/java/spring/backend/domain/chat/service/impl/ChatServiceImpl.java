@@ -262,7 +262,7 @@ public class ChatServiceImpl implements ChatService {
             // 타임아웃 체크를 별도 스레드에서 비동기 실행
             CompletableFuture.runAsync(() -> {
                 try {
-                    // 15초 대기, 타임아웃 시 예외 발생
+                    // 30초 대기, 타임아웃 시 예외 발생
                     firstChunkReceived.orTimeout(30, TimeUnit.SECONDS).join();
                 } catch (CompletionException e) {
                     if (e.getCause() instanceof TimeoutException) {
