@@ -1,8 +1,15 @@
 package spring.backend.domain.chat.service.impl;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -61,16 +68,28 @@ public class DocumentServiceImpl implements DocumentService {
             log.warn("Failed to check existing documents: {}. Proceeding with indexing.", e.getMessage());
         }
 
-        List<Document> documents = loadPdfDocuments(documentsDirectory);
+        // PDF 문서 로드
+        List<Document> pdfDocuments = loadPdfDocuments(documentsDirectory);
+        log.info("Loaded {} PDF documents", pdfDocuments.size());
 
-        if (documents.isEmpty()) {
-            log.warn("No PDF documents found in {}", documentsDirectory);
+        // JSONL 문서 로드
+        List<Document> jsonlDocuments = loadJsonlDocuments(documentsDirectory);
+        log.info("Loaded {} JSONL documents", jsonlDocuments.size());
+
+        // 모든 문서 병합
+        List<Document> allDocuments = new ArrayList<>();
+        allDocuments.addAll(pdfDocuments);
+        allDocuments.addAll(jsonlDocuments);
+
+        if (allDocuments.isEmpty()) {
+            log.warn("No documents found in {}", documentsDirectory);
             return;
         }
 
-        indexDocuments(documents);
+        indexDocuments(allDocuments);
         initialized.set(true);
-        log.info("Vector store initialized successfully with {} documents", documents.size());
+        log.info("Vector store initialized successfully with {} documents (PDF: {}, JSONL: {})",
+                allDocuments.size(), pdfDocuments.size(), jsonlDocuments.size());
     }
 
     @Override
@@ -115,6 +134,83 @@ public class DocumentServiceImpl implements DocumentService {
 
         } catch (Exception e) {
             log.error("Failed to scan PDF directory: {}", directoryPath, e);
+        }
+
+        return allDocuments;
+    }
+
+    /**
+     * JSONL 파일에서 문서를 로드합니다.
+     * 각 줄은 하나의 JSON 객체이며, problem_ko와 solution_ko를 결합하여 문서로 변환합니다.
+     */
+    public List<Document> loadJsonlDocuments(String directoryPath) {
+        List<Document> allDocuments = new ArrayList<>();
+        ObjectMapper objectMapper = new ObjectMapper();
+        int successCount = 0;
+        int failCount = 0;
+
+        try {
+            PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+            Resource[] resources = resolver.getResources(directoryPath + "**/*.jsonl");
+
+            log.info("Found {} JSONL files in {}", resources.length, directoryPath);
+
+            for (Resource resource : resources) {
+                try (BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
+
+                    log.info("Loading JSONL: {}", resource.getFilename());
+                    String line;
+                    int lineNumber = 0;
+
+                    while ((line = reader.readLine()) != null) {
+                        lineNumber++;
+                        if (line.trim().isEmpty()) continue;
+
+                        try {
+                            JsonNode node = objectMapper.readTree(line);
+
+                            // 문제와 풀이를 결합하여 문서 내용 생성
+                            String problem = node.has("problem_ko") ? node.get("problem_ko").asText() : "";
+                            String solution = node.has("solution_ko") ? node.get("solution_ko").asText() : "";
+                            String level = node.has("level") ? node.get("level").asText() : "";
+                            String type = node.has("type") ? node.get("type").asText() : "";
+
+                            // 문서 내용: 문제 + 풀이
+                            String content = String.format(
+                                    "[%s] %s\n\n## 문제\n%s\n\n## 풀이\n%s",
+                                    type, level, problem, solution
+                            );
+
+                            // 메타데이터 구성
+                            Map<String, Object> metadata = new HashMap<>();
+                            metadata.put("source", resource.getFilename());
+                            metadata.put("line_number", lineNumber);
+                            metadata.put("type", type);
+                            metadata.put("level", level);
+                            metadata.put("loaded_at", LocalDateTime.now().toString());
+
+                            Document doc = new Document(content, metadata);
+                            allDocuments.add(doc);
+                            successCount++;
+
+                        } catch (Exception e) {
+                            failCount++;
+                            log.warn("Failed to parse line {} in {}: {}", lineNumber, resource.getFilename(), e.getMessage());
+                        }
+                    }
+
+                    log.info("✓ Successfully loaded {} problems from {}", successCount, resource.getFilename());
+
+                } catch (Exception e) {
+                    log.error("Failed to read JSONL file: {} - Error: {}", resource.getFilename(), e.getMessage());
+                }
+            }
+
+            log.info("JSONL loading completed - Success: {}, Failed: {}", successCount, failCount);
+
+        } catch (Exception e) {
+            log.error("Failed to scan JSONL directory: {}", directoryPath, e);
         }
 
         return allDocuments;
