@@ -9,6 +9,7 @@ public record SseMessageResponse(
         String type,           // "chunk", "complete", "error"
         String sessionId,
         String chunk,          // for "chunk" type
-        String error           // for "error" type
+        String error,          // for "error" type
+        String errorCode       // for "error" type - e.g., "N_001"
 ) {
 }

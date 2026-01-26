@@ -70,9 +70,10 @@ public class QuestionNewServiceImpl implements QuestionNewService {
             GenerateQuestionRequest request,
             UUID userId
     ) {
-        try {
-            canService.useUserCan(userId, 1);
+        // Can 차감 - 실패 시 예외가 GlobalExceptionHandler로 전파됨
+        canService.useUserCan(userId, 1);
 
+        try {
             log.info("[QuestionNew] 변형 문제 생성 시작 - questionId: {}, questionResultId: {}, userId: {}",
                     request.questionId(), request.questionResultId(), userId);
 
@@ -139,6 +140,7 @@ public class QuestionNewServiceImpl implements QuestionNewService {
 
         } catch (BusinessException e) {
             // 비즈니스 예외는 그대로 전파 (권한 없음, 리소스 없음 등)
+            // Can은 이미 차감되었으므로 복구 필요
             log.error("[QuestionNew] 비즈니스 예외 발생 - userId: {}, errorCode: {}",
                     userId, e.getErrorCode().getCode(), e);
             canService.recoverUserCan(userId, 1);

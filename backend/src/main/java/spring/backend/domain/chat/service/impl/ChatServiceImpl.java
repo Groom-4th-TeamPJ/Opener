@@ -403,14 +403,20 @@ public class ChatServiceImpl implements ChatService {
         }
     }
 
-    // sse 에러 알림
+    // sse 에러 알림 (에러 코드 없이)
     private void sendSseError(SseEmitter emitter, String sessionId, String error) {
+        sendSseError(emitter, sessionId, error, null);
+    }
+
+    // sse 에러 알림 (에러 코드 포함)
+    private void sendSseError(SseEmitter emitter, String sessionId, String error, String errorCode) {
         try {
             SseMessageResponse message =
                     SseMessageResponse.builder()
                             .type("error")
                             .sessionId(sessionId)
                             .error(error)
+                            .errorCode(errorCode)
                             .build();
 
             emitter.send(
@@ -427,8 +433,6 @@ public class ChatServiceImpl implements ChatService {
     @Override
     public void openerAnalysis(OpenerAnalysisRequest req, UUID userId) {
 
-        canService.useUserCan(userId, 1);
-
         Long sessionId = req.sessionId();
         Long questionId = req.questionId();
         Long questionResultId = req.questionResultId();
@@ -441,6 +445,16 @@ public class ChatServiceImpl implements ChatService {
 
         // 세션 검증
         chatRedisService.validateSessionOwner(sessionId, userId);
+
+        // Can 차감 시도 - 실패 시 SSE 에러 전송 후 조기 반환
+        try {
+            canService.useUserCan(userId, 1);
+        } catch (BusinessException e) {
+            ErrorCode errorCode = e.getErrorCode();
+            log.warn("[OpenerAnalysis] Can 차감 실패 - userId: {}, errorCode: {}", userId, errorCode.getCode());
+            sendSseError(sseEmitter, sessionId.toString(), errorCode.getMessage(), errorCode.getCode());
+            return;
+        }
 
         try {
             // 1. 사용자의 오프너 분석 요청 메시지를 Redis에 저장
@@ -473,7 +487,9 @@ public class ChatServiceImpl implements ChatService {
                     if (e.getCause() instanceof TimeoutException) {
                         log.error("[OpenerAnalysis] RAG 응답 타임아웃 (30초 초과) - sessionId: {}", sessionId);
                         timedOut.set(true);
-                        sendSseError(sseEmitter, sessionId.toString(), "RAG 응답 시간이 초과되었습니다");
+                        sendSseError(sseEmitter, sessionId.toString(),
+                                ErrorCode.LLM_TIMEOUT.getMessage(),
+                                ErrorCode.LLM_TIMEOUT.getCode());
                         // Can 복구
                         canService.recoverUserCan(userId, 1);
                     }
@@ -537,8 +553,18 @@ public class ChatServiceImpl implements ChatService {
             questionResultRepository.save(questionResult);
 
 
+        } catch (BusinessException e) {
+            // 비즈니스 예외: 에러 코드 포함하여 전송
+            ErrorCode errorCode = e.getErrorCode();
+            log.error("[OpenerAnalysis] 비즈니스 예외 발생 - userId: {}, errorCode: {}", userId, errorCode.getCode(), e);
+            sendSseError(sseEmitter, sessionId.toString(), errorCode.getMessage(), errorCode.getCode());
+            canService.recoverUserCan(userId, 1);
         } catch (Exception e) {
-            sendSseError(sseEmitter, sessionId.toString(), e.getMessage());
+            // 기타 예외: 내부 서버 오류로 처리
+            log.error("[OpenerAnalysis] 예외 발생 - userId: {}", userId, e);
+            sendSseError(sseEmitter, sessionId.toString(),
+                    ErrorCode.INTERNAL_SERVER_ERROR.getMessage(),
+                    ErrorCode.INTERNAL_SERVER_ERROR.getCode());
             canService.recoverUserCan(userId, 1);
         }
     }
