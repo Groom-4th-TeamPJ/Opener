@@ -38,3 +38,5 @@ dist/
 # Backend 빌드 결과
 backend/build/
 docs/
+
+*.md
