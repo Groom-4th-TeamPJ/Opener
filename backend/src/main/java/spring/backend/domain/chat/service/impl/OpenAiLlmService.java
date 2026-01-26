@@ -212,12 +212,15 @@ public class OpenAiLlmService implements LlmService {
             log.debug("[LLM+RAG] 대화 요약 시작 - sessionId: {}, 메시지 수: {}",
                     sessionId, chatHistory.size());
 
+            // 프롬프트 로드 (서술적 요약 안내)
+            String summaryPrompt = promptLoader.buildChatSummaryPrompt();
+
             // Spring AI ChatClient를 사용한 전체 응답 (RAG 없이 대화만 요약)
             ChatClient chatClient = chatClientBuilder.build();
 
             String summary = chatClient
                     .prompt()
-                    .user("다음 대화 이력을 요약해줘. 주요 질문과 답변 내용을 포함해야 해.")
+                    .system(summaryPrompt)
                     .messages(chatHistory)
                     .call()
                     .content();
