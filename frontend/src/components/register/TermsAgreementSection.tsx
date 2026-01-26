@@ -6,44 +6,13 @@ import { Term, TermKey } from '@/types/auth.types'
 import TermItem from '@/components/register/TermItem'
 import CircleCheckbox from './CircleCheckBox'
 import Image from 'next/image'
+import PolicyModal from './PolicyModal'
 
-const REQUIRED_TERMS: { key: TermKey; label: string; content?: string }[] = [
-  {
-    key: 'service',
-    label: '서비스 이용약관 동의',
-    content: `서비스 이용약관 (필수)
-  포함 내용
-  서비스 제공 범위 (문제 풀이, AI 분석, 기록 저장 등)
-  사용자 의무 (부정행위, 계정 공유 금지 등)
-  서비스 제한/중단 조건
-  책임의 한계 (학습 결과에 대한 법적 책임 X)
-  
-  [필수] 서비스 이용약관에 동의합니다
-  `,
-  },
-  {
-    key: 'privacy',
-    label: '개인정보 처리방침 동의',
-    content: `개인정보 수집 및 이용 동의 (필수)
-  수집 항목 명시
-  필수: 이메일(ID), 비밀번호(암호화)
-  
-  이용 목적
-  회원 식별 및 로그인
-  학습 기록 저장
-  맞춤 문제/AI 분석 제공
-  
-  보관 기간
-  회원 탈퇴 시 즉시 파기 (또는 법적 보관 기간 명시)
-  
-  [필수] 개인정보 수집 및 이용에 동의합니다
-  `,
-  },
-  {
-    key: 'age',
-    label: '만 14세 이상입니다',
-  },
-]
+const POLICY: Record<TermKey, { title: string; url: string }> = {
+  service: { title: '서비스 이용약관', url: '/policies/terms.md' },
+  privacy: { title: '개인정보처리방침', url: '/policies/privacy.md' },
+  age: { title: '만 14세 이상 확인', url: '' },
+}
 
 interface TermsAgreementSectionProps {
   agreed: boolean
@@ -61,7 +30,6 @@ export default function TermsAgreementSection({
   setTermError,
 }: TermsAgreementSectionProps) {
   const [openKey, setOpenKey] = useState<TermKey | null>(null)
-
   const toggleAll = (checked: boolean) => {
     setTerms({ service: checked, privacy: checked, age: checked })
     if (checked) setTermError(null)
@@ -102,16 +70,15 @@ export default function TermsAgreementSection({
         </summary>
 
         <div className="mt-3 space-y-2 bg-background border-t border-foreground/20 pt-3">
-          {Object.entries(terms).map(([key, checked], idx) => (
+          {Object.entries(terms).map(([key, checked]) => (
             <TermItem
               key={key}
               termKey={key as TermKey}
-              openKey={openKey}
-              setOpenKey={setOpenKey}
               checked={checked}
               onChange={(v) => toggleOne(key as TermKey, v)}
-              label={REQUIRED_TERMS[idx].label}
-              content={REQUIRED_TERMS[idx].content ?? ''}
+              label={POLICY[key as TermKey].title}
+              hasContent={Boolean(POLICY[key as TermKey].url)}
+              onOpen={setOpenKey}
             />
           ))}
         </div>
@@ -121,6 +88,13 @@ export default function TermsAgreementSection({
           {termError}
         </p>
       )}
+
+      <PolicyModal
+        openKey={openKey}
+        onClose={() => setOpenKey(null)}
+        policy={POLICY}
+        effectiveDate="2026년 1월 28일"
+      />
     </section>
   )
 }

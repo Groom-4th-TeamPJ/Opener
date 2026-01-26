@@ -8,6 +8,8 @@ import { LoginFormValues } from '@/types/auth.types'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { UiError } from '@/types/api.types'
+import { QUERY_KEYS } from '@/constants/query-key'
+import { useQueryClient } from '@tanstack/react-query'
 
 const ERROR_MSG: string =
   '아이디 또는 비밀번호가 잘못되었습니다.\n아이디와 비밀번호를 정확히 입력해주세요.'
@@ -15,6 +17,7 @@ const ERROR_MSG: string =
 export default function LoginForm() {
   const [lockMessage, setLockMessage] = useState<string | null>(null)
   const router = useRouter()
+  const queryClient = useQueryClient()
   const {
     control,
     handleSubmit,
@@ -34,7 +37,10 @@ export default function LoginForm() {
     }
     try {
       await login(form, {
-        onSuccess: () => router.replace('/'),
+        onSuccess: () => {
+          queryClient.setQueryDefaults(QUERY_KEYS.USER.CAN, { enabled: true })
+          router.replace('/')
+        },
       })
     } catch (e: unknown) {
       const error = e as UiError

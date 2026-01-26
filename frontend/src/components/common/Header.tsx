@@ -10,6 +10,7 @@ import SolidCanIcon from '@/components/icons/SolidCanIcon'
 import useCanCount from '@/hooks/header/use-can-count'
 import { ROUTES } from '@/constants/routes'
 import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@/constants/query-key'
 
 const MENU = [
   { label: '대시보드', href: ROUTES.DASHBOARD },
@@ -33,11 +34,12 @@ export default function Header() {
   }
 
   const handleLogout = async () => {
-    queryClient.clear()
+    queryClient.setQueryDefaults(QUERY_KEYS.USER.CAN, { enabled: false })
 
     try {
       await logout()
     } finally {
+      queryClient.clear()
       router.replace('/login')
     }
   }

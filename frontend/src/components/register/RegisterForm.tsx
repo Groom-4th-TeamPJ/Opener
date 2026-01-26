@@ -12,6 +12,8 @@ import { UiError } from '@/types/api.types'
 import { jwtDecode } from 'jwt-decode'
 import { toast } from 'sonner'
 import getErrorMessages from '@/utils/error-handler'
+import { QUERY_KEYS } from '@/constants/query-key'
+import { useQueryClient } from '@tanstack/react-query'
 
 const PASSWORD_REGEX: RegExp = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[~!@#$%^&*])[A-Za-z\d~!@#$%^&*]{8,20}$/
 
@@ -36,6 +38,7 @@ interface RegisterFormProps {
 
 export default function RegisterForm({ signupToken, name }: RegisterFormProps) {
   const router = useRouter()
+  const queryClient = useQueryClient()
 
   const decodedToken = useMemo(() => {
     if (!signupToken) return null
@@ -102,7 +105,10 @@ export default function RegisterForm({ signupToken, name }: RegisterFormProps) {
     }
     try {
       await register(form, {
-        onSuccess: () => router.replace('/'),
+        onSuccess: () => {
+          queryClient.setQueryDefaults(QUERY_KEYS.USER.CAN, { enabled: true })
+          router.replace('/')
+        },
       })
     } catch (e: unknown) {
       const error = e as UiError

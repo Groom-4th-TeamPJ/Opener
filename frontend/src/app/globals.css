@@ -253,3 +253,73 @@ body {
     font-size: 0.8em;
   }
 }
+
+/* ✅ Markdown renderer scope (reset 무시하고 여기만 스타일 복구) */
+.policy-content {
+  color: var(--text-primary, inherit);
+}
+
+/* Headings */
+.policy-content h1,
+.policy-content h2,
+.policy-content h3{
+  font-weight: 700;
+  line-height: 1.25;
+  margin: 1.1em 0 0.6em;
+}
+
+.policy-content h1 { font-size: 1.25rem; }
+.policy-content h2 { font-size: 1.125rem; }
+.policy-content h3 { font-size: 1rem; } 
+
+/* Paragraph */
+.policy-content p {
+  margin: 0.6em 0;
+}
+
+/* Lists */
+.policy-content ul,
+.policy-content ol {
+  padding-left: 1.25rem;
+  margin: 0.6em 0;
+}
+
+.policy-content ul { list-style: disc; }
+.policy-content ol { list-style: decimal; }
+
+.policy-content li {
+  margin: 0.25em 0;
+}
+
+/* Links */
+.policy-content a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Horizontal rule */
+.policy-content hr {
+  margin: 1rem 0;
+  border: 0;
+  border-top: 1px solid rgba(0,0,0,0.12);
+}
+
+/* Tables */
+.policy-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  font-size: 0.875rem;
+}
+
+.policy-content th,
+.policy-content td {
+  border: 1px solid rgba(0,0,0,0.12);
+  padding: 0.5rem 0.75rem;
+  vertical-align: top;
+}
+
+.policy-content thead th {
+  background: rgba(0,0,0,0.03);
+  font-weight: 700;
+}
