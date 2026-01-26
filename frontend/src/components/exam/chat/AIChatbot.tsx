@@ -17,8 +17,6 @@ import Loading from '@/components/shared/Loading'
 interface AIChatbotProps {
   isActive: boolean
   question: Question
-  selectedChoice: number | null
-  frqAnswer: string
   placeholder?: string
   isDisabled?: boolean
 }
@@ -32,8 +30,6 @@ const EMPTY_CHAT_MESSAGES: ChatMessage[] = []
 export default function AIChatbot({
   isActive,
   question,
-  selectedChoice,
-  frqAnswer,
   placeholder = '질문을 입력하세요.',
   isDisabled = false,
 }: AIChatbotProps) {
@@ -65,30 +61,12 @@ export default function AIChatbot({
     setIsWaitingResponse(false)
   }, [question.questionId])
 
-  // 분석 활성화 시 초기 AI 메시지 추가 + 로딩 표시
+  // 분석 활성화 시 로딩 표시
   useEffect(() => {
-    if (isActive && chatMessages.length === 0) {
-      const userAnswer =
-        question.questionType === 'MCQ' ? `${selectedChoice}번이` : `${frqAnswer}이/가`
-      const contentText = `왜 ${userAnswer} 정답이라고 생각하셨나요?\n어떤 근거로 그렇게 판단하셨는지 설명해주세요!`
-
-      addChatMessage(question.questionId, {
-        id: 1,
-        role: 'ASSISTANT',
-        content: contentText,
-        timestamp: formatChatTimestamp(new Date()),
-      })
+    if (isActive && chatMessages.length === 0 && !isStreaming) {
       setIsWaitingResponse(true)
     }
-  }, [
-    isActive,
-    chatMessages.length,
-    question.questionType,
-    question.questionId,
-    selectedChoice,
-    frqAnswer,
-    addChatMessage,
-  ])
+  }, [isActive, chatMessages.length, isStreaming])
 
   // 스트리밍이 시작되면 대기 상태 해제
   useEffect(() => {

@@ -24,6 +24,8 @@ import { useExamModalStore } from '@/stores/use-exam-modal-store'
 import { useExamStore } from '@/stores/use-exam-store'
 import { EXAM_MODAL } from '@/constants/exam'
 import useContentProtection from '@/hooks/exam/use-content-protection'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@/constants/query-key'
 
 interface QuestionSolveViewProps {
   onClose: () => void
@@ -39,6 +41,7 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
   const { currentIndex, goNextQuestion, updateQuestionState, getQuestionState } = useExamStore()
   const { mutate: submitAnswer, isPending: isSubmitting } = useSubmitAnswer()
   const { mutate: startAnalysis } = useStartAnalysis()
+  const queryClient = useQueryClient()
   const examData = useCurrentExam()
   const { handleContextMenu, handleCopy, handleDragStart } = useContentProtection()
 
@@ -145,6 +148,12 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
   const handleShowAnalysis = () => {
     if (!submitResult?.questionResultId) return
 
+    // 낙관적 업데이트: 캔 먼저 차감
+    queryClient.setQueryData(QUERY_KEYS.USER.CAN, (old: { currentCan: number } | undefined) => {
+      if (!old) return old
+      return { ...old, currentCan: Math.max(0, old.currentCan - 1) }
+    })
+
     startAnalysis(
       {
         sessionId: examData.examResultId,
@@ -154,6 +163,16 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
       {
         onSuccess: () => {
           updateQuestionState(currentQuestion.questionId, { isAnalysisActive: true })
+        },
+        onError: () => {
+          // 실패 시 롤백
+          queryClient.setQueryData(
+            QUERY_KEYS.USER.CAN,
+            (old: { currentCan: number } | undefined) => {
+              if (!old) return old
+              return { ...old, currentCan: old.currentCan + 1 }
+            }
+          )
         },
       }
     )
@@ -208,12 +227,7 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
           </div>
 
           {/* Right: AI Chatbot */}
-          <AIChatbot
-            isActive={questionState.isAnalysisActive}
-            question={currentQuestion}
-            selectedChoice={questionState.selectedChoice}
-            frqAnswer={questionState.frqAnswer}
-          />
+          <AIChatbot isActive={questionState.isAnalysisActive} question={currentQuestion} />
         </div>
       </div>
 

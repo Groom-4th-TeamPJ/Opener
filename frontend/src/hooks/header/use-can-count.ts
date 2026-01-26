@@ -12,5 +12,6 @@ export default function useCanCount() {
   return useQuery({
     queryKey: QUERY_KEYS.USER.CAN,
     queryFn: getCanCount,
+    staleTime: 1000 * 60 * 5, // 5분
   })
 }
