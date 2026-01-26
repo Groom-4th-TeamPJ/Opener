@@ -18,6 +18,7 @@ export default function Input({
   className,
   id,
   name,
+  ref,
   ...props
 }: InputProps) {
   const inputId = id || name
@@ -32,6 +33,7 @@ export default function Input({
 
       <div className="relative">
         <input
+          ref={ref}
           id={inputId}
           name={name}
           className={cn(

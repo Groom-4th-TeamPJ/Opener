@@ -40,6 +40,8 @@ export default function AIChatbot({
   const [inputValue, setInputValue] = useState('')
   const [isWaitingResponse, setIsWaitingResponse] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const prevStreamingMessageRef = useRef('')
   const { mutate: sendChatMessage } = useSendChatMessage()
   const examResultId = useExamStore((state) => state.examResultId)
   const addChatMessage = useExamStore((state) => state.addChatMessage)
@@ -93,6 +95,17 @@ export default function AIChatbot({
       setIsWaitingResponse(false)
     }
   }, [isStreaming])
+
+  // AI 응답이 끝나면 입력창에 포커스
+  useEffect(() => {
+    const wasStreaming = prevStreamingMessageRef.current.length > 0
+    const isNowEmpty = streamingMessage === ''
+
+    if (wasStreaming && isNowEmpty && isActive) {
+      inputRef.current?.focus()
+    }
+    prevStreamingMessageRef.current = streamingMessage
+  }, [streamingMessage, isActive])
 
   useEffect(() => {
     requestAnimationFrame(() => {
@@ -243,6 +256,7 @@ export default function AIChatbot({
       {/* Input Area */}
       <div className="p-4 border-t border-neutral-100 shrink-0">
         <Input
+          ref={inputRef}
           type="text"
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
