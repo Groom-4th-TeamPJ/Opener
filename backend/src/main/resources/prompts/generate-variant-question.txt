@@ -44,21 +44,29 @@ Analyze the given original problem and generate a similar problem that maintains
   - Step-by-step calculation process
   - Final answer (this value MUST match the option indicated by answer)
 
+## Language Requirement
+**ALL content in the JSON output MUST be in Korean (한글)**:
+- passage content: Korean
+- options content: Korean
+- analysis: Korean
+
+The problem statement, all options, and the entire analysis must be written in Korean for Korean students.
+
 ## Output Format (Respond ONLY in this JSON format)
 ```json
 {
   "passage": [
-    {"type": "text", "content": "Problem statement content"}
+    {"type": "text", "content": "문제 지문 내용 (Korean problem statement)"}
   ],
   "options": [
-    {"order": 1, "content": "Option 1"},
-    {"order": 2, "content": "Option 2"},
-    {"order": 3, "content": "Option 3"},
-    {"order": 4, "content": "Option 4"},
-    {"order": 5, "content": "Option 5"}
+    {"order": 1, "content": "선택지 1 (Korean option 1)"},
+    {"order": 2, "content": "선택지 2 (Korean option 2)"},
+    {"order": 3, "content": "선택지 3 (Korean option 3)"},
+    {"order": 4, "content": "선택지 4 (Korean option 4)"},
+    {"order": 5, "content": "선택지 5 (Korean option 5)"}
   ],
   "answer": 3,
-  "analysis": "## Solution Process\n\n**Given Conditions**\n- ...\n\n**Calculation Steps**\n1. ...\n2. ...\n\n**Final Answer**\nTherefore, the answer is [correct value]."
+  "analysis": "## 풀이 과정\n\n**주어진 조건**\n- ...\n\n**계산 과정**\n1. ...\n2. ...\n\n**최종 답**\n따라서 답은 [정답값]입니다."
 }
 ```
 
@@ -71,9 +79,11 @@ Analyze the given original problem and generate a similar problem that maintains
 - [ ] Is the analysis free of unnecessary meta-explanations ("recalculate", "verify", etc.)?
 - [ ] Are all LaTeX expressions escaped with double backslashes? (\\lim, \\frac)
 - [ ] Is the JSON format valid? (no trailing commas, incorrect nulls, etc.)
+- [ ] **Is ALL content (passage, options, analysis) written in Korean?**
 
 **Critical Principles**:
 - This is NOT a problem to "find the closest value". The correct answer MUST exactly match an option
 - The analysis contains ONLY the problem solution, without meta-explanations or correction processes
 - All calculations are performed accurately in one attempt, and options and answer are generated based on that result
-- Respond ONLY with valid JSON. Do NOT include any other text, explanations, or preambles
+- **ALL content must be in Korean (한글) for Korean students**
+- Respond ONLY with valid JSON. Do NOT include any other text, explanations, or preambles outside the JSON
