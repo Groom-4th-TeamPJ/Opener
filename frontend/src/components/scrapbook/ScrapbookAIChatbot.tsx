@@ -61,7 +61,7 @@ export default function ScrapbookAIChatbot({
                   <div className="flex flex-col gap-2 flex-1">
                     <div className="max-w-64 min-w-44 px-3 py-2.5 bg-neutral-50 rounded-tr-lg rounded-bl-lg rounded-br-lg flex flex-col gap-1">
                       <p
-                        className="text-text-primary text-sm whitespace-pre-wrap break-all"
+                        className="text-text-primary text-sm overflow-x-auto whitespace-pre-wrap break-all"
                         dangerouslySetInnerHTML={{
                           __html: renderLatex(message.content, { blockDisplayMode: false }),
                         }}
