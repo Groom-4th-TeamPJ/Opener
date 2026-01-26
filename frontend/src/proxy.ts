@@ -37,6 +37,6 @@ export const config = {
      * 3. favicon.ico 등 공통 파일 제외
      * 4. 이미지(png, jpg 등) 파일 제외
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|map|txt|xml|json|woff2?|ttf|otf|eot)$).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|manifest.webmanifest|policies|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|map|txt|xml|json|woff2?|ttf|otf|eot|md)$).*)',
   ],
 }

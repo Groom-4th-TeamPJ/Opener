@@ -1,43 +1,29 @@
 import { TermKey } from '@/types/auth.types'
 import cn from '@/utils/cn'
 import CircleCheckbox from './CircleCheckBox'
-import Image from 'next/image'
+import Button from '@/components/common/Button'
 
-export default function TermItem({
-  termKey,
-  openKey,
-  setOpenKey,
-  checked,
-  onChange,
-  label,
-  content,
-}: {
+interface TermItemProps {
   termKey: TermKey
-  openKey: TermKey | null
-  setOpenKey: (key: TermKey | null) => void
   checked: boolean
   onChange: (next: boolean) => void
   label: string
-  content?: string
-}) {
-  const isOpen = openKey === termKey
+  hasContent?: boolean
+  onOpen?: (key: TermKey) => void
+}
 
+export default function TermItem({
+  termKey,
+  checked,
+  onChange,
+  label,
+  hasContent,
+  onOpen,
+}: TermItemProps) {
   return (
-    <details
-      open={isOpen}
-      className="group/term rounded-lg bg-background border border-foreground/20 p-3"
-      onClick={(e) => {
-        e.preventDefault() // 기본 details 토글 방지
-        setOpenKey(isOpen ? null : termKey)
-      }}
-    >
-      <summary
-        className={cn(
-          'flex items-center justify-between gap-3 select-none',
-          content ? 'cursor-pointer' : ''
-        )}
-      >
-        {/* 체크 영역 */}
+    <div className="rounded-lg bg-background border border-foreground/20 p-3">
+      <div className={cn('flex justify-between items-center gap-3 select-none')}>
+        {/* 체크 + 라벨 */}
         <CircleCheckbox
           checked={checked}
           onChange={onChange}
@@ -48,32 +34,22 @@ export default function TermItem({
           }
         />
 
-        {content && (
-          <Image
-            src={'icons/chevron_compact-down_gray.svg'}
-            alt="자세히 보기"
-            width={10}
-            height={10}
-            className="
-            transition-transform duration-200
-            group-open/term:rotate-180
-          "
-          />
+        {/* 전문 보기 */}
+        {hasContent && (
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onOpen?.(termKey)}
+            className={cn(
+              'px-0 h-4 text-xs text-text-secondary underline underline-offset-2',
+              'whitespace-nowrap cursor-pointer',
+              'hover:text-text-primary hover:bg-transparent active:bg-transparent'
+            )}
+          >
+            전문 보기
+          </Button>
         )}
-      </summary>
-
-      {/* 전문 */}
-      {content && (
-        <div
-          className="mt-2 rounded-md bg-muted/30 
-        p-3 text-xs leading-5 
-        text-muted-foreground max-h-44 
-        overflow-auto whitespace-break-spaces
-        "
-        >
-          {content}
-        </div>
-      )}
-    </details>
+      </div>
+    </div>
   )
 }
