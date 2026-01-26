@@ -6,7 +6,7 @@ import Button from '@/components/common/Button'
 import cn from '@/utils/cn'
 
 interface YearSelectBoxProps {
-  value: number
+  value: number | null
   onChange: (value: number) => void
   isSelected?: boolean
 }
@@ -75,7 +75,7 @@ export default memo(function YearSelectBox({
               isSelected ? 'text-text-primary font-bold' : 'text-text-secondary font-medium'
             )}
           >
-            {value}
+            {value ?? '연도 선택'}
           </span>
         </Button>
         <ChevronDown

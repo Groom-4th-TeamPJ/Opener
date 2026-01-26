@@ -20,11 +20,9 @@ const examTypes = [
   { id: 'CSAT', name: '수학능력시험' },
 ]
 
-const currentYear = new Date().getFullYear()
-
 export default function ExamSelect() {
   const [selectedCategory, setSelectedCategory] = useState<string>('')
-  const [selectedYear, setSelectedYear] = useState<number>(currentYear)
+  const [selectedYear, setSelectedYear] = useState<number | null>(null)
   const [selectedExamType, setSelectedExamType] = useState<string>('')
   const [isExamActive, setIsExamActive] = useState(false)
   const canStart = !!(selectedCategory && selectedYear && selectedExamType)
@@ -112,7 +110,7 @@ export default function ExamSelect() {
                 <YearSelectBox
                   value={selectedYear}
                   onChange={setSelectedYear}
-                  isSelected={canStart}
+                  isSelected={!!selectedYear}
                 />
               </div>
 
