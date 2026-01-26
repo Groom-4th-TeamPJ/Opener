@@ -13,6 +13,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import spring.backend.domain.chat.service.spec.LlmService;
+import spring.backend.domain.chat.util.PromptLoader;
 import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
 
@@ -32,6 +33,7 @@ public class OpenAiLlmServiceWithoutRag implements LlmService {
 
     private final ChatClient.Builder chatClientBuilder;
     private final ChatMemory chatMemory; // Spring AI ChatMemory 인터페이스 사용
+    private final PromptLoader promptLoader;
 
     @Value("${spring.ai.openai.api-key:}")
     private String openaiApiKey;
@@ -130,12 +132,15 @@ public class OpenAiLlmServiceWithoutRag implements LlmService {
             log.debug("[LLM-NoRAG] 대화 요약 시작 - sessionId: {}, 메시지 수: {}",
                     sessionId, chatHistory.size());
 
+            // 프롬프트 로드 (서술적 요약 안내)
+            String summaryPrompt = promptLoader.buildChatSummaryPrompt();
+
             // Spring AI ChatClient를 사용한 전체 응답
             ChatClient chatClient = chatClientBuilder.build();
 
             String summary = chatClient
                     .prompt()
-                    .user("다음 대화 이력을 요약해줘. 주요 질문과 답변 내용을 포함해야 해.")
+                    .system(summaryPrompt)
                     .messages(chatHistory)
                     .call()
                     .content();

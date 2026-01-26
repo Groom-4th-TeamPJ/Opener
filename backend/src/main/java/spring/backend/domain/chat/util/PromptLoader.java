@@ -77,4 +77,14 @@ public class PromptLoader {
         template = replaceVariable(template, "problemContext", problemContext);
         return template;
     }
+
+    /**
+     * 대화 요약 프롬프트를 생성합니다
+     * 질문/답변 형식이 아닌 서술적인 요약을 생성하도록 안내합니다
+     *
+     * @return 대화 요약 프롬프트
+     */
+    public String buildChatSummaryPrompt() {
+        return loadPromptTemplate("chat-summary.txt");
+    }
 }
