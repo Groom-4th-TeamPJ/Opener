@@ -1,11 +1,13 @@
 import Button from '@/components/common/Button'
 import OutlineCanIcon from '@/components/icons/OutlineCanIcon'
 import { QUERY_KEYS } from '@/constants/query-key'
-import { useMutationState } from '@tanstack/react-query'
+import { useMutationState, useQueryClient } from '@tanstack/react-query'
 import { useExamStore } from '@/stores/use-exam-store'
 import useCurrentExam from '@/hooks/exam/use-current-exam'
 import { useSubmitResult } from '@/hooks/exam/queries/use-submit-answer'
 import { useGenerateQuestion } from '@/hooks/exam/queries/use-generate-question'
+import useCanCount from '@/hooks/header/use-can-count'
+import { toast } from 'sonner'
 
 interface QuestionActionButtonProps {
   onSubmit: () => void
@@ -31,6 +33,9 @@ export default function QuestionActionButton({
     questionId,
     questionResultId,
   })
+  const { data: canData } = useCanCount()
+  const currentCan = canData?.currentCan ?? 0
+  const queryClient = useQueryClient()
 
   if (!examData) return null
 
@@ -62,8 +67,16 @@ export default function QuestionActionButton({
 
     const handleVariationClick = () => {
       if (!questionResultId) return
+      if (currentCan <= 0) {
+        toast.error('캔이 부족합니다.', { duration: 3000 })
+        return
+      }
       onVariationClick()
-      refetch()
+      refetch().then((result) => {
+        if (result.isSuccess) {
+          queryClient.refetchQueries({ queryKey: QUERY_KEYS.USER.CAN })
+        }
+      })
     }
 
     return (
@@ -80,12 +93,20 @@ export default function QuestionActionButton({
     )
   }
 
+  const handleShowAnalysis = () => {
+    if (currentCan <= 0) {
+      toast.error('캔이 부족합니다.', { duration: 3000 })
+      return
+    }
+    onShowAnalysis()
+  }
+
   return (
     <Button
       variant="default"
       size="lg"
       widthFull
-      onClick={onShowAnalysis}
+      onClick={handleShowAnalysis}
       leftIcon={<OutlineCanIcon />}
     >
       오프너 분석 보기

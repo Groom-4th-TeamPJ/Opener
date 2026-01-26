@@ -61,6 +61,13 @@ export default function AIChatbot({
     setIsWaitingResponse(false)
   }, [question.questionId])
 
+  // 분석 활성화 시 로딩 표시
+  useEffect(() => {
+    if (isActive && chatMessages.length === 0 && !isStreaming) {
+      setIsWaitingResponse(true)
+    }
+  }, [isActive, chatMessages.length, isStreaming])
+
   // 스트리밍이 시작되면 대기 상태 해제
   useEffect(() => {
     if (isStreaming) {
