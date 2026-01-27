@@ -12,7 +12,6 @@ interface RegisterProps {
 export const metadata: Metadata = {
   title: '회원가입',
   description: '오프너 회원가입 페이지',
-  robots: { index: false, follow: false },
 }
 
 export default async function Register({ searchParams }: RegisterProps) {

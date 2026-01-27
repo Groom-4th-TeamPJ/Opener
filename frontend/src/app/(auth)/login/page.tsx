@@ -13,7 +13,6 @@ interface LoginProps {
 export const metadata: Metadata = {
   title: '로그인',
   description: '오프너 로그인 페이지',
-  robots: { index: false, follow: false },
 }
 
 export default async function Login({ searchParams }: LoginProps) {

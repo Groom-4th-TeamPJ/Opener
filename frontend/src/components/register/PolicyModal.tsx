@@ -58,7 +58,7 @@ export default function PolicyModal({ openKey, onClose, policy }: PolicyModalPro
         <Button
           type="button"
           onClick={onClose}
-          className="px-4 py-2 rounded-md bg-neutral-900 text-white hover:bg-neutral-800"
+          className="px-4 py-2 rounded-md bg-neutral-900 text-white hover:bg-neutral-800 active:bg-neutral-700"
         >
           닫기
         </Button>
