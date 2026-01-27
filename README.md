@@ -1,6 +1,8 @@
 # 오프너
 
-![image](https://github.com/user-attachments/assets/53f6b1d4-cc13-4759-bcc0-abfffabe24a0)
+![image](https://github.com/user-attachments/assets/9b6cbf7c-5a63-4fc7-9abb-f8aebaad4312)
+
+<br>
 
 ## 📜 프로젝트 소개
 
@@ -12,9 +14,15 @@
 
 ### 1. 오프너 분석
 
+![image](https://github.com/user-attachments/assets/6d61d83d-601d-406d-9313-e89511d6559e)
+
 ### 2. 변형 문제
 
+![image](https://github.com/user-attachments/assets/e5b47c96-7192-466c-9509-857d467df48e)
+
 ### 3. 스크랩북
+
+![image](https://github.com/user-attachments/assets/6d61d83d-601d-406d-9313-e89511d6559e)
 
 <br>
 
@@ -22,11 +30,32 @@
 
 ### 프론트엔드
 
+| 구분                           | 사용 기술                                           |
+| ------------------------------ | --------------------------------------------------- |
+| **프론트엔드 핵심 기술**       | Next.js (App Router), TypeScript                    |
+| **UI 구성 및 스타일링**        | Tailwind CSS, Headless UI 접근                      |
+| **상태 관리**                  | 서버 상태: TanStack Query, 클라이언트 상태: Zustand |
+| **폼 상태 관리 & 입력값 검증** | React Hook Form, Zod                                |
+| **HTTP Client**                | Fetch API (공통 API 래퍼 구현)                      |
+| **품질 관리**                  | ESLint, Prettier, Git Hooks Husky                   |
+
 ### 백엔드
+
+| 구분             | 사용 기술                                                             |
+| ---------------- | --------------------------------------------------------------------- |
+| **언어**         | Java 21                                                               |
+| **프레임워크**   | Spring Boot 4.0.0, Spring Security 7.0.0, Spring AI 2.0, JPA, Swagger |
+| **데이터베이스** | Postgres15, PgVector, Redis                                           |
+| **메시지 큐**    | RabbitMQ                                                              |
+| **인프라 환경**  | Docker, DockerHub, Ec2, Nginx, S3 Bucket, GitHubActions               |
+| **모니터링**     | Actuator, Prometheus, Grafana                                         |
+| **부하 테스트**  | k6                                                                    |
 
 <br>
 
 ## 🛠️ 시스템 아키텍처
+
+![image](https://github.com/user-attachments/assets/b1301ea1-46ce-4f2f-a0cf-bc6759e24a2d)
 
 <br>
 
