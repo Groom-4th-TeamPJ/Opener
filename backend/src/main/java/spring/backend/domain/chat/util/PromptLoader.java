@@ -87,4 +87,27 @@ public class PromptLoader {
     public String buildChatSummaryPrompt() {
         return loadPromptTemplate("chat-summary.txt");
     }
+
+    /**
+     * 채팅 규칙 시스템 프롬프트를 로드합니다
+     * LLM이 코치 역할을 수행하도록 톤, 대화 규칙, 금지 사항 등을 정의합니다
+     *
+     * @return 채팅 규칙 시스템 프롬프트
+     */
+    public String loadChatRulePrompt() {
+        return loadPromptTemplate("chat-rule.txt");
+    }
+
+    /**
+     * 채팅 RAG 시스템 프롬프트에 규칙을 포함하여 생성합니다
+     *
+     * @param ragContext RAG로 검색된 참고 자료
+     * @return 규칙 + RAG 컨텍스트가 포함된 시스템 프롬프트
+     */
+    public String buildChatRagSystemPromptWithRule(String ragContext) {
+        String rule = loadChatRulePrompt();
+        String ragTemplate = loadPromptTemplate("chat-rag-system.txt");
+        String ragPrompt = replaceVariable(ragTemplate, "ragContext", ragContext);
+        return rule + "\n\n" + ragPrompt;
+    }
 }
