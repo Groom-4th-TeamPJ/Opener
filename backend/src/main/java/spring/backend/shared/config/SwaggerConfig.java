@@ -50,7 +50,7 @@ public class SwaggerConfig {
                 )
                 .addSecurityItem(new SecurityRequirement().addList(cookieAuthName))
                 .addServersItem(new Server().url("http://localhost:8080/api").description("Local Server"))
-                .addServersItem(new Server().url("https://opener.deving.xyz/api").description("Production Server"))
+                .addServersItem(new Server().url("https://opener.ai.kr/api").description("Production Server"))
                 .info(info);
     }
 
