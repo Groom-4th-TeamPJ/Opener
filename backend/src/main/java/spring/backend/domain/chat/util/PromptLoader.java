@@ -68,19 +68,18 @@ public class PromptLoader {
      * 변형 문제 생성 프롬프트를 생성합니다
      *
      * @param retrievedContext RAG로 검색된 유사 문제 컨텍스트
-     * @param problemContext 원본 문제 컨텍스트
+     * @param problemContext   원본 문제 컨텍스트
      * @return 변형 문제 생성 프롬프트
      */
     public String buildVariantQuestionPrompt(String retrievedContext, String problemContext) {
-        String template = loadPromptTemplate("generate-variant-question.txt");
+        String template = loadPromptTemplate("generate-question.txt");
         template = replaceVariable(template, "retrievedContext", retrievedContext);
         template = replaceVariable(template, "problemContext", problemContext);
         return template;
     }
 
     /**
-     * 대화 요약 프롬프트를 생성합니다
-     * 질문/답변 형식이 아닌 서술적인 요약을 생성하도록 안내합니다
+     * 대화 요약 프롬프트를 생성합니다 질문/답변 형식이 아닌 서술적인 요약을 생성하도록 안내합니다
      *
      * @return 대화 요약 프롬프트
      */
@@ -89,8 +88,7 @@ public class PromptLoader {
     }
 
     /**
-     * 채팅 규칙 시스템 프롬프트를 로드합니다
-     * LLM이 코치 역할을 수행하도록 톤, 대화 규칙, 금지 사항 등을 정의합니다
+     * 채팅 규칙 시스템 프롬프트를 로드합니다 LLM이 코치 역할을 수행하도록 톤, 대화 규칙, 금지 사항 등을 정의합니다
      *
      * @return 채팅 규칙 시스템 프롬프트
      */
