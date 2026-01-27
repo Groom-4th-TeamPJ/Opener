@@ -1,0 +1,30 @@
+package spring.backend.domain.chat.model.enums;
+
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+
+public enum PassageType {
+    TEXT("text"),
+    IMAGE("image");
+
+    private final String value;
+
+    PassageType(String value) {
+        this.value = value;
+    }
+
+    @JsonCreator
+    public static PassageType fromValue(String value) {
+        for (PassageType type : PassageType.values()) {
+            if (type.value.equalsIgnoreCase(value)) {
+                return type;
+            }
+        }
+        throw new IllegalArgumentException("Unknown PassageType: " + value);
+    }
+
+    @JsonValue
+    public String getValue() {
+        return value;
+    }
+}

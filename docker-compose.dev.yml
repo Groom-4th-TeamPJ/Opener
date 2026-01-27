@@ -1,14 +1,11 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   db:
-    image: postgres:15-alpine
+    image: pgvector/pgvector:pg15
     container_name: db-dev
+    env_file:
+      - .env
     environment:
-      - POSTGRES_DB=postgres
-      - POSTGRES_USER=dev
-      - POSTGRES_PASSWORD=dev123
       - TZ=Asia/Seoul
     ports:
       - "5432:5432"
@@ -16,22 +13,23 @@ services:
       - postgres_data_dev:/var/lib/postgresql/data
     networks:
       - dev-network
+    command: postgres -c shared_preload_libraries=vector
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U dev" ]
+      test: [ "CMD-SHELL", "pg_isready -U dev -d postgres" ]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # Redis
-  redis:
+    # Redis - Auth / Token
+  redis-auth:
     image: redis:7-alpine
-    container_name: redis-dev
+    container_name: redis-auth
     environment:
       - TZ=Asia/Seoul
     ports:
       - "6379:6379"
     volumes:
-      - redis_data_dev:/data
+      - redis_auth_data:/data
     networks:
       - dev-network
     healthcheck:
@@ -40,26 +38,199 @@ services:
       timeout: 5s
       retries: 5
 
+  # ============================================
+  # Redis Cluster - Chat (6 Nodes: 3 Master + 3 Replica)
+  # ============================================
+
+  redis-chat-1:
+    image: redis:7-alpine
+    container_name: redis-chat-1
+    command: redis-server /etc/redis/redis.conf --port 6380 --cluster-announce-hostname redis-chat-1 --cluster-announce-port 6380 --cluster-announce-bus-port 16380
+    environment:
+      - TZ=Asia/Seoul
+    ports:
+      - "6380:6380"
+      - "16380:16380"
+    volumes:
+      - ./redis-cluster/redis-node.conf:/etc/redis/redis.conf
+      - redis_chat_1_data:/data
+    networks:
+      - dev-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-p", "6380", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-chat-2:
+    image: redis:7-alpine
+    container_name: redis-chat-2
+    command: redis-server /etc/redis/redis.conf --port 6381 --cluster-announce-hostname redis-chat-2 --cluster-announce-port 6381 --cluster-announce-bus-port 16381
+    environment:
+      - TZ=Asia/Seoul
+    ports:
+      - "6381:6381"
+      - "16381:16381"
+    volumes:
+      - ./redis-cluster/redis-node.conf:/etc/redis/redis.conf
+      - redis_chat_2_data:/data
+    networks:
+      - dev-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-p", "6381", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-chat-3:
+    image: redis:7-alpine
+    container_name: redis-chat-3
+    command: redis-server /etc/redis/redis.conf --port 6382 --cluster-announce-hostname redis-chat-3 --cluster-announce-port 6382 --cluster-announce-bus-port 16382
+    environment:
+      - TZ=Asia/Seoul
+    ports:
+      - "6382:6382"
+      - "16382:16382"
+    volumes:
+      - ./redis-cluster/redis-node.conf:/etc/redis/redis.conf
+      - redis_chat_3_data:/data
+    networks:
+      - dev-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-p", "6382", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-chat-4:
+    image: redis:7-alpine
+    container_name: redis-chat-4
+    command: redis-server /etc/redis/redis.conf --port 6383 --cluster-announce-hostname redis-chat-4 --cluster-announce-port 6383 --cluster-announce-bus-port 16383
+    environment:
+      - TZ=Asia/Seoul
+    ports:
+      - "6383:6383"
+      - "16383:16383"
+    volumes:
+      - ./redis-cluster/redis-node.conf:/etc/redis/redis.conf
+      - redis_chat_4_data:/data
+    networks:
+      - dev-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-p", "6383", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-chat-5:
+    image: redis:7-alpine
+    container_name: redis-chat-5
+    command: redis-server /etc/redis/redis.conf --port 6384 --cluster-announce-hostname redis-chat-5 --cluster-announce-port 6384 --cluster-announce-bus-port 16384
+    environment:
+      - TZ=Asia/Seoul
+    ports:
+      - "6384:6384"
+      - "16384:16384"
+    volumes:
+      - ./redis-cluster/redis-node.conf:/etc/redis/redis.conf
+      - redis_chat_5_data:/data
+    networks:
+      - dev-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-p", "6384", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-chat-6:
+    image: redis:7-alpine
+    container_name: redis-chat-6
+    command: redis-server /etc/redis/redis.conf --port 6385 --cluster-announce-hostname redis-chat-6 --cluster-announce-port 6385 --cluster-announce-bus-port 16385
+    environment:
+      - TZ=Asia/Seoul
+    ports:
+      - "6385:6385"
+      - "16385:16385"
+    volumes:
+      - ./redis-cluster/redis-node.conf:/etc/redis/redis.conf
+      - redis_chat_6_data:/data
+    networks:
+      - dev-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-p", "6385", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Redis Cluster Initialization
+  redis-cluster-init:
+    image: redis:7-alpine
+    container_name: redis-cluster-init
+    depends_on:
+      redis-chat-1:
+        condition: service_healthy
+      redis-chat-2:
+        condition: service_healthy
+      redis-chat-3:
+        condition: service_healthy
+      redis-chat-4:
+        condition: service_healthy
+      redis-chat-5:
+        condition: service_healthy
+      redis-chat-6:
+        condition: service_healthy
+    volumes:
+      - ./redis-cluster/create-cluster.sh:/scripts/create-cluster.sh
+    entrypoint: [ "/bin/sh", "/scripts/create-cluster.sh" ]
+    networks:
+      - dev-network
+    restart: "no"
+
+  # RabbitMQ with STOMP plugin
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: rabbitmq-dev
+    env_file:
+      - .env
+    ports:
+      - "5672:5672"    # AMQP port
+      - "15672:15672"  # Management UI
+      - "61613:61613"  # STOMP port
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - dev-network
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: >
+      bash -c "
+        rabbitmq-plugins enable rabbitmq_stomp rabbitmq_web_stomp &&
+        rabbitmq-server
+      "
+
   # Backend (Spring Boot)
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: ${DOCKERHUB_USERNAME}/opener-backend:dev
     container_name: backend-dev
     env_file:
-      - ./backend/.env.dev
+      - .env
     environment:
-      - SPRING_PROFILES_ACTIVE=dev
-      - DB_URL=jdbc:postgresql://db:5432/postgres
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
       - TZ=Asia/Seoul
     ports:
       - "8080:8080"
     depends_on:
       db:
         condition: service_healthy
-      redis:
+      redis-auth:
+        condition: service_healthy
+      redis-chat-1:
+        condition: service_healthy
+      redis-chat-2:
+        condition: service_healthy
+      redis-chat-3:
         condition: service_healthy
     networks:
       - dev-network
@@ -67,36 +238,30 @@ services:
 
   # Frontend (Development with Hot Reload)
   frontend:
-    image: node:22-alpine
+    image: ${DOCKERHUB_USERNAME}/opener-frontend:dev
     container_name: frontend-dev
-    working_dir: /app
-    env_file:
-      - ./frontend/.env.dev
     environment:
       - NODE_ENV=development
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
+      - TZ=Asia/Seoul
     ports:
       - "3000:3000"
-    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install && pnpm dev"
-    depends_on:
-      - backend
     networks:
       - dev-network
     restart: unless-stopped
 
   # Nginx Reverse Proxy (Optional for dev)
   nginx:
-    image: nginx:alpine
+    image: ${DOCKERHUB_USERNAME}/opener-nginx:dev
     container_name: nginx-dev
     environment:
       - TZ=Asia/Seoul
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - certbot-www:/var/www/certbot
     depends_on:
       - backend
       - frontend
@@ -110,4 +275,12 @@ networks:
 
 volumes:
   postgres_data_dev:
-  redis_data_dev:
+  redis_auth_data:
+  redis_chat_1_data:
+  redis_chat_2_data:
+  redis_chat_3_data:
+  redis_chat_4_data:
+  redis_chat_5_data:
+  redis_chat_6_data:
+  certbot-www:
+  rabbitmq_data:

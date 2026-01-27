@@ -1,57 +1,165 @@
 package spring.backend.shared.infrastructure.security.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.DispatcherType;
+import jakarta.servlet.http.HttpServletResponse;
+import java.util.Arrays;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import spring.backend.shared.infrastructure.security.filter.FormAuthenticationFilter;
 import spring.backend.shared.infrastructure.security.filter.JwtAuthenticationFilter;
+import spring.backend.shared.infrastructure.security.handler.FormAuthenticationFailureHandler;
+import spring.backend.shared.infrastructure.security.handler.FormAuthenticationSuccessHandler;
+import spring.backend.shared.infrastructure.security.handler.OAuth2AuthenticationFailureHandler;
+import spring.backend.shared.infrastructure.security.handler.OAuth2AuthenticationSuccessHandler;
+import spring.backend.shared.infrastructure.security.oauth2.CustomOAuth2UserService;
+import spring.backend.shared.infrastructure.security.oauth2.HttpCookieOAuth2AuthorizationRequestRepository;
 
 @Configuration
 @RequiredArgsConstructor
+@EnableWebSecurity
 public class SecurityConfig {
 
-  private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final FormAuthenticationSuccessHandler formAuthenticationSuccessHandler;
+    private final FormAuthenticationFailureHandler formAuthenticationFailureHandler;
+    private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
+    private final OAuth2AuthenticationFailureHandler oAuth2AuthenticationFailureHandler;
+    private final CustomOAuth2UserService customOAuth2UserService;
+    private final HttpCookieOAuth2AuthorizationRequestRepository cookieAuthorizationRequestRepository;
+    private final UserDetailsService userDetailsService;
+    private final ObjectMapper objectMapper;
 
-  @Bean
-  public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-    http
-            // csrf 비활성화(JWT 사용)
-            .csrf(csrf -> csrf.disable())
+    @Value("${app.cors.allowed-origins:}")
+    private String[] allowedOrigins;
 
-            // 엔드포인트 권한 설정
-            .authorizeHttpRequests(auth -> auth
+    @Bean
+    public SecurityFilterChain filterChain(
+            HttpSecurity http,
+            AuthenticationManager authenticationManager
+    ) throws Exception {
 
-                    // 공통응답 테스트용
-                    .requestMatchers("/api/test").permitAll()
+        http
+                .csrf(csrf -> csrf.disable())
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
-                    // Auth 관련 엔드포인트 (회원가입, 로그인, 토큰 갱신) - 인증 불필요
-                    .requestMatchers("/auth/**").permitAll()
+                .authorizeHttpRequests(auth -> auth
+                        // SSE async dispatch 시 SecurityContext 전파 문제 해결
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
+                        .requestMatchers(
+                                "/auth/**",
+                                "/oauth2/**",
+                                "/login/oauth2/code/**",
+                                "/actuator",
+                                "/actuator/health",
+                                "/actuator/prometheus"
+                        ).permitAll()
+                        .anyRequest().authenticated()
+                )
 
-                    // Swagger UI (application-dev.yml에서만 동작)
-                    .requestMatchers(
-                            "/swagger-ui/**",
-                            "/swagger-ui.html",
-                            "/v3/api-docs/**"
-                    ).permitAll()
+                // REST API용 예외 처리
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((req, res, e) ->
+                                res.setStatus(HttpServletResponse.SC_UNAUTHORIZED)
+                        )
+                )
 
-                    // 나머지 모든 요청 - 인증 필요
-                    .anyRequest().permitAll()
-            )
+                // OAuth2 로그인 설정
+                .oauth2Login(oauth2 -> oauth2
+                        .authorizationEndpoint(authorization -> authorization
+                                .authorizationRequestRepository(cookieAuthorizationRequestRepository)
+                        )
+                        .userInfoEndpoint(userInfo -> userInfo
+                                .userService(customOAuth2UserService)
+                        )
+                        .successHandler(oAuth2AuthenticationSuccessHandler)
+                        .failureHandler(oAuth2AuthenticationFailureHandler)
+                )
 
-            // JWT 인증 필터를 UsernamePasswordAuthenticationFilter 이전에 추가
-            // JWT 토큰 여부에 따라 로그인 프로세스 실행 여부 분기됨
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                // JWT 필터 추가 (인증 필터보다 먼저 실행)
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
 
-    return http.build();
-  }
+                // JSON 로그인 필터 추가
+                .addFilterAt(
+                        formAuthenticationFilter(authenticationManager),
+                        UsernamePasswordAuthenticationFilter.class
+                );
 
-  // 비밀번호 암호화를 위한 PasswordEncoder, Bcrypt 사용
-  @Bean
-  public PasswordEncoder passwordEncoder() {
-    return new BCryptPasswordEncoder();
-  }
+        return http.build();
+    }
+
+    // ========================================= 필터 빈 선언부
+
+    // form 로그인 필터
+    @Bean
+    public FormAuthenticationFilter formAuthenticationFilter(
+            AuthenticationManager authenticationManager
+    ) {
+
+        FormAuthenticationFilter filter =
+                new FormAuthenticationFilter(authenticationManager, objectMapper);
+
+        // 로그인 처리 URL 설정
+        filter.setFilterProcessesUrl("/auth/form-login");
+
+        // 성공/실패 핸들러 설정
+        filter.setAuthenticationSuccessHandler(formAuthenticationSuccessHandler);
+        filter.setAuthenticationFailureHandler(formAuthenticationFailureHandler);
+
+        return filter;
+    }
+
+    // ========================================= 필터 빈 선언부
+
+    // 커스텀 인증기 사용 선언
+    @Bean
+    public AuthenticationManager authenticationManager(PasswordEncoder passwordEncoder) {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService);
+        provider.setPasswordEncoder(passwordEncoder);
+        return new ProviderManager(provider);
+    }
+
+    // 비밀번호 암호화를 위한 PasswordEncoder, Bcrypt 사용
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+
+        if (allowedOrigins != null && allowedOrigins.length > 0) {
+            configuration.setAllowedOrigins(Arrays.asList(allowedOrigins));
+            configuration.setAllowCredentials(true);
+        } else {
+            // 운영 설정 누락 시 안전한 fallback (개발용). 운영에서는 사용 금지 권장.
+            configuration.setAllowedOriginPatterns(List.of("*"));
+            configuration.setAllowCredentials(false);
+        }
+
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setMaxAge(3600L);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
 }

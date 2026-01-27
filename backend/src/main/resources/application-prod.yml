@@ -65,3 +65,10 @@ spring:
     endpoint:
       health:
         show-details: never # 상세 정보 숨김
+
+app:
+  cors:
+    allowed-origins:
+      - https://www.example.com
+      - https://admin.example.com
+      - https://static.example.com

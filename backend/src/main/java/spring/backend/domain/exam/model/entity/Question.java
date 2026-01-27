@@ -1,0 +1,59 @@
+package spring.backend.domain.exam.model.entity;
+
+
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+import spring.backend.domain.exam.model.dto.Option;
+import spring.backend.domain.exam.model.dto.Passage;
+import spring.backend.domain.exam.model.enums.Category;
+import spring.backend.domain.exam.model.enums.QuestionType;
+import spring.backend.shared.entity.BaseEntity;
+
+import java.util.List;
+
+@Entity
+@Table(name = "questions")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class Question extends BaseEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "question_no")
+    private Integer questionNo;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "category")
+    private Category category;
+
+    @Column(name = "point")
+    private Integer point;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "question_type")
+    private QuestionType questionType; // "MCQ" / "FRQ" 등
+
+    // JSONB 저장 (Hibernate가 @JdbcTypeCode로 자동 처리)
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "passages", columnDefinition = "jsonb")
+    private List<Passage> passages;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "options", columnDefinition = "jsonb")
+    private List<Option> options;
+
+    @Column(name = "answer")
+    private Integer answer;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "exam_id")
+    @JsonBackReference
+    private Exam exam;
+}

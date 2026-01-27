@@ -13,18 +13,58 @@ spring:
         format_sql: true # SQL 포맷팅
         highlight_sql: true # SQL 하이라이트
 
-  # Actuator 설정
-  management:
-    endpoints:
-      web:
-        exposure:
-          include: health,info,metrics,prometheus
-    endpoint:
-      health:
-        show-details: when-authorized
+# Actuator 설정
+management:
+  metrics:
+    distribution:
+      percentiles:
+        http:server.requests: 0.95,0.99
+      percentiles-histogram:
+        http.server.requests: true
+    tags:
+      application: ${spring.application.name:backend}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
 
   # 로깅 설정
   logging:
     level:
       root: INFO
       spring.backend: DEBUG # 프로젝트 패키지 로그 레벨
+
+  # SSE 및 Async 설정
+  mvc:
+    async:
+      request-timeout: 1800000  # 30분 (SSE 타임아웃)
+
+server:
+  servlet:
+    context-path: /api
+  # 프록시(nginx) 뒤에서 X-Forwarded-* 헤더 신뢰
+  forward-headers-strategy: framework
+
+# 보안 설정
+security:
+  account-lock:
+    max-attempts: 5            # 최대 로그인 실패 허용 횟수
+    lock-duration-minutes: 5   # 계정 잠금 시간(분)
+
+# OAuth2 설정
+app:
+  oauth2:
+    signup-redirect-uri: ${OAUTH2_REDIRECT_URI:https://opener.deving.xyz/register}
+    login-success-uri: ${OAUTH2_LOGIN_SUCCESS_URI:https://opener.deving.xyz}
+    failure-redirect-uri: ${OAUTH2_FAILURE_REDIRECT_URI:https://opener.deving.xyz/login}
+
+# Async 설정
+task:
+  execution:
+    pool:
+      core-size: 10
+      max-size: 20
+      queue-capacity: 100

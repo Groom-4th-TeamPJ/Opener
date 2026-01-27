@@ -22,31 +22,63 @@ configurations {
 
 repositories {
     mavenCentral()
+    maven { url 'https://repo.spring.io/milestone' }
+    maven { url 'https://repo.spring.io/snapshot' }
 }
 
 dependencies {
+    // Spring AI BOM
+    implementation platform('org.springframework.ai:spring-ai-bom:2.0.0-M1')
+
     // Spring Boot Starters
     implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'  // Required for Spring AI streaming
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
+    // Netty DNS resolver for MacOS (resolves DNS resolution warnings on MacOS)
+    runtimeOnly 'io.netty:netty-resolver-dns-native-macos:4.1.116.Final:osx-aarch_64'
+
     // Database
     runtimeOnly 'org.postgresql:postgresql'
-    implementation 'org.flywaydb:flyway-core'
+    implementation 'org.springframework.boot:spring-boot-starter-flyway'
     runtimeOnly 'org.flywaydb:flyway-database-postgresql'
 
     // Redis
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
+    // RabbitMQ
+    implementation 'org.springframework.boot:spring-boot-starter-amqp'
+
+    // Spring AI
+    implementation 'org.springframework.ai:spring-ai-starter-model-openai'
+    implementation 'org.springframework.ai:spring-ai-pdf-document-reader'
+    implementation 'org.springframework.ai:spring-ai-pgvector-store'
+
     // API Documentation
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0'
+
+    // Security
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.3'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.3'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.3'
+
+    // OAuth2 Client
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+
+    // Environment Variables (.env file support)
+    implementation 'me.paulschwarz:spring-dotenv:4.0.0'
+
+    // AOP and Retry
+    implementation 'org.springframework.boot:spring-boot-starter-aop:3.5.9'
+    implementation 'org.springframework.retry:spring-retry:2.0.1'
 
     // Monitoring
     runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
     implementation 'net.ttddyy.observation:datasource-micrometer-spring-boot:2.0.1'
-    
+
     // Development Tools
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
