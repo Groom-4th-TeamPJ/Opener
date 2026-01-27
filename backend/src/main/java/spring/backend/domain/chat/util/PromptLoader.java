@@ -72,7 +72,7 @@ public class PromptLoader {
      * @return 변형 문제 생성 프롬프트
      */
     public String buildVariantQuestionPrompt(String retrievedContext, String problemContext) {
-        String template = loadPromptTemplate("generate-question.txt");
+        String template = loadPromptTemplate("generate/generate-question.txt");
         template = replaceVariable(template, "retrievedContext", retrievedContext);
         template = replaceVariable(template, "problemContext", problemContext);
         return template;
