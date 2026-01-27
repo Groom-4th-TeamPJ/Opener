@@ -2,29 +2,46 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import Button from './Button'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import useLogout from '@/hooks/auth/use-logout'
 import { useState } from 'react'
 import cn from '@/utils/cn'
 import SolidCanIcon from '@/components/icons/SolidCanIcon'
+import useCanCount from '@/hooks/header/use-can-count'
+import { ROUTES } from '@/constants/routes'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUERY_KEYS } from '@/constants/query-key'
 
 const MENU = [
-  { label: '대시보드', href: '/' },
-  { label: '문제풀이', href: '/exam' },
-  { label: '스크랩북', href: '/scrapbook' },
-  { label: '마이페이지', href: '/mypage' },
+  { label: '대시보드', href: ROUTES.DASHBOARD },
+  { label: '문제풀이', href: ROUTES.EXAM },
+  { label: '스크랩북', href: ROUTES.SCRAPBOOK },
+  { label: '마이페이지', href: ROUTES.MY_PAGE },
 ]
 
 export default function Header() {
   const pathName = usePathname()
-  const { mutate: logout } = useLogout()
+  const { mutateAsync: logout } = useLogout()
   const [isOpen, setIsOpen] = useState(false)
-
+  const { data } = useCanCount()
+  const queryClient = useQueryClient()
+  const router = useRouter()
   const toggleMenu = () => {
     setIsOpen((prev) => !prev)
   }
   const closeMenu = () => {
     setIsOpen(false)
+  }
+
+  const handleLogout = async () => {
+    queryClient.setQueryDefaults(QUERY_KEYS.USER.CAN, { enabled: false })
+
+    try {
+      await logout()
+    } finally {
+      queryClient.clear()
+      router.replace('/login')
+    }
   }
 
   return (
@@ -82,14 +99,14 @@ export default function Header() {
           <div className="flex gap-1.5 items-center px-4">
             <SolidCanIcon className="text-primary-600" />
 
-            <span className="font-bold">{/* 캔 개수 */}10</span>
+            <span className="font-bold">{data?.currentCan ?? 0}</span>
           </div>
 
           <Button
             variant="ghost"
             size="sm"
             className="w-16 p-0 border border-neutral-200"
-            onClick={() => logout()}
+            onClick={handleLogout}
           >
             로그아웃
           </Button>

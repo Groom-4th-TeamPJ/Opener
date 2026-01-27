@@ -1,6 +1,6 @@
-import { defineConfig, globalIgnores } from "eslint/config"
-import nextVitals from "eslint-config-next/core-web-vitals"
-import nextTs from "eslint-config-next/typescript"
+import { defineConfig, globalIgnores } from 'eslint/config'
+import nextVitals from 'eslint-config-next/core-web-vitals'
+import nextTs from 'eslint-config-next/typescript'
 import js from '@eslint/js'
 import prettier from 'eslint-config-prettier'
 import importPlugin from 'eslint-plugin-import'
@@ -17,10 +17,10 @@ const eslintConfig = defineConfig([
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
-    ".next/**",
-    "out/**",
-    "build/**",
-    "next-env.d.ts",
+    '.next/**',
+    'out/**',
+    'build/**',
+    'next-env.d.ts',
   ]),
   {
     files: ['**/*.{ts,tsx,js,jsx}'],
@@ -46,7 +46,7 @@ const eslintConfig = defineConfig([
       globals: globals.browser,
     },
     rules: {
-      'no-console': 'warn',
+      'no-console': ['warn', { allow: ['error', 'warn'] }],
       '@typescript-eslint/no-unused-vars': ['warn'],
       '@typescript-eslint/no-explicit-any': 'warn',
       'no-multiple-empty-lines': ['warn', { max: 1, maxEOF: 0 }],
@@ -57,6 +57,6 @@ const eslintConfig = defineConfig([
       'no-unused-vars': 'off',
     },
   },
-]);
+])
 
-export default eslintConfig;
+export default eslintConfig

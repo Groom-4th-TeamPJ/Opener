@@ -1,5 +1,6 @@
 import cn from '@/utils/cn'
 import { ComponentPropsWithRef, ReactNode } from 'react'
+import Loading from '@/components/shared/Loading'
 
 interface ButtonProps extends ComponentPropsWithRef<'button'> {
   variant?: 'default' | 'secondary' | 'ghost' | 'outline'
@@ -57,15 +58,9 @@ export default function Button({
       {...props}
     >
       {isLoading && (
-        <span
-          className={cn(
-            'absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
-            'inline-block rounded-full border-2 border-current border-t-transparent animate-spin',
-            size === 'sm' && 'w-3 h-3',
-            size === 'md' && 'w-4 h-4',
-            size === 'lg' && 'w-5 h-5'
-          )}
-        />
+        <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          <Loading />
+        </span>
       )}
       <span className={cn('flex items-center gap-1', isLoading && 'invisible')}>
         {finalLeftIcon && <span className="shrink-0">{finalLeftIcon}</span>}

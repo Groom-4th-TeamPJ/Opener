@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import Button from '@/components/common/Button'
 import YearSelectBox from './YearSelectBox'
-import QuestionSolve from './QuestionSolveView'
-import { mockExamData } from '@/mocks/exam-data'
-import type { ExamResponse } from '@/types/exam'
+import QuestionSolveView from './QuestionSolveView'
+import { useStartExam } from '@/hooks/exam/queries/use-start-exam'
+import ExamLoading from './ExamLoading'
+import { useExamStore } from '@/stores/use-exam-store'
 
 const categories = [
   { id: 'CALC', name: '미적분' },
@@ -19,37 +20,47 @@ const examTypes = [
   { id: 'CSAT', name: '수학능력시험' },
 ]
 
-const currentYear = new Date().getFullYear() - 1
-
 export default function ExamSelect() {
   const [selectedCategory, setSelectedCategory] = useState<string>('')
-  const [selectedYear, setSelectedYear] = useState<number>(currentYear)
+  const [selectedYear, setSelectedYear] = useState<number | null>(null)
   const [selectedExamType, setSelectedExamType] = useState<string>('')
-  const [examData, setExamData] = useState<ExamResponse | null>(null)
-
+  const [isExamActive, setIsExamActive] = useState(false)
   const canStart = !!(selectedCategory && selectedYear && selectedExamType)
 
-  const handleStartExam = () => {
+  const { mutateAsync, isPending } = useStartExam()
+  const { setExam } = useExamStore()
+
+  const handleStartExam = async () => {
     if (!canStart) return
 
-    // const params = {
-    //   year: Number(selectedYear),
-    //   category: selectedCategory,
-    //   examType: selectedExamType,
-    // }
+    const examParams = {
+      examYear: selectedYear,
+      category: selectedCategory,
+      examType: selectedExamType,
+    }
 
-    // TODO: GET /api/exam?year={year}&category={category}&examType={examType}
-    // TODO: Authorization: Bearer {accessToken} 헤더 추가
+    const result = await mutateAsync(examParams)
 
-    // Mock 데이터 로드
-    setExamData(mockExamData)
+    if (result) {
+      setExam(examParams, result.examResultId)
+      setIsExamActive(true)
+    }
+  }
+
+  const handleClose = () => {
+    setIsExamActive(false)
+  }
+
+  // 문제 풀이 요청 로딩
+  if (isPending) {
+    return <ExamLoading />
   }
 
   // 문제 풀이 화면으로 전환
-  if (examData) {
+  if (isExamActive) {
     return (
       <div className="fixed inset-0 z-100 bg-background">
-        <QuestionSolve data={examData} onClose={() => setExamData(null)} />
+        <QuestionSolveView onClose={handleClose} />
       </div>
     )
   }
@@ -99,7 +110,7 @@ export default function ExamSelect() {
                 <YearSelectBox
                   value={selectedYear}
                   onChange={setSelectedYear}
-                  isSelected={canStart}
+                  isSelected={!!selectedYear}
                 />
               </div>
 

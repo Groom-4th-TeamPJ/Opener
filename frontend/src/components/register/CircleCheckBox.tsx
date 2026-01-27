@@ -1,5 +1,5 @@
-import { Check } from 'lucide-react'
 import cn from '@/utils/cn'
+import Image from 'next/image'
 
 interface CircleCheckboxProps {
   id?: string
@@ -36,7 +36,15 @@ export default function CircleCheckbox({
             : 'bg-white border-neutral-300 group-hover:border-neutral-400'
         )}
       >
-        {checked && <Check className="w-3 h-3 text-white" strokeWidth={4} />}
+        {checked && (
+          <Image
+            src={'icons/check_white.svg'}
+            alt="체크 아이콘"
+            width={16}
+            height={16}
+            className=""
+          />
+        )}
       </div>
 
       {/* 라벨 영역 */}

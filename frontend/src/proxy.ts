@@ -4,27 +4,27 @@ import type { NextRequest } from 'next/server'
 const PUBLIC_PATHS = ['/login', '/register']
 
 export function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl
+  const { pathname, search } = request.nextUrl
+  const accessToken = request.cookies.get('accessToken')
 
-  const accessToken = request.cookies.get('accessToken')?.value
-  const refreshToken = request.cookies.get('refreshToken')?.value
-  const hasToken = accessToken || refreshToken
-
-  // 공개 경로 접근 시: 토큰이 있다면 대시보드로 리다이렉트 (로그인했는데 로그인 페이지 가는 거 방지)
-  if (PUBLIC_PATHS.some((path) => pathname.startsWith(path))) {
-    if (hasToken) {
-      return NextResponse.redirect(new URL('/', request.url))
-    }
+  if (pathname === '/verify') {
     return NextResponse.next()
   }
 
-  // TODO: 인증 상태 api 연동 후 주석 제거
-  // 토큰이 없다면 로그인 페이지로 리다이렉트
-  // if (!hasToken) {
-  //   return NextResponse.redirect(new URL('/login', request.url))
-  // }
+  // 역방향 가드: 로그인한 유저가 로그인/회원가입 접근 시
+  if (accessToken && PUBLIC_PATHS.includes(pathname)) {
+    return NextResponse.redirect(new URL('/', request.url))
+  }
 
-  // 그 외의 경우 정상 진행
+  // 순방향 가드: 퍼블릭 경로가 아니고, AT가 없는 경우 (verify로 위임)
+  if (!accessToken && !PUBLIC_PATHS.includes(pathname)) {
+    // /verify 자체는 무한 루프 방지를 위해 예외 처리
+    if (pathname.includes('/verify')) return NextResponse.next()
+
+    const callbackUrl = encodeURIComponent(`${pathname}${search}`)
+    return NextResponse.redirect(new URL(`/verify?callback=${callbackUrl}`, request.url))
+  }
+
   return NextResponse.next()
 }
 
@@ -37,6 +37,6 @@ export const config = {
      * 3. favicon.ico 등 공통 파일 제외
      * 4. 이미지(png, jpg 등) 파일 제외
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|map|txt|xml|json|woff2?|ttf|otf|eot)$).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|manifest.webmanifest|policies|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|map|txt|xml|json|woff2?|ttf|otf|eot|md)$).*)',
   ],
 }

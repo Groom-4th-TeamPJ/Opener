@@ -1,20 +1,24 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import { ChevronDown } from 'lucide-react'
 import Button from '@/components/common/Button'
 import cn from '@/utils/cn'
 
 interface YearSelectBoxProps {
-  value: number
+  value: number | null
   onChange: (value: number) => void
   isSelected?: boolean
 }
 
-const currentYear = new Date().getFullYear() - 1
+const currentYear = new Date().getFullYear()
 const years = Array.from({ length: 4 }, (_, i) => currentYear - i)
 
-export default function YearSelectBox({ value, onChange, isSelected = false }: YearSelectBoxProps) {
+export default memo(function YearSelectBox({
+  value,
+  onChange,
+  isSelected = false,
+}: YearSelectBoxProps) {
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -43,10 +47,13 @@ export default function YearSelectBox({ value, onChange, isSelected = false }: Y
     }
   }, [isOpen])
 
-  const handleSelect = (year: number) => {
-    onChange(year)
-    setIsOpen(false)
-  }
+  const handleSelect = useCallback(
+    (year: number) => {
+      onChange(year)
+      setIsOpen(false)
+    },
+    [onChange]
+  )
 
   return (
     <div className="relative" ref={containerRef}>
@@ -68,7 +75,7 @@ export default function YearSelectBox({ value, onChange, isSelected = false }: Y
               isSelected ? 'text-text-primary font-bold' : 'text-text-secondary font-medium'
             )}
           >
-            {value}
+            {value ?? '연도 선택'}
           </span>
         </Button>
         <ChevronDown
@@ -99,4 +106,4 @@ export default function YearSelectBox({ value, onChange, isSelected = false }: Y
       )}
     </div>
   )
-}
+})

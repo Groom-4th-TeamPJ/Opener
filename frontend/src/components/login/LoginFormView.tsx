@@ -5,19 +5,27 @@ import { LoginFormValues } from '@/types/auth.types'
 import AuthInput from '@/components/auth/AuthInput'
 import Link from 'next/link'
 import cn from '@/utils/cn'
+import { API_PATHS } from '@/constants/api-path'
 
 interface LoginFormViewProps {
   control: Control<LoginFormValues>
   onSubmit: () => void
   errors: FieldErrors<LoginFormValues>
+  isDisabled: boolean
   isSubmitting: boolean
+  handleOauthLogin: () => void
 }
+
+const OAUTH_URL =
+  (process.env.NEXT_PUBLIC_URL ?? 'https://opener.deving.xyz/api') + API_PATHS.AUTH.OAUTH_LOGIN
 
 export default function LoginFormView({
   control,
   onSubmit,
   errors,
+  isDisabled,
   isSubmitting,
+  handleOauthLogin,
 }: LoginFormViewProps) {
   return (
     <form onSubmit={onSubmit} className="w-full flex flex-col gap-2">
@@ -45,21 +53,26 @@ export default function LoginFormView({
           {errors.root.message}
         </p>
       ) : null}
-      <Button type="submit" className="w-full leading-0 mt-4" isLoading={isSubmitting}>
+      <Button
+        type="submit"
+        className="w-full leading-0 mt-4"
+        isLoading={isSubmitting}
+        disabled={isDisabled}
+      >
         로그인
       </Button>
       <Link
-        // TODO: 링크 경로 서버 주소에 맞춰 변경
-        href={'/'}
-        onClick={(e) => isSubmitting && e.preventDefault()}
+        href={OAUTH_URL}
+        onClick={handleOauthLogin}
         className={cn(
           'inline-flex items-center justify-center gap-2',
           'rounded-lg cursor-pointer h-10 px-4',
-          isSubmitting ? 'bg-[#E6CC00]' : 'bg-[#fee500]',
+          isSubmitting || isDisabled ? 'bg-[#E6CC00] pointer-events-none' : 'bg-[#fee500]',
           'leading-0 transition-colors duration-200 hover:bg-[#F2D700]'
         )}
+        prefetch={false}
       >
-        <Image src={'/kakao/kakao.svg'} alt="카카오 로그인" width={18} height={18} />
+        <Image src={'/icons/kakao.svg'} alt="카카오 로그인" width={18} height={18} />
         <span className="text-black/85">카카오 로그인</span>
       </Link>
     </form>

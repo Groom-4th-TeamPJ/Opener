@@ -3,6 +3,7 @@ import Input from '@/components/common/Input'
 import { Check } from 'lucide-react'
 import CorrectAnswerIcon from '@/components/icons/CorrectAnswerIcon'
 import WrongAnswerIcon from '@/components/icons/WrongAnswerIcon'
+import renderLatex from '@/utils/render-latex'
 
 type ResultAnswer = {
   checked: boolean
@@ -64,7 +65,7 @@ export default function ResultAnswer({
       </span>
 
       {/* 보기 텍스트 */}
-      <div>{optionText}</div>
+      <div dangerouslySetInnerHTML={{ __html: renderLatex(optionText) }} />
     </label>
   )
 }

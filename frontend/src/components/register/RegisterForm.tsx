@@ -4,11 +4,16 @@ import { FieldErrors, useForm } from 'react-hook-form'
 import RegisterFormView from '@/components/register/RegisterFormView'
 import z from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import useRegister from '@/hooks/auth/use-register'
 import { useRouter } from 'next/navigation'
-import { RegisterFormValues, Term } from '@/types/auth.types'
+import { RegisterFormValues, SignupTokenFields, Term } from '@/types/auth.types'
 import { UiError } from '@/types/api.types'
+import { jwtDecode } from 'jwt-decode'
+import { toast } from 'sonner'
+import getErrorMessages from '@/utils/error-handler'
+import { QUERY_KEYS } from '@/constants/query-key'
+import { useQueryClient } from '@tanstack/react-query'
 
 const PASSWORD_REGEX: RegExp = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[~!@#$%^&*])[A-Za-z\d~!@#$%^&*]{8,20}$/
 
@@ -18,7 +23,7 @@ const registerSchema = z.object({
 })
 
 // TODO: 에러 텍스트 상수화 및 파일 분리
-export const formRegisterSchema = registerSchema.extend({
+const formRegisterSchema = registerSchema.extend({
   email: z.email('올바른 이메일 형식이 아닙니다.'),
 
   password: z
@@ -28,25 +33,45 @@ export const formRegisterSchema = registerSchema.extend({
 
 interface RegisterFormProps {
   signupToken?: string
+  name?: string
 }
 
-export default function RegisterForm({ signupToken }: RegisterFormProps) {
+export default function RegisterForm({ signupToken, name }: RegisterFormProps) {
   const router = useRouter()
-  // TODO: signupToken 존재 시 유효성 검증 및 decode 진행
-  const DEFAULT_SET = useMemo(
-    () =>
-      signupToken
-        ? {
-            schema: registerSchema,
-            // TODO: decode 후 사용자 이름 default 설정
-            defaultValues: { name: '' },
-          }
-        : {
-            schema: formRegisterSchema,
-            defaultValues: { name: '', email: '', password: '' },
-          },
-    [signupToken]
-  )
+  const queryClient = useQueryClient()
+
+  const decodedToken = useMemo(() => {
+    if (!signupToken) return null
+    try {
+      return jwtDecode<SignupTokenFields>(signupToken)
+    } catch {
+      return null
+    }
+  }, [signupToken])
+
+  useEffect(() => {
+    if (signupToken && !decodedToken) {
+      toast.error('유효하지 않은 접근입니다. 다시 시도해주세요.')
+      router.replace('/login')
+    }
+    if (decodedToken) {
+      sessionStorage.removeItem('pending_oauth')
+    }
+  }, [decodedToken, signupToken, router])
+
+  const DEFAULT_SET = useMemo(() => {
+    if (decodedToken) {
+      return {
+        schema: registerSchema,
+        defaultValues: { name: name ?? '' },
+      }
+    }
+    return {
+      schema: formRegisterSchema,
+      defaultValues: { name: '', email: '', password: '' },
+    }
+  }, [name, decodedToken])
+
   const {
     control,
     handleSubmit,
@@ -54,13 +79,12 @@ export default function RegisterForm({ signupToken }: RegisterFormProps) {
     formState: { errors, isSubmitting },
     setError,
     clearErrors,
-    reset,
   } = useForm<RegisterFormValues>({
     defaultValues: DEFAULT_SET.defaultValues,
     resolver: zodResolver(DEFAULT_SET.schema),
   })
 
-  const { mutate: handleRegister, isPending } = useRegister()
+  const { mutateAsync: register } = useRegister()
 
   const [terms, setTerms] = useState<Term>({
     service: false,
@@ -77,20 +101,28 @@ export default function RegisterForm({ signupToken }: RegisterFormProps) {
     clearErrors()
     if (!agreed) {
       setTermError('약관에 동의해주세요.')
+      return
     }
     try {
-      handleRegister(form, {
-        onSuccess: () => router.replace('/'),
-        onError: (e: unknown) => {
-          // TODO: 에러 코드 상수화
-          const error = e as UiError
-          if (error.code === 500 && error.errorCode === 'S_001') {
-            setError('email', { message: '이미 존재하는 계정입니다.' }, { shouldFocus: true })
-          }
+      await register(form, {
+        onSuccess: () => {
+          queryClient.setQueryDefaults(QUERY_KEYS.USER.CAN, { enabled: true })
+          router.replace('/')
         },
       })
-    } catch {
-      reset()
+    } catch (e: unknown) {
+      const error = e as UiError
+      const errorCode = error.errorCode // "A_016" 또는 "A_017"
+
+      if (errorCode === 'S_001' || errorCode === 'A_001') {
+        setError('email', { message: '이미 존재하는 계정입니다.' }, { shouldFocus: true })
+        return
+      }
+
+      // 공통 인증 에러
+      const message = getErrorMessages(errorCode)
+      toast.error(message)
+      router.replace('/login')
     }
   }
 
@@ -120,7 +152,7 @@ export default function RegisterForm({ signupToken }: RegisterFormProps) {
       agreed={agreed}
       termError={termError}
       setTermError={setTermError}
-      isSubmitting={isSubmitting || isPending}
+      isSubmitting={isSubmitting}
       mode={signupToken ? 'oauth' : 'form'}
     />
   )
