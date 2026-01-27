@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function Scrapbook() {
   return (
-    <div className="fixed inset-0 top-16 overflow-y-auto">
+    <div className="fixed inset-0 top-16 flex justify-center overflow-y-auto">
       <main className="w-full max-w-6xl p-16">
         <section className="mb-10">
           <h1 className="text-[1.75rem] font-bold text-text-primary">내 스크랩북</h1>

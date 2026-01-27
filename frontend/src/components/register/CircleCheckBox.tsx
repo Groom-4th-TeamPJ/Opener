@@ -27,7 +27,6 @@ export default function CircleCheckbox({
         onChange={(e) => onChange(e.target.checked)}
       />
 
-      {/* 커스텀 원형 UI */}
       <div
         className={cn(
           'w-5 h-5 rounded-full border flex items-center justify-center transition-all duration-200 shrink-0',
@@ -47,7 +46,6 @@ export default function CircleCheckbox({
         )}
       </div>
 
-      {/* 라벨 영역 */}
       <span className="text-neutral-600 text-sm font-medium">{label}</span>
     </label>
   )

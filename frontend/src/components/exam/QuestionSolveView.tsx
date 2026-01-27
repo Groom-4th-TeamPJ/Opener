@@ -31,7 +31,6 @@ interface QuestionSolveViewProps {
   onClose: () => void
 }
 
-// 비활성 타임아웃
 const INACTIVITY_TIMEOUT = 60 * 60 * 1000
 
 export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
@@ -45,9 +44,8 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
   const examData = useCurrentExam()
   const { handleContextMenu, handleCopy, handleDragStart } = useContentProtection()
 
-  // 현재 문제 ID (SSE 콜백에서 사용하기 위해 early return 전에 계산)
+  // 현재 문제 ID (SSE 콜백에서 사용)
   const currentQuestionId = examData?.questions[currentIndex]?.questionId
-
   // 현재 문제의 제출 결과 (questionResultId 조회용)
   const submitResult = useSubmitResult(currentQuestionId ?? 0)
 
@@ -63,7 +61,7 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
     enabled: !!examData?.examResultId,
   })
 
-  // 비활성 감지 - 60분 비활성 시 모달 표시 후 대시보드로 이동
+  // 비활성 감지
   useInactivityDetection({
     timeout: INACTIVITY_TIMEOUT,
     enabled: !!examData && !isOpen(EXAM_MODAL.RESULT),
@@ -94,7 +92,6 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
     }
   }, [examData, onClose])
 
-  // React 훅 규칙: 모든 훅 호출 끝난 후 early return
   if (!examData) return null
 
   const { questions } = examData
@@ -165,7 +162,6 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
           updateQuestionState(currentQuestion.questionId, { isAnalysisActive: true })
         },
         onError: () => {
-          // 실패 시 롤백
           queryClient.setQueryData(
             QUERY_KEYS.USER.CAN,
             (old: { currentCan: number } | undefined) => {
@@ -232,7 +228,6 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
       </div>
 
       {/* 변형 문제 모달 */}
-
       <NewQuestionModal open={isOpen(EXAM_MODAL.NEW_QUESTION)} onClose={closeModal} />
 
       {/* 비활성 모달 */}

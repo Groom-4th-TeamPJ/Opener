@@ -86,7 +86,7 @@ export default memo(function YearSelectBox({
         />
       </div>
 
-      {/* Dropdown (아래로 펼쳐짐) */}
+      {/* Dropdown */}
       {isOpen && (
         <div className="absolute top-full mt-4 w-full bg-white rounded-lg shadow-[0px_4px_30px_0px_rgba(40,42,46,0.08)] overflow-hidden z-50">
           {years.map((year, index) => (

@@ -22,7 +22,7 @@
 
 ### 3. 스크랩북
 
-![image](https://github.com/user-attachments/assets/6d61d83d-601d-406d-9313-e89511d6559e)
+![image](https://github.com/user-attachments/assets/1f26f769-4cd4-44f4-8e5e-a9ebabcf496c)
 
 <br>
 

@@ -23,7 +23,6 @@ export default function TermItem({
   return (
     <div className="rounded-lg bg-background border border-foreground/20 p-3">
       <div className={cn('flex justify-between items-center gap-3 select-none')}>
-        {/* 체크 + 라벨 */}
         <CircleCheckbox
           checked={checked}
           onChange={onChange}
@@ -34,7 +33,6 @@ export default function TermItem({
           }
         />
 
-        {/* 전문 보기 */}
         {hasContent && (
           <Button
             type="button"

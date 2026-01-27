@@ -6,7 +6,7 @@ import { cjk } from '@streamdown/cjk'
 import 'katex/dist/katex.min.css'
 
 const math = createMathPlugin({
-  singleDollarTextMath: true, // Enable $...$ syntax (default: false)
+  singleDollarTextMath: true,
 })
 
 interface StreamdownRendererProps {
