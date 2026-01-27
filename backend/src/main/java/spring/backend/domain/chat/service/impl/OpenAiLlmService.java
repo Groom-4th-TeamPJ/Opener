@@ -130,7 +130,7 @@ public class OpenAiLlmService implements LlmService {
             // RAG 컨텍스트를 포함한 메시지 리스트 구성
             List<Message> messagesWithRag = new ArrayList<>();
 
-            // 유사 문서가 있으면 시스템 메시지로 추가 (규칙 + RAG 컨텍스트)
+            // 유사 문서가 있으면 시스템 메시지로 추가
             if (!similarDocuments.isEmpty()) {
                 String ragContext = similarDocuments.stream()
                         .map(doc -> {
@@ -141,16 +141,12 @@ public class OpenAiLlmService implements LlmService {
                         })
                         .collect(Collectors.joining("\n\n=== 참고 자료 구분 ===\n\n"));
 
-                // 규칙 + RAG 컨텍스트를 포함한 시스템 프롬프트 생성
-                String systemPrompt = promptLoader.buildChatRagSystemPromptWithRule(ragContext);
+                String systemPrompt = promptLoader.buildChatRagSystemPrompt(ragContext);
 
                 messagesWithRag.add(new SystemMessage(systemPrompt));
-                log.debug("[LLM+RAG] 규칙 + RAG 컨텍스트 추가 - 전체 길이: {}", ragContext.length());
+                log.debug("[LLM+RAG] RAG 컨텍스트 추가 - 전체 길이: {}", ragContext.length());
             } else {
-                // 유사 문서가 없어도 규칙 시스템 프롬프트는 적용
-                String systemRulePrompt = promptLoader.loadChatRulePrompt();
-                messagesWithRag.add(new SystemMessage(systemRulePrompt));
-                log.warn("[LLM+RAG] 유사 문서를 찾지 못했습니다. 규칙 프롬프트만 적용하여 진행합니다.");
+                log.warn("[LLM+RAG] 유사 문서를 찾지 못했습니다. 일반 대화로 진행합니다.");
             }
 
             // 기존 대화 히스토리 추가
