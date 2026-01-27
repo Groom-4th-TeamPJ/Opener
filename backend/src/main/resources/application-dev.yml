@@ -118,14 +118,17 @@ spring:
             user-info-uri: https://kapi.kakao.com/v2/user/me
             user-name-attribute: id
 
-  # Swagger/OpenAPI 설정
-  springdoc:
-    swagger-ui:
-      path: /swagger-ui.html
-      tags-sorter: alpha
-      operations-sorter: alpha
-    api-docs:
-      path: /api-docs
+# Swagger/OpenAPI 설정
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    disable-swagger-default-url: true
+    tags-sorter: alpha
+    operations-sorter: alpha
+    url: /v3/api-docs
+  api-docs:
+    path: /v3/api-docs
+
 
   # 개발 환경 로깅
   logging:

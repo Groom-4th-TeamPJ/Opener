@@ -1,6 +1,7 @@
 package spring.backend.domain.user.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,6 +16,7 @@ import spring.backend.shared.response.exception.BusinessException;
 @Slf4j
 @RestController
 @RequestMapping("/users")
+@Tag(name = "\uD83D\uDC64 User", description = "사용자 정보")
 public class UserController {
 
     private final CanService canService;
@@ -23,7 +25,10 @@ public class UserController {
         this.canService = canService;
     }
 
-    @Operation
+    @Operation (
+            summary = "내 캔 개수 조회",
+            description = "현재 로그인한 사용자의 캔 개수를 조회합니다."
+    )
     @GetMapping("me/cans/count")
     public CanResponse getMyCans(@AuthenticationPrincipal AuthUser authUser) {
         if (authUser == null || authUser.id() == null) {

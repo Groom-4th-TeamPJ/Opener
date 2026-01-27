@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +24,7 @@ import spring.backend.shared.response.exception.BusinessException;
 @RestController
 @RequestMapping("/exams")
 @RequiredArgsConstructor
+@Tag(name = "\uD83D\uDCDD ExamResult", description = "시험 결과")
 public class ExamResultController {
 
     private final ExamResultService examResultService;
