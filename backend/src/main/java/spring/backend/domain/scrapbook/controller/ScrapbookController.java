@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
@@ -22,6 +23,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/scrapbooks")
+@Tag(name = "\uD83D\uDCD2 Scrapbook", description = "스크랩북")
 public class ScrapbookController {
 
     private final ScrapbookService scrapbookService;

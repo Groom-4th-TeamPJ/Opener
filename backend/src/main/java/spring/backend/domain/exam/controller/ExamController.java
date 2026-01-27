@@ -1,6 +1,8 @@
 package spring.backend.domain.exam.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -23,10 +25,15 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/exams")
 @RequiredArgsConstructor
+@Tag(name = "\uD83D\uDCD8 Exam", description = "시험 문제")
 public class ExamController {
 
     private final ExamService examService;
 
+    @Operation (
+            summary = "시험 문제 조회",
+            description = "특정 연도, 유형, 카테고리에 해당하는 시험 문제를 조회합니다."
+    )
     @GetMapping
     public ResponseEntity<ExamResponse> getExamWithQuestions(
             @Parameter(description = "조회할 연도", required = true) @RequestParam Integer examYear,

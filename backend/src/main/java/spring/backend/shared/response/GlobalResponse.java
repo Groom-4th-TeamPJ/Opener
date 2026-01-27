@@ -1,5 +1,7 @@
 package spring.backend.shared.response;
 
+import io.swagger.v3.oas.models.OpenAPI;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.MediaType;
@@ -34,6 +36,18 @@ public class GlobalResponse implements ResponseBodyAdvice<Object> {
                 cls.startsWith("org.springframework.boot.webmvc.actuate")) {
             return false;
         }
+
+        // 1) /v3/api-docs (OpenAPI 타입) 제외
+        if (OpenAPI.class.isAssignableFrom(returnType.getParameterType())) {
+            return false;
+        }
+
+        // 2) /v3/api-docs/swagger-config (Map 타입) 포함 springdoc 내부 컨트롤러 전부 제외
+        String pkg = returnType.getContainingClass().getPackageName();
+        if (pkg.startsWith("org.springdoc")) {
+            return false;
+        }
+
 
         return true;
     }
