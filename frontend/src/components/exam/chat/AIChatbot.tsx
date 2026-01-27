@@ -24,7 +24,6 @@ interface AIChatbotProps {
 const INFO_TOOLTIP_TEXT =
   'AI 대화는 문제별로 진행됩니다.\n대화를 종료하거나 다음 문제로 이동하면 현재 대화는 종료되며, 대화 기록은 스크랩북에 자동 저장됩니다.'
 
-// 빈 배열 기본값 (참조 안정성을 위해 컴포넌트 외부에 정의)
 const EMPTY_CHAT_MESSAGES: ChatMessage[] = []
 
 export default function AIChatbot({
@@ -44,11 +43,9 @@ export default function AIChatbot({
   const addChatMessage = useExamStore((state) => state.addChatMessage)
   const { setStreamingMessage } = useExamStore.getState()
 
-  // Store에서 메시지 가져오기
   const chatMessages = useExamStore(
     (state) => state.questionStates[question.questionId]?.chatMessages ?? EMPTY_CHAT_MESSAGES
   )
-
   const streamingMessage = useExamStore(
     (state) => state.questionStates[question.questionId]?.streamingMessage ?? ''
   )
@@ -251,7 +248,6 @@ export default function AIChatbot({
         )}
       </div>
 
-      {/* Input Area */}
       <div className="p-4 border-t border-neutral-100 shrink-0">
         <Input
           ref={inputRef}
@@ -277,7 +273,6 @@ export default function AIChatbot({
           }
         />
 
-        {/* Disclaimer */}
         <p className="text-neutral-200 text-xs text-center mt-2.5">
           AI 답변은 오류가 있을 수 있으니 교차 검증을 권장합니다.
         </p>

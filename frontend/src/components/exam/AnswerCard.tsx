@@ -88,7 +88,6 @@ export default function AnswerCard() {
                 disabled={isSubmitted}
                 onChange={(e) => {
                   const answer = e.target.value
-                  // 숫자만 허용
                   if (answer === '' || /^\d+$/.test(answer)) {
                     handleFrqAnswerChange(answer)
                   }
@@ -100,14 +99,14 @@ export default function AnswerCard() {
                 )}
               />
             )}
-            {/* 정답 시 사용자가 입력한 답안 */}
+
             {isSubmitted && isCorrect && (
               <FRQAnswer variant="correct" className="md:h-12 lg:h-15">
                 <CorrectAnswerIcon />
                 {correctAnswer}
               </FRQAnswer>
             )}
-            {/* 오답 시 사용자가 입력한 답과 정답 */}
+
             {isSubmitted && !isCorrect && (
               <>
                 <FRQAnswer variant="wrong" className="md:h-12 lg:h-15">

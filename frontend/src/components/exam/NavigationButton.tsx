@@ -23,7 +23,6 @@ export default function NavigationButton({ isLastQuestion, onNext }: NavigationB
   const queryClient = useQueryClient()
   const { mutate: disconnectChat } = useDisconnectChat()
 
-  // 훅은 조건부 반환 전에 호출
   const questionId = examData?.questions[currentIndex]?.questionId ?? 0
   const streamingMessage = useExamStore(
     (state) => state.questionStates[questionId]?.streamingMessage ?? ''

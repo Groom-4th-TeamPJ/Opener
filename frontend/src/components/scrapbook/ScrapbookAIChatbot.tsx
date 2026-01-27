@@ -33,7 +33,6 @@ export default function ScrapbookAIChatbot({
         'hidden sm:flex md:w-86 lg:w-96 bg-white rounded-20 shadow-1 flex-col overflow-hidden'
       }
     >
-      {/* Header */}
       <div className="px-4 py-5 border-b border-neutral-100 flex items-center gap-2.5 shrink-0">
         <div className="flex-1 flex items-center gap-2">
           <div className="w-2 h-2 bg-primary-600 rounded-full" />
@@ -42,7 +41,6 @@ export default function ScrapbookAIChatbot({
         <InfoTooltip content={INFO_TOOLTIP_TEXT} side="bottom" disabled={!isActive}></InfoTooltip>
       </div>
 
-      {/* Content */}
       <div className="flex-1 overflow-y-auto scrollbar-overlay min-h-0 px-6 pt-6 pb-6">
         <div className="space-y-4">
           {question.chat.map((message) => (
@@ -93,7 +91,6 @@ export default function ScrapbookAIChatbot({
         </div>
       </div>
 
-      {/* Input Area */}
       <div className="p-4 border-t border-neutral-100 shrink-0">
         <Input
           type="text"
@@ -108,7 +105,6 @@ export default function ScrapbookAIChatbot({
           }
         />
 
-        {/* Disclaimer */}
         <p className="text-neutral-200 text-xs text-center mt-2.5">
           AI 답변은 오류가 있을 수 있으니 교차 검증을 권장합니다.
         </p>
