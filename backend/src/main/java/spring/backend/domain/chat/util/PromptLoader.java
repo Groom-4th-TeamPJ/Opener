@@ -21,7 +21,18 @@ public class PromptLoader {
      */
     public String loadPromptTemplate(String templateName) {
         try {
-            ClassPathResource resource = new ClassPathResource(PROMPTS_BASE_PATH + templateName);
+            ClassLoader cl = PromptLoader.class.getClassLoader();
+            ClassPathResource resource = new ClassPathResource("prompts/" + templateName, cl);
+
+            String path = PROMPTS_BASE_PATH + templateName;
+
+            ClassLoader tccl = Thread.currentThread().getContextClassLoader();
+            ClassLoader mycl = PromptLoader.class.getClassLoader();
+
+            log.info("[PromptLoader] path={}, TCCL={}, MyCL={}", path, tccl, mycl);
+            log.info("[PromptLoader] TCCL.getResource={}", tccl == null ? null : tccl.getResource(path));
+            log.info("[PromptLoader] MyCL.getResource={}", mycl.getResource(path));
+
             return StreamUtils.copyToString(resource.getInputStream(), StandardCharsets.UTF_8);
         } catch (IOException e) {
             log.error("[PromptLoader] 프롬프트 템플릿 로드 실패 - templateName: {}", templateName, e);
@@ -72,7 +83,7 @@ public class PromptLoader {
      * @return 변형 문제 생성 프롬프트
      */
     public String buildVariantQuestionPrompt(String retrievedContext, String problemContext) {
-        String template = loadPromptTemplate("generate-question.txt");
+        String template = loadPromptTemplate("generate/generate-question.txt");
         template = replaceVariable(template, "retrievedContext", retrievedContext);
         template = replaceVariable(template, "problemContext", problemContext);
         return template;
