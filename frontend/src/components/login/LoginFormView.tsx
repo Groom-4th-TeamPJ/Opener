@@ -47,7 +47,6 @@ export default function LoginFormView({
         size="lg"
         error={errors.root?.message ? ' ' : undefined}
       />
-      {/* 폼 상단 에러 */}
       {errors.root?.message ? (
         <p role="alert" className="text-xs text-red-600 whitespace-pre-line">
           {errors.root.message}

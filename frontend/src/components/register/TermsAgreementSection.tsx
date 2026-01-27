@@ -47,7 +47,6 @@ export default function TermsAgreementSection({
 
   return (
     <section className="space-y-2 my-4">
-      {/* 전체 동의 + details */}
       <details
         className={cn(
           'group/root rounded-lg bg-background border border-foreground/20 p-4',

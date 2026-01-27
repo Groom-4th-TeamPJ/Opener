@@ -73,13 +73,10 @@ export default function AuthInput<T extends FieldValues>({
         className="absolute flex items-center gap-x-1 right-2"
         onMouseDown={(e) => e.preventDefault()}
       >
-        {/* Password 전용: Badge (항상 표시) */}
         {isPassword && badgeRenderer && badgeRenderer(value || '')}
 
-        {/* Focus 상태일 때만 표시되는 제어 버튼들 */}
         {isFocused && (
           <div className="flex items-center gap-1">
-            {/* Password 전용: Eye 버튼 */}
             {isPassword && (
               <Button
                 type="button"
@@ -108,7 +105,6 @@ export default function AuthInput<T extends FieldValues>({
               </Button>
             )}
 
-            {/* 공통: Reset 버튼 */}
             {hasValue && (
               <Button
                 type="button"

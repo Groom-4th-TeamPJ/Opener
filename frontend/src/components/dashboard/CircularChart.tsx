@@ -83,7 +83,6 @@ export default function CircularChart({
 
   return (
     <svg width={size} height={size} role="img" aria-label={`${label} ${display}%`}>
-      {/* track */}
       <circle
         cx={size / 2}
         cy={size / 2}
@@ -93,7 +92,6 @@ export default function CircularChart({
         strokeWidth={strokeWidth}
       />
 
-      {/* progress */}
       <circle
         cx={size / 2}
         cy={size / 2}
@@ -106,7 +104,6 @@ export default function CircularChart({
         transform={`rotate(-90 ${size / 2} ${size / 2})`}
       />
 
-      {/* center text: percent + sub label */}
       <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle">
         <tspan x="50%" dy="-0.2em" fontSize="28" fontWeight="700" fill="#008c85">
           {display}%
