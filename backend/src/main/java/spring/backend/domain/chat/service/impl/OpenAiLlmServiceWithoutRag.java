@@ -72,17 +72,13 @@ public class OpenAiLlmServiceWithoutRag implements LlmService {
             // 새로운 사용자 메시지는 이미 Redis에 저장되어 chatHistory에 포함되어 있으므로
             // 별도로 추가하지 않습니다 (ChatServiceImpl에서 저장 후 호출)
 
-            // 채팅 규칙 시스템 프롬프트 로드
-            String systemRulePrompt = promptLoader.loadChatRulePrompt();
-
-            // Spring AI ChatClient를 사용한 스트리밍 (규칙 시스템 프롬프트 + 대화 히스토리)
+            // Spring AI ChatClient를 사용한 스트리밍 (대화 히스토리만, RAG 없음)
             ChatClient chatClient = chatClientBuilder.build();
 
-            log.debug("[LLM-NoRAG] RAG 비활성화 상태 - 규칙 시스템 프롬프트 + 멀티턴 대화 지원");
+            log.debug("[LLM-NoRAG] RAG 비활성화 상태 - 멀티턴 대화만 지원");
 
             Flux<String> streamResponse = chatClient
                     .prompt()
-                    .system(systemRulePrompt)
                     .messages(chatHistory)
                     .stream()
                     .content();
