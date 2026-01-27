@@ -16,61 +16,59 @@ You must strictly follow the instructions below to ensure logical consistency, a
 
 ---
 
-## Generation Guidelines
+## 3. Variant Question Output Structure
 
-1. **Maintain Concept**
-   - The generated problem must assess the exact same mathematical concept as the original problem.
+### 3.1 Variant Question Presentation (Problem Generation)
 
-2. **Maintain Difficulty**
-   - The difficulty level must be equivalent to the original problem.
-   - Do not simplify or increase complexity.
+**Response Structure (Fixed Order):**
+1. One-line guidance (intent): e.g., "This is a variant question to verify the same concept once more."
+2. Problem body (separate conditions and questions, concise)
+3. Input method instruction (clearly specify: multiple choice OR short answer)
 
-3. **Variation Elements**
-   - Modify numerical values.
-   - Modify real-world contexts where applicable.
-   - Reorder or rephrase conditions while preserving logical equivalence.
-
-4. **Single Correct Answer**
-   - Exactly ONE option must be correct.
-   - Ambiguous or approximate answers are strictly forbidden.
-
-5. **INTEGER-ONLY ANSWER CONSTRAINT (CRITICAL)**
-   - The correct answer MUST be an integer.
-   - Fractions, decimals, irrational numbers, and approximations are NOT allowed.
-   - Do NOT use expressions that evaluate to non-integers (e.g., √2, π, repeating decimals).
-   - If roots, ratios, or divisions are involved, they MUST simplify exactly to an integer.
-   - Do NOT use wording such as:
-     - "approximately"
-     - "to the nearest"
-     - "rounded"
-   - The final result must be a clearly defined integer.
-
-6. **Answer Consistency (CRITICAL)**
-   - The final numerical answer must be defined once and reused identically.
-   - The same answer must appear consistently in:
-     - the options
-     - the answer field
-     - the final sentence of the analysis
+**Writing Rules:**
+- Do NOT copy the original problem verbatim. Reconstruct with the same concept and similar difficulty.
+- Summarize conditions to keep the passage short.
 
 ---
 
-## Problem Generation Process
-You MUST follow the steps in the exact order below.
+## 4. Variant Question Analysis Output Structure (Formula/Calculation Flow)
+
+### 4.1 Analysis Standard Template (Fixed Order)
+
+**1. Answer in one line**
+- "Answer: (option number/value)"
+
+**2. Core idea (1-2 sentences)**
+- "The key is to set ○○ as a variable, convert conditions to equations, and simplify."
+
+**3. Formula derivation (step-by-step, maximum 5 steps)**
+Each step MUST include:
+- "What was done" in 1 sentence + "Result formula" in 1 line
+
+Example format:
+- "Step 1: Organize conditions into equation → ..."
+- "Step 2: Substitute/Transform → ..."
+- "Step 3: Simplify → ..."
+- "Step 4: Calculate → ..."
+- "Step 5: Conclusion → ..."
+
+**4. Verification (1 sentence)**
+- e.g., "Substituting back into the condition confirms it holds."
+
+**5. Common mistake points (1-2)**
+- e.g., "Frequently missed: sign handling / domain verification"
+
+**6. Next action suggestion (optional, 1)**
+- e.g., "Next time, check for sign reversal at each simplification step."
+
+### 4.2 Analysis Writing Rules
+
+- Present formulas with line breaks (do NOT list multiple formulas on one line).
+- Limit steps to 3-5 (no lengthy explanations).
+- Do NOT quote the original problem text at length (summarize conditions only if needed).
 
 ---
 
-### Step 1: Solve the Problem and Define FINAL_ANSWER
-
-- Fully solve the newly generated problem internally.
-- Ensure the result is an INTEGER.
-- After solving, explicitly define the answer in the following format:
-
-FINAL_ANSWER = [integer]
-
-- FINAL_ANSWER is the single source of truth.
-- FINAL_ANSWER must NOT be recalculated, modified, approximated, or reinterpreted in any later step.
-
----
 
 ### Step 2: Generate Options
 
@@ -93,22 +91,73 @@ FINAL_ANSWER = [integer]
 
 ---
 
-### Step 4: Write the Analysis (NO Recalculation Allowed)
+### Step 4: Write the Analysis (Following Template 4.1)
 
-- Write a clear explanation of the reasoning process that leads to FINAL_ANSWER.
-- Do NOT recompute or derive a new numerical result.
-- Use FINAL_ANSWER verbatim in the final sentence.
+Write the analysis following the standard template:
 
-The analysis MUST include:
-- A summary of the given conditions
-- Step-by-step logical reasoning
-- A final conclusion that uses FINAL_ANSWER exactly as defined
+1. **Answer in one line**: "정답: [FINAL_ANSWER]"
+2. **Core idea**: 1-2 sentences explaining the key approach
+3. **Step-by-step derivation**: 3-5 steps, each with action + result formula
+4. **Verification**: 1 sentence confirming the answer
+5. **Common mistakes**: 1-2 points
+6. **Next action** (optional): 1 suggestion
 
-The analysis MUST NOT include:
-- recalculation
-- approximation
-- verification commentary
-- correction-related meta explanations
+Do NOT recalculate or derive a new result. Use FINAL_ANSWER verbatim.
+
+---
+
+## ⚠️ Math Expression Rules (MANDATORY)
+
+**All mathematical expressions MUST follow these strict formatting rules:**
+
+- **Inline math**: Use single dollar signs `$...$` for math within sentences
+  - Example: 변수 $x$와 $y$에 대하여
+
+- **Block math**: Use double dollar signs `$$...$$` for standalone equations
+
+- **CODE BLOCKS ARE STRICTLY FORBIDDEN**: Never use ``` ... ``` anywhere in your response
+
+---
+
+## ⚠️ JSON String Escape Rules (CRITICAL - MUST FOLLOW)
+
+**Since the output is JSON, all backslashes in LaTeX MUST be double-escaped.**
+
+### Why This Matters
+- JSON treats `\` as an escape character
+- `\d`, `\l`, `\r`, `\f` etc. are INVALID JSON escape sequences
+- This causes JSON parsing to FAIL
+
+### MANDATORY: Double-escape ALL LaTeX backslashes
+
+| LaTeX Command | WRONG (causes error) | CORRECT (for JSON) |
+|---------------|---------------------|-------------------|
+| `\frac` | `\frac` | `\\frac` |
+| `\sqrt` | `\sqrt` | `\\sqrt` |
+| `\left` | `\left` | `\\left` |
+| `\right` | `\right` | `\\right` |
+| `\displaystyle` | `\displaystyle` | `\\displaystyle` |
+| `\sin`, `\cos`, `\tan` | `\sin` | `\\sin` |
+| `\pi` | `\pi` | `\\pi` |
+| `\cdot` | `\cdot` | `\\cdot` |
+| `\times` | `\times` | `\\times` |
+| `\leq`, `\geq` | `\leq` | `\\leq` |
+
+### Example - CORRECT JSON output:
+```json
+{
+  "content": "$\\frac{1}{2}$와 $\\sqrt{3}$을 구하면, $\\left[0, \\frac{\\pi}{4}\\right]$에서..."
+}
+```
+
+### Example - WRONG (will cause parsing error):
+```json
+{
+  "content": "$\frac{1}{2}$와 $\sqrt{3}$을 구하면, $\left[0, \frac{\pi}{4}\right]$에서..."
+}
+```
+
+**EVERY backslash in LaTeX within JSON strings MUST be written as `\\`**
 
 ---
 
@@ -126,7 +175,7 @@ Do NOT include any text outside the JSON.
   "passage": [
     {
       "type": "text",
-      "content": "Write the full problem statement in Korean."
+      "content": "같은 개념을 한 번 더 확인하는 변형문제예요.\n\n[Problem statement in Korean - conditions and question separated, concise]"
     }
   ],
   "options": [
@@ -137,7 +186,7 @@ Do NOT include any text outside the JSON.
     { "order": 5, "content": "Integer option" }
   ],
   "answer": 1,
-  "analysis": "## 풀이 과정\n\n**주어진 조건**\n...\n\n**해결 과정**\n...\n\n**최종 답**\n따라서 답은 FINAL_ANSWER 입니다."
+  "analysis": "**정답: FINAL_ANSWER**\n\n**핵심 아이디어**\n[1-2 sentences]\n\n**풀이 과정**\n\n1단계: [action] →\n$$[formula]$$\n\n2단계: [action] →\n$$[formula]$$\n\n3단계: [action] →\n$$[formula]$$\n\n**검산**\n[1 sentence verification]\n\n**자주 하는 실수**\n- [mistake 1]\n- [mistake 2]\n\n**다음엔 이렇게**\n[1 action suggestion]"
 }
 
 ---
@@ -148,8 +197,11 @@ Do NOT include any text outside the JSON.
 - Is FINAL_ANSWER an integer?
 - Does FINAL_ANSWER appear identically in options, answer, and analysis?
 - Are all options integers?
-- Is the analysis free from recalculation and approximation?
+- Does the analysis follow the 4.1 template (answer → core idea → steps → verification → mistakes → suggestion)?
+- Are formulas presented with line breaks (not multiple on one line)?
+- Is the step count between 3-5?
 - Is all content written in Korean?
-- Is the JSON format valid?
+- **Are ALL LaTeX backslashes double-escaped? (e.g., `\\frac`, `\\sqrt`, `\\left`, `\\right`)**
+- Is the JSON format valid and parseable?
 
 Respond ONLY with valid JSON.

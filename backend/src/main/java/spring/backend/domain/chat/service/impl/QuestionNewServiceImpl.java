@@ -100,10 +100,10 @@ public class QuestionNewServiceImpl implements QuestionNewService {
             // 5. RAG: 유사 문서 검색
             String retrievedContext = searchSimilarDocuments(problemContext);
 
-            // 6. LLM으로 변형 문제 생성 (30초 타임아웃)
+            // 6. LLM으로 변형 문제 생성 (60초 타임아웃)
             String llmResponse = CompletableFuture
                     .supplyAsync(() -> generateWithLLM(retrievedContext, problemContext))
-                    .orTimeout(30, TimeUnit.SECONDS)
+                    .orTimeout(60, TimeUnit.SECONDS)
                     .join();
             log.debug("[QuestionNew] LLM 응답 길이: {}", llmResponse.length());
 
@@ -130,7 +130,7 @@ public class QuestionNewServiceImpl implements QuestionNewService {
         } catch (CompletionException e) {
             // LLM 타임아웃 또는 실행 중 예외 처리
             if (e.getCause() instanceof TimeoutException) {
-                log.error("[QuestionNew] LLM 응답 타임아웃 (20초 초과) - userId: {}", userId);
+                log.error("[QuestionNew] LLM 응답 타임아웃 (60초 초과) - userId: {}", userId);
                 canService.recoverUserCan(userId, 1);
                 throw new BusinessException(ErrorCode.LLM_TIMEOUT);
             }
@@ -366,10 +366,8 @@ public class QuestionNewServiceImpl implements QuestionNewService {
     }
 
     /**
-     * LLM 응답에서 passages 파싱 (단수/복수, 문자열/배열 모두 지원)
-     * - "passages": [...] → 그대로 파싱
-     * - "passage": [...] → 그대로 파싱
-     * - "passage": "..." → 단일 Passage로 변환
+     * LLM 응답에서 passages 파싱 (단수/복수, 문자열/배열 모두 지원) - "passages": [...] → 그대로 파싱 - "passage": [...] → 그대로 파싱 - "passage":
+     * "..." → 단일 Passage로 변환
      */
     private List<Passage> parsePassages(JsonNode rootNode, String jsonStr) {
         // 1. "passages" (복수형) 먼저 확인
