@@ -10,6 +10,7 @@ services:
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"  # 설정 파일 경로
       - "--storage.tsdb.path=/prometheus" # 데이터 저장 경로
+      - "--web.enable-remote-write-receiver"
     ports:
       - "9090:9090"
     restart: unless-stopped
@@ -23,6 +24,11 @@ services:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin1234
       - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_DATABASE_TYPE=postgres
+      - GF_DATABASE_HOST=grafana-db:5432
+      - GF_DATABASE_NAME=grafana
+      - GF_DATABASE_USER=grafana
+      - GF_DATABASE_PASSWORD=grafana_pw
     volumes:
       - grafana-data:/var/lib/grafana
     ports:
@@ -32,6 +38,20 @@ services:
       - monitoring-network
     depends_on:
       - Prometheus
+      - grafana-db
+
+  grafana-db:
+    image: postgres:16
+    environment:
+      - POSTGRES_DB=grafana
+      - POSTGRES_USER=grafana
+      - POSTGRES_PASSWORD=grafana_pw
+    ports:
+      - "5433:5432"
+    volumes:
+      - grafana-db-data:/var/lib/postgresql/data
+    networks:
+      - monitoring-network
 
   node-exporter:
     image: prom/node-exporter:latest
@@ -49,6 +69,7 @@ services:
 volumes:
   prometheus-data:
   grafana-data:
+  grafana-db-data:
 
 networks:
   monitoring-network:
