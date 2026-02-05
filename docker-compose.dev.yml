@@ -219,6 +219,9 @@ services:
       - .env
     environment:
       - TZ=Asia/Seoul
+    volumes:
+      - /opt/pinpoint-agent/pinpoint-agent-3.0.4:/pinpoint-agent
+      - pinpoint-agent-logs:/pinpoint-agent/logs
     ports:
       - "8080:8080"
     depends_on:
@@ -235,6 +238,16 @@ services:
     networks:
       - dev-network
     restart: unless-stopped
+    entrypoint: ["java"]
+    command: >
+      -javaagent:/pinpoint-agent/pinpoint-bootstrap.jar
+      -Dpinpoint.agentId=${PINPOINT_AGENT_ID}
+      -Dpinpoint.applicationName=${PINPOINT_APP_NAME}
+      -Dprofiler.transport.grpc.collector.ip=${COLLECTOR_IP}
+      -Dprofiler.transport.grpc.collector.port=${COLLECTOR_PORT}
+      -Dpinpoint.config.file=/pinpoint-agent/pinpoint.config
+      -jar
+      app.jar
 
   # Frontend (Development with Hot Reload)
   frontend:
@@ -284,3 +297,4 @@ volumes:
   redis_chat_6_data:
   certbot-www:
   rabbitmq_data:
+  pinpoint-agent-logs:
