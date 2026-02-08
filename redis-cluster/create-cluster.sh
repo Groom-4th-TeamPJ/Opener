@@ -8,7 +8,7 @@ echo "=========================================="
 echo "Redis Cluster Initialization"
 echo "=========================================="
 
-echo "[1/4] Waiting for Redis nodes to be ready..."
+echo "[1/5] Waiting for Redis nodes to be ready..."
 sleep 3
 
 # Check each node is ready
@@ -32,7 +32,7 @@ check_node() {
     return 1
 }
 
-echo "[2/4] Checking node connectivity..."
+echo "[2/5] Checking node connectivity..."
 check_node redis-chat-1 6380
 check_node redis-chat-2 6381
 check_node redis-chat-3 6382
@@ -41,28 +41,24 @@ check_node redis-chat-5 6384
 check_node redis-chat-6 6385
 
 echo ""
-echo "[3/4] Creating cluster..."
+echo "[3/5] Resetting all nodes..."
+# Docker 재시작 시 컨테이너 IP가 바뀌므로, nodes.conf에 저장된 IP가 stale이 됨.
+# 항상 리셋 후 재생성하여 현재 IP로 클러스터를 구성.
+for node_info in "redis-chat-1 6380" "redis-chat-2 6381" "redis-chat-3 6382" \
+                 "redis-chat-4 6383" "redis-chat-5 6384" "redis-chat-6 6385"; do
+    host=$(echo $node_info | cut -d' ' -f1)
+    port=$(echo $node_info | cut -d' ' -f2)
+    redis-cli -h $host -p $port FLUSHALL 2>/dev/null || true
+    redis-cli -h $host -p $port CLUSTER RESET HARD 2>/dev/null || true
+    echo "  - $host:$port reset"
+done
+
+echo ""
+echo "[4/5] Creating cluster..."
 echo "  - 3 Masters: redis-chat-1:6380, redis-chat-2:6381, redis-chat-3:6382"
 echo "  - 3 Replicas: redis-chat-4:6383, redis-chat-5:6384, redis-chat-6:6385"
 echo ""
 
-# Check if cluster already exists
-CLUSTER_INFO=$(redis-cli -h redis-chat-1 -p 6380 cluster info 2>/dev/null || echo "cluster_state:none")
-
-if echo "$CLUSTER_INFO" | grep -q "cluster_state:ok"; then
-    echo "  - Cluster already exists and is healthy!"
-    echo ""
-    echo "[4/4] Current cluster status:"
-    redis-cli -h redis-chat-1 -p 6380 cluster info | head -5
-    echo ""
-    redis-cli -h redis-chat-1 -p 6380 cluster nodes
-    exit 0
-fi
-
-# Create the cluster
-# --cluster-replicas 1 means each master gets 1 replica
-# Note: Uses Docker hostnames for internal communication
-# cluster-announce-ip in docker-compose handles external client access
 redis-cli --cluster create \
     redis-chat-1:6380 \
     redis-chat-2:6381 \
@@ -75,7 +71,7 @@ redis-cli --cluster create \
     --cluster-timeout 5
 
 echo ""
-echo "[4/4] Verifying cluster status..."
+echo "[5/5] Verifying cluster status..."
 sleep 2
 
 # Verify cluster state
