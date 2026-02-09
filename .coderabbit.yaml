@@ -44,8 +44,12 @@ reviews:
   poem: false
   # frontend 디렉토리에 포함된 변경 사항만 리뷰 대상으로 삼습니다.
   path_filters:
-    include:
-      - 'frontend/**'
+    - 'frontend/**'
+    - '!frontend/**/*.md'
+    - '!frontend/**/*.mdx'
+    - '!frontend/**/README*'
+    - '!frontend/**/*.lock'
+    - '!frontend/**/dist/**'
   # 특정 파일 경로에 따라 다른 리뷰 지침을 적용합니다.
   path_instructions:
     - path: frontend/**
@@ -56,6 +60,11 @@ reviews:
         3. 각 리뷰 포인트별로 문제점과 대안, 장단점을 논리적으로 제시하고, 필요한 경우 예시 코드도 추가해 주세요.
         4. 리뷰가 너무 많아서 피로감을 줄 수 있으니, 꼭 필요한 부분에 집중해주고, 나머지는 캡션으로 설명해주세요.
         5. 리뷰 남겨주는 부분은 해당 라인 범위의 코멘트에 작성해주세요.
+        6. **import 경로는 alias(`@/`) 사용을 원칙으로 하며, `../` 또는 중첩된 상대 경로 사용은 지양합니다.**
+          - ❌ `import Button from '../../components/Button'`
+          - ✅ `import Button from '@/components/Button'`
+          - 상대 경로가 불가피한 경우(동일 디렉토리 내부 등), 그 사유를 함께 명시해 주세요.
+          - 위 규칙을 위반한 경우, **해당 라인에 리뷰 코멘트를 남기고 수정 예시를 제안해 주세요.**
 
   # ---------------------------------------------------------------- #
   # 자동 리뷰 트리거 설정
