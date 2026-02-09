@@ -17,7 +17,7 @@ interface LoginFormViewProps {
 }
 
 const OAUTH_URL =
-  (process.env.NEXT_PUBLIC_API_URL ?? 'https://opener.deving.xyz/api') + API_PATHS.AUTH.OAUTH_LOGIN
+  (process.env.NEXT_PUBLIC_API_URL ?? 'https://opener.ai.kr/api') + API_PATHS.AUTH.OAUTH_LOGIN
 
 export default function LoginFormView({
   control,
