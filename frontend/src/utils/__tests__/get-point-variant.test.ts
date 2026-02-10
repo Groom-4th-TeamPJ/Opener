@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import getPointVariant from '../get-point-variant'
+import getPointVariant from '@/utils/get-point-variant'
 
 describe('getPointVariant', () => {
   test('2점은 success를 반환한다', () => {
