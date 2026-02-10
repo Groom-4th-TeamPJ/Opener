@@ -26,6 +26,7 @@
   "dependencies": {
     "@eslint/js": "^9.39.2",
     "@hookform/resolvers": "^5.2.2",
+    "@next/third-parties": "^16.1.6",
     "@radix-ui/react-popover": "^1.1.15",
     "@streamdown/cjk": "^1.0.1",
     "@streamdown/math": "^1.0.1",
