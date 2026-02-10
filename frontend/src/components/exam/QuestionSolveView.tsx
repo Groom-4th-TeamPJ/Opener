@@ -26,6 +26,7 @@ import { EXAM_MODAL } from '@/constants/exam'
 import useContentProtection from '@/hooks/exam/use-content-protection'
 import { useQueryClient } from '@tanstack/react-query'
 import { QUERY_KEYS } from '@/constants/query-key'
+import { gaEvent } from '@/utils/ga'
 
 interface QuestionSolveViewProps {
   onClose: () => void
@@ -126,6 +127,14 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
             isCorrect: data?.correct ?? false,
             correctAnswer: data?.answer ?? null,
           })
+          gaEvent('submit_answer', {
+            question_id: currentQuestion.questionId,
+            question_type: currentQuestion.questionType,
+            question_category: currentQuestion.category?.code,
+            exam_year: examData.exam.examYear,
+            exam_type: examData.exam.examType.code,
+            answer_state: data?.correct ? 'correct' : 'wrong',
+          })
         },
       }
     )
@@ -160,6 +169,14 @@ export default function QuestionSolveView({ onClose }: QuestionSolveViewProps) {
       {
         onSuccess: () => {
           updateQuestionState(currentQuestion.questionId, { isAnalysisActive: true })
+          gaEvent('analysis_started', {
+            question_id: currentQuestion.questionId,
+            question_type: currentQuestion.questionType,
+            question_category: currentQuestion.category?.code,
+            exam_year: examData.exam.examYear,
+            exam_type: examData.exam.examType.code,
+            answer_state: questionState.isCorrect ? 'correct' : 'wrong',
+          })
         },
         onError: () => {
           queryClient.setQueryData(
