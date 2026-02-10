@@ -17,3 +17,6 @@
 > 리뷰어가 특별히 봐주었으면 하는 부분이 있다면 작성해주세요
 
 📸 스크린샷(선택)
+
+## 🤖 Code Review
+@coderabbitai review
