@@ -11,6 +11,8 @@
     "lint-staged": "lint-staged",
     "format": "prettier --write .",
     "type-check": "tsc --noEmit --incremental",
+    "test": "vitest",
+    "test:run": "vitest run",
     "prepare": "husky"
   },
   "lint-staged": {
