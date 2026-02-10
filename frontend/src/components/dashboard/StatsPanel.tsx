@@ -1,7 +1,7 @@
 import { DashboardMetrics } from '@/types/dashboard.types'
 import AccuracyCard from './AccuracyCard'
 import StatCard from './StatCard'
-import StartSolveCard from '../shared/StartSolveCard'
+import StartSolveCard from '@/components/shared/StartSolveCard'
 
 type StatsPanelProps = {
   metrics: DashboardMetrics | null
