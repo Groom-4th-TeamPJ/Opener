@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
@@ -13,6 +14,32 @@ import { useSendChatMessage } from '@/hooks/exam/queries/use-send-chat-message'
 import { useExamStore } from '@/stores/use-exam-store'
 import StreamdownRenderer from './StreamdownRenderer'
 import Loading from '@/components/shared/Loading'
+
+/**
+ * 렌더링 성능 측정용 유틸리티
+ * 테스트 환경에서 사용
+ */
+export const measurementData = {
+  renderCount: 0,
+  firstChunkTime: 0,
+  lastChunkTime: 0,
+}
+
+export function resetMeasurement() {
+  measurementData.renderCount = 0
+  measurementData.firstChunkTime = 0
+  measurementData.lastChunkTime = 0
+}
+
+export function printMeasurement() {
+  const streamingDuration = (measurementData.lastChunkTime - measurementData.firstChunkTime) / 1000
+  console.log('\n=========== 📊 측정 결과 ===========')
+  console.log(`스트리밍 시간: ${streamingDuration.toFixed(2)}초`)
+  console.log('')
+  console.log('◆ AIChatbot')
+  console.log(`  렌더 횟수: ${measurementData.renderCount}`)
+  console.log('=====================================\n')
+}
 
 interface AIChatbotProps {
   isActive: boolean
@@ -171,40 +198,43 @@ export default function AIChatbot({
           <div />
         ) : (
           <div className="space-y-4">
-            {chatMessages.map((message) => (
-              <div
-                key={message.id}
-                className={cn(
-                  'animate-fade-in flex flex-col gap-2',
-                  message.role === 'USER' ? 'items-end' : 'items-start'
-                )}
-              >
-                {message.role === 'ASSISTANT' ? (
-                  <div className="flex gap-2 w-full">
-                    <div className="shrink-0 w-8 h-8 bg-primary-50 rounded-full flex items-center justify-center">
-                      <AISparklesIcon className="w-5 h-5" />
-                    </div>
-                    <div className="flex flex-col gap-2 flex-1">
-                      <div className="max-w-64 min-w-44 px-3 py-2.5 bg-neutral-50 rounded-tr-lg rounded-bl-lg rounded-br-lg flex flex-col gap-1">
-                        <div className="text-text-primary text-sm whitespace-pre-wrap [&_.katex]:text-base [&_p]:m-0">
-                          <StreamdownRenderer content={message.content} />
+            {chatMessages.map((message) => {
+              measurementData.renderCount++ // MessageItem 렌더 횟수 측정
+              return (
+                <div
+                  key={message.id}
+                  className={cn(
+                    'animate-fade-in flex flex-col gap-2',
+                    message.role === 'USER' ? 'items-end' : 'items-start'
+                  )}
+                >
+                  {message.role === 'ASSISTANT' ? (
+                    <div className="flex gap-2 w-full">
+                      <div className="shrink-0 w-8 h-8 bg-primary-50 rounded-full flex items-center justify-center">
+                        <AISparklesIcon className="w-5 h-5" />
+                      </div>
+                      <div className="flex flex-col gap-2 flex-1">
+                        <div className="max-w-64 min-w-44 px-3 py-2.5 bg-neutral-50 rounded-tr-lg rounded-bl-lg rounded-br-lg flex flex-col gap-1">
+                          <div className="text-text-primary text-sm whitespace-pre-wrap [&_.katex]:text-base [&_p]:m-0">
+                            <StreamdownRenderer content={message.content} />
+                          </div>
                         </div>
+                        <span className="text-neutral-300 text-xs">{message.timestamp}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-end gap-2">
+                      <div className="max-w-64 min-w-44 px-3 py-2.5 bg-primary-100 rounded-tl-lg rounded-bl-lg rounded-br-lg">
+                        <p className="text-text-primary text-sm whitespace-pre-wrap">
+                          {message.content}
+                        </p>
                       </div>
                       <span className="text-neutral-300 text-xs">{message.timestamp}</span>
                     </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-end gap-2">
-                    <div className="max-w-64 min-w-44 px-3 py-2.5 bg-primary-100 rounded-tl-lg rounded-bl-lg rounded-br-lg">
-                      <p className="text-text-primary text-sm whitespace-pre-wrap">
-                        {message.content}
-                      </p>
-                    </div>
-                    <span className="text-neutral-300 text-xs">{message.timestamp}</span>
-                  </div>
-                )}
-              </div>
-            ))}
+                  )}
+                </div>
+              )
+            })}
 
             {/* AI 응답 대기 중 로딩 */}
             {isWaitingResponse && (
@@ -228,20 +258,24 @@ export default function AIChatbot({
             )}
 
             {/* 스트리밍 중인 AI 메시지 */}
-            {streamingMessage && (
-              <div className="animate-fade-in flex flex-col gap-2 items-start">
-                <div className="flex gap-2 w-full">
-                  <div className="shrink-0 w-8 h-8 bg-primary-50 rounded-full flex items-center justify-center">
-                    <AISparklesIcon className="w-5 h-5" />
-                  </div>
-                  <div className="flex flex-col gap-2 flex-1">
-                    <div className="max-w-64 min-w-44 px-3 py-2.5 bg-neutral-50 rounded-tr-lg rounded-bl-lg rounded-br-lg flex flex-col gap-1">
-                      <StreamdownRenderer content={streamingMessage} />
+            {streamingMessage &&
+              (() => {
+                measurementData.renderCount++ // 스트리밍 메시지 렌더 횟수 측정
+                return (
+                  <div className="animate-fade-in flex flex-col gap-2 items-start">
+                    <div className="flex gap-2 w-full">
+                      <div className="shrink-0 w-8 h-8 bg-primary-50 rounded-full flex items-center justify-center">
+                        <AISparklesIcon className="w-5 h-5" />
+                      </div>
+                      <div className="flex flex-col gap-2 flex-1">
+                        <div className="max-w-64 min-w-44 px-3 py-2.5 bg-neutral-50 rounded-tr-lg rounded-bl-lg rounded-br-lg flex flex-col gap-1">
+                          <StreamdownRenderer content={streamingMessage} />
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            )}
+                )
+              })()}
 
             <div ref={messagesEndRef} />
           </div>
