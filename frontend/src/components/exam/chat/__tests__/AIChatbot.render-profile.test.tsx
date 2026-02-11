@@ -1,9 +1,9 @@
 /* eslint-disable no-console */
 import { Profiler, type ProfilerOnRenderCallback } from 'react'
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, waitFor, cleanup } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import AIChatbot from '../AIChatbot'
+import AIChatbot from '@/components/exam/chat/AIChatbot'
 import { useExamStore } from '@/stores/use-exam-store'
 import { setSSEMockConfig, resetSSEMockConfig } from '@/mocks/handlers/sse'
 import { useSSEChat } from '@/hooks/exam/use-sse-chat'
@@ -180,13 +180,23 @@ async function waitForStreamingComplete(questionId: number, timeout = 5000) {
 }
 
 describe('AIChatbot 렌더링 프로파일링', () => {
+  const originalConsoleError = console.error
+
   beforeEach(() => {
+    // SSE 관련 에러 로그 숨기기
+    console.error = vi.fn((...args: unknown[]) => {
+      const message = String(args[0])
+      if (message.includes('[SSE]')) return
+      originalConsoleError(...args)
+    })
+
     useExamStore.getState().resetExam()
     useExamStore.getState().setExam({ examYear: 2024, category: 'test', examType: 'test' }, 1)
     resetSSEMockConfig()
   })
 
   afterEach(() => {
+    console.error = originalConsoleError
     cleanup()
   })
 
