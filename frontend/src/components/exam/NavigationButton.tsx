@@ -9,6 +9,7 @@ import { QUERY_KEYS } from '@/constants/query-key'
 import type { SubmitAnswerResponse } from '@/types/exam'
 import { useDisconnectChat } from '@/hooks/exam/queries/use-disconnect-chat'
 import { toast } from 'sonner'
+import { gaEvent } from '@/utils/ga'
 
 interface NavigationButtonProps {
   isLastQuestion: boolean
@@ -43,6 +44,10 @@ export default function NavigationButton({ isLastQuestion, onNext }: NavigationB
       await saveChatMessage({
         sessionId: examData.examResultId,
         questionResultId: submitResult.questionResultId,
+      })
+      gaEvent('scrapbook_event', {
+        action_type: 'save',
+        questionId: question.questionId,
       })
     }
 

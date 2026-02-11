@@ -5,6 +5,8 @@ import ScrapbookQuestionCard from './ScrapbookQuestionCard'
 import useScrapBookHistoryDetail from '@/hooks/scrapbook/use-scrapbook-history-detail'
 import { useParams } from 'next/navigation'
 import ScrapbookAIChatbot from './ScrapbookAIChatbot'
+import { useEffect } from 'react'
+import { gaEvent } from '@/utils/ga'
 
 export default function HistoryDetail() {
   const param = useParams<{ questionResultId: string }>()
@@ -13,8 +15,19 @@ export default function HistoryDetail() {
   const {
     data: historyDetailData,
     isLoading,
+    isSuccess,
     isError,
   } = useScrapBookHistoryDetail(questionResultId)
+
+  useEffect(() => {
+    if (!historyDetailData) return
+    if (isSuccess) {
+      gaEvent('scrapbook_event', {
+        action_type: 'view',
+        questionId: historyDetailData.questionId,
+      })
+    }
+  }, [isSuccess, historyDetailData])
 
   if (isLoading) {
     return (

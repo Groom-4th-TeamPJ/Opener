@@ -9,6 +9,7 @@ import { SubmitAnswerResponse } from '@/types/exam'
 import { useQueryClient } from '@tanstack/react-query'
 import { QUERY_KEYS } from '@/constants/query-key'
 import { useSaveChatMessage } from '@/hooks/exam/queries/use-save-message'
+import { gaEvent } from '@/utils/ga'
 
 interface ExamExitModalProps {
   open: boolean
@@ -38,6 +39,10 @@ export default memo(function ExamExitModal({ open, onCancel, onConfirm }: ExamEx
         await saveChatMessage({
           sessionId: examData.examResultId,
           questionResultId: submitResult.questionResultId,
+        })
+        gaEvent('scrapbook_event', {
+          action_type: 'save',
+          questionId: question.questionId,
         })
       }
       disconnectChat(examData.examResultId)
