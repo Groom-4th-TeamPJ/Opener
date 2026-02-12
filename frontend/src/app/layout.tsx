@@ -4,6 +4,7 @@ import './globals.css'
 import 'katex/dist/katex.min.css'
 import QueryProvider from '@/providers/QueryProvider'
 import { Toaster } from '@/components/common/Toast'
+import { GoogleAnalytics } from '@next/third-parties/google'
 
 const pretendard = localFont({
   src: './fonts/PretendardVariable.woff2',
@@ -46,10 +47,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${pretendard.variable}  antialiased`}>
+      <body className={`${pretendard.variable} antialiased`}>
         <QueryProvider>{children}</QueryProvider>
         <Toaster />
       </body>
+      <GoogleAnalytics gaId="G-NQQL9SM6VP" />
     </html>
   )
 }

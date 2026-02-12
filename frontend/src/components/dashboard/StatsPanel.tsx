@@ -1,7 +1,7 @@
 import { DashboardMetrics } from '@/types/dashboard.types'
 import AccuracyCard from './AccuracyCard'
 import StatCard from './StatCard'
-import StartSolveCard from '../shared/StartSolveCard'
+import StartSolveCard from '@/components/shared/StartSolveCard'
 
 type StatsPanelProps = {
   metrics: DashboardMetrics | null
@@ -16,6 +16,7 @@ export default function StatsPanel({ metrics, isLoading }: StatsPanelProps) {
         description={<>잠시만 기다려 주세요.</>}
         label="불러오는 중..."
         disabled
+        ctaContext="dashboard"
       />
     )
   } else if (!metrics) {
@@ -34,6 +35,7 @@ export default function StatsPanel({ metrics, isLoading }: StatsPanelProps) {
           </>
         }
         label="문제풀이 시작하기"
+        ctaContext="dashboard"
       />
     )
   }
@@ -76,6 +78,7 @@ export default function StatsPanel({ metrics, isLoading }: StatsPanelProps) {
           </>
         }
         label="문제풀이 시작하기"
+        ctaContext="dashboard"
       />
     </>
   )

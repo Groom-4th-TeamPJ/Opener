@@ -1,7 +1,7 @@
 import { API_PATHS } from '@/constants/api-path'
 import type { ApiEnvelope, ApiFail, UiError } from '@/types/api.types'
-import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { gaEvent } from './ga'
 
 type ApiInit = Omit<RequestInit, 'headers' | 'method' | 'body' | 'credentials'> & {
   headers?: HeadersInit
@@ -157,11 +157,11 @@ export default async function apiJson<T>(
       if (retry && status === 401) {
         if (!(await refreshOnce())) {
           if (typeof window !== 'undefined') {
-            toast.error('세션이 만료되었습니다. 다시 로그인해주세요.', { duration: 3000 })
             setTimeout(() => {
               if (sessionExpiredHandled) return
               sessionExpiredHandled = true
-              useRouter().replace('/login')
+              toast.error('세션이 만료되었습니다. 다시 로그인해주세요.', { duration: 3000 })
+              window.location.href = '/login'
             }, 800)
           }
           throw toUiError(fail)
@@ -186,20 +186,24 @@ async function readJsonOrNull<T>(res: Response): Promise<ApiEnvelope<T> | null> 
 }
 
 function toUiError(e: unknown): UiError {
+  let error = { code: 0, errorCode: 'UNKNOWN', message: '알 수 없는 오류가 발생했습니다.' }
   if (e && typeof e === 'object' && 'code' in e && 'status' in e && 'message' in e) {
     const fail = e as ApiFail
-    return {
+    error = {
       code: fail.code,
-      errorCode: fail.error?.code ?? null,
+      errorCode: fail.error?.code ?? 'UNKNOWN',
       message: fail.error?.reason ?? fail.message,
     }
   }
 
   // 일반 Error(네트워크 등)
   if (e instanceof Error) {
-    return { code: 0, errorCode: 'CLIENT_ERROR', message: e.message }
+    error = { code: 0, errorCode: 'CLIENT_ERROR', message: e.message }
   }
-
-  // 나머지
-  return { code: 0, errorCode: 'UNKNOWN', message: '알 수 없는 오류가 발생했습니다.' }
+  gaEvent('api_error', {
+    code: error.code,
+    error_code: error.errorCode,
+    error_message: error.message,
+  })
+  return error
 }

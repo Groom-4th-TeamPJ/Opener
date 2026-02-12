@@ -1,9 +1,14 @@
+'use client'
+
 import Image from 'next/image'
 import Link from 'next/link'
 import { Card, CardContent } from '@/components/common/Card'
 import cn from '@/utils/cn'
 import { ROUTES } from '@/constants/routes'
 import { ReactNode } from 'react'
+import { gaEvent } from '@/utils/ga'
+
+type CtaContext = 'dashboard' | 'scrapbook'
 
 type StartSolveCardProps = {
   title: ReactNode
@@ -11,6 +16,7 @@ type StartSolveCardProps = {
   hasStats?: boolean
   label: string
   disabled?: boolean
+  ctaContext: CtaContext
 }
 
 export default function StartSolveCard({
@@ -19,6 +25,7 @@ export default function StartSolveCard({
   description,
   label,
   disabled = false,
+  ctaContext,
 }: StartSolveCardProps) {
   return (
     <Card
@@ -45,6 +52,12 @@ export default function StartSolveCard({
 
         <Link
           href={ROUTES.EXAM}
+          onClick={() => {
+            gaEvent('cta_click', {
+              button_name: 'start_solve',
+              cta_context: ctaContext,
+            })
+          }}
           aria-disabled={disabled}
           className={cn(
             'inline-flex items-center justify-center gap-2 rounded-lg cursor-pointer',

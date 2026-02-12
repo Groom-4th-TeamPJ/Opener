@@ -13,6 +13,7 @@ export default function ScrapbookCard() {
         description={<>잠시만 기다려 주세요.</>}
         label="불러오는 중…"
         disabled
+        ctaContext="scrapbook"
       />
     )
   } else if (!data || data.length === 0) {
@@ -31,6 +32,7 @@ export default function ScrapbookCard() {
           </>
         }
         label="첫 문제 풀어보기"
+        ctaContext="scrapbook"
       />
     )
   }
