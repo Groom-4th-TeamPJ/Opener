@@ -1,16 +1,9 @@
 /* eslint-disable no-console */
+import { Profiler, type ProfilerOnRenderCallback } from 'react'
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, waitFor, cleanup } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import AIChatbot from '@/components/exam/chat/AIChatbot'
-import {
-  chatMessageItemRenderCount,
-  resetChatMessageItemRenderCount,
-} from '@/components/exam/chat/ChatMessageItem'
-import {
-  streamingMessageRenderCount,
-  resetStreamingMessageRenderCount,
-} from '@/components/exam/chat/StreamingMessage'
 import { useExamStore } from '@/stores/use-exam-store'
 import { setSSEMockConfig, resetSSEMockConfig } from '@/mocks/handlers/sse'
 import { useSSEChat } from '@/hooks/exam/use-sse-chat'
@@ -26,15 +19,64 @@ const STREAMING_CONFIG = {
 }
 
 /**
- * 총 렌더 횟수 = ChatMessageItem + StreamingMessage
+ * 프로파일링 데이터 타입
  */
-function getTotalRenderCount() {
-  return chatMessageItemRenderCount.value + streamingMessageRenderCount.value
+interface ProfileData {
+  id: string
+  phase: 'mount' | 'update'
+  actualDuration: number
+  baseDuration: number
+  startTime: number
+  commitTime: number
 }
 
-function resetAllRenderCounts() {
-  resetChatMessageItemRenderCount()
-  resetStreamingMessageRenderCount()
+interface MeasurementResult {
+  renderCount: number
+  mountCount: number
+  updateCount: number
+  totalActualDuration: number
+  totalBaseDuration: number
+  renders: ProfileData[]
+}
+
+/**
+ * 프로파일링 데이터 수집기
+ */
+function createProfiler() {
+  const data: ProfileData[] = []
+
+  const onRender: ProfilerOnRenderCallback = (
+    id,
+    phase,
+    actualDuration,
+    baseDuration,
+    startTime,
+    commitTime
+  ) => {
+    data.push({
+      id,
+      phase: phase as 'mount' | 'update',
+      actualDuration,
+      baseDuration,
+      startTime,
+      commitTime,
+    })
+  }
+
+  const getResult = (): MeasurementResult => ({
+    renderCount: data.length,
+    mountCount: data.filter((d) => d.phase === 'mount').length,
+    updateCount: data.filter((d) => d.phase === 'update').length,
+    totalActualDuration: data.reduce((sum, d) => sum + d.actualDuration, 0),
+    totalBaseDuration: data.reduce((sum, d) => sum + d.baseDuration, 0),
+    renders: [...data],
+  })
+
+  const reset = () => {
+    data.length = 0
+  }
+
+  return { onRender, getResult, reset }
 }
 
 function AIChatbotWithSSE({
@@ -127,7 +169,6 @@ describe('AIChatbot 렌더링 성능 측정', () => {
     useExamStore.getState().resetExam()
     useExamStore.getState().setExam({ examYear: 2024, category: 'test', examType: 'test' }, 1)
     resetSSEMockConfig()
-    resetAllRenderCounts()
   })
 
   afterEach(() => {
@@ -140,6 +181,7 @@ describe('AIChatbot 렌더링 성능 측정', () => {
     setSSEMockConfig({ chunks, delayMs: STREAMING_CONFIG.delayMs })
 
     const question = createMockQuestion()
+    const profiler = createProfiler()
     const stateUpdates: number[] = []
     let streamingStartTime = 0
     let streamingEndTime = 0
@@ -154,9 +196,14 @@ describe('AIChatbot 렌더링 성능 측정', () => {
       }
     })
 
-    render(<AIChatbotWithSSE sessionId={1} question={question} isActive={true} />, {
-      wrapper: createWrapper(),
-    })
+    render(
+      <Profiler id="AIChatbot-Scenario1" onRender={profiler.onRender}>
+        <AIChatbotWithSSE sessionId={1} question={question} isActive={true} />
+      </Profiler>,
+      {
+        wrapper: createWrapper(),
+      }
+    )
 
     await waitForStreamingComplete(question.questionId, 1)
     streamingEndTime = performance.now()
@@ -164,22 +211,22 @@ describe('AIChatbot 렌더링 성능 측정', () => {
 
     const streamingDuration = streamingEndTime - streamingStartTime
     const stateUpdateRate = stateUpdates.length / (streamingDuration / 1000)
-    const totalRenderCount = getTotalRenderCount()
+    const result = profiler.getResult()
 
     console.log('\n=========== 📊 시나리오1: 첫 AI 응답 ===========')
     console.log(`스트리밍 시간: ${(streamingDuration / 1000).toFixed(2)}초`)
     console.log('')
     console.log('◆ 렌더 횟수')
-    console.log(`  ChatMessageItem (완료된 메시지): ${chatMessageItemRenderCount.value}`)
-    console.log(`  StreamingMessage (스트리밍 중): ${streamingMessageRenderCount.value}`)
-    console.log(`  총 렌더 횟수: ${totalRenderCount}`)
+    console.log(`  총 렌더 횟수: ${result.renderCount}`)
+    console.log(`  마운트: ${result.mountCount}`)
+    console.log(`  업데이트: ${result.updateCount}`)
     console.log('')
     console.log('◆ State Update (SSE 청크)')
     console.log(`  총 청크 수: ${stateUpdates.length}`)
     console.log(`  초당 청크: ${stateUpdateRate.toFixed(2)} chunks/sec`)
     console.log('================================================\n')
 
-    expect(totalRenderCount).toBeGreaterThan(0)
+    expect(result.renderCount).toBeGreaterThan(0)
     expect(stateUpdates.length).toBe(STREAMING_CONFIG.chunkCount)
   })
 
@@ -201,6 +248,7 @@ describe('AIChatbot 렌더링 성능 측정', () => {
 
     setSSEMockConfig({ chunks, delayMs: STREAMING_CONFIG.delayMs })
 
+    const profiler = createProfiler()
     const stateUpdates: number[] = []
     let streamingStartTime = 0
     let streamingEndTime = 0
@@ -215,9 +263,14 @@ describe('AIChatbot 렌더링 성능 측정', () => {
       }
     })
 
-    render(<AIChatbotWithSSE sessionId={1} question={question} isActive={true} />, {
-      wrapper: createWrapper(),
-    })
+    render(
+      <Profiler id="AIChatbot-Scenario2" onRender={profiler.onRender}>
+        <AIChatbotWithSSE sessionId={1} question={question} isActive={true} />
+      </Profiler>,
+      {
+        wrapper: createWrapper(),
+      }
+    )
 
     // 기존 메시지 2개 + 새 스트리밍 메시지 1개 = 3개
     await waitForStreamingComplete(question.questionId, existingMessages.length + 1)
@@ -226,23 +279,23 @@ describe('AIChatbot 렌더링 성능 측정', () => {
 
     const streamingDuration = streamingEndTime - streamingStartTime
     const stateUpdateRate = stateUpdates.length / (streamingDuration / 1000)
-    const totalRenderCount = getTotalRenderCount()
+    const result = profiler.getResult()
 
     console.log('\n=========== 📊 시나리오2: 추가 질문 ===========')
     console.log(`기존 메시지: ${existingMessages.length}개`)
     console.log(`스트리밍 시간: ${(streamingDuration / 1000).toFixed(2)}초`)
     console.log('')
     console.log('◆ 렌더 횟수')
-    console.log(`  ChatMessageItem (완료된 메시지): ${chatMessageItemRenderCount.value}`)
-    console.log(`  StreamingMessage (스트리밍 중): ${streamingMessageRenderCount.value}`)
-    console.log(`  총 렌더 횟수: ${totalRenderCount}`)
+    console.log(`  총 렌더 횟수: ${result.renderCount}`)
+    console.log(`  마운트: ${result.mountCount}`)
+    console.log(`  업데이트: ${result.updateCount}`)
     console.log('')
     console.log('◆ State Update (SSE 청크)')
     console.log(`  총 청크 수: ${stateUpdates.length}`)
     console.log(`  초당 청크: ${stateUpdateRate.toFixed(2)} chunks/sec`)
     console.log('================================================\n')
 
-    expect(totalRenderCount).toBeGreaterThan(0)
+    expect(result.renderCount).toBeGreaterThan(0)
     expect(stateUpdates.length).toBe(STREAMING_CONFIG.chunkCount)
   })
 
@@ -253,6 +306,7 @@ describe('AIChatbot 렌더링 성능 측정', () => {
     const question1 = createMockQuestion({ questionId: 101 })
     setSSEMockConfig({ chunks, delayMs: STREAMING_CONFIG.delayMs })
 
+    const profiler1 = createProfiler()
     const stateUpdates1: number[] = []
     let start1 = 0
 
@@ -263,23 +317,22 @@ describe('AIChatbot 렌더링 성능 측정', () => {
     })
 
     const { unmount: unmount1 } = render(
-      <AIChatbotWithSSE sessionId={1} question={question1} isActive={true} />,
+      <Profiler id="AIChatbot-Compare1" onRender={profiler1.onRender}>
+        <AIChatbotWithSSE sessionId={1} question={question1} isActive={true} />
+      </Profiler>,
       { wrapper: createWrapper() }
     )
 
     await waitForStreamingComplete(question1.questionId, 1)
     const end1 = performance.now()
     unsub1()
-    const renderCount1 = getTotalRenderCount()
-    const chatItemCount1 = chatMessageItemRenderCount.value
-    const streamingCount1 = streamingMessageRenderCount.value
+    const result1 = profiler1.getResult()
     const duration1 = end1 - start1
     unmount1()
 
     // ========== 시나리오 2: 기존 메시지 있음 ==========
     useExamStore.getState().resetExam()
     useExamStore.getState().setExam({ examYear: 2024, category: 'test', examType: 'test' }, 1)
-    resetAllRenderCounts()
 
     const question2 = createMockQuestion({ questionId: 102 })
     const existingMessages: ChatMessage[] = [
@@ -294,6 +347,7 @@ describe('AIChatbot 렌더링 성능 측정', () => {
 
     setSSEMockConfig({ chunks, delayMs: STREAMING_CONFIG.delayMs })
 
+    const profiler2 = createProfiler()
     const stateUpdates2: number[] = []
     let start2 = 0
 
@@ -304,37 +358,37 @@ describe('AIChatbot 렌더링 성능 측정', () => {
     })
 
     const { unmount: unmount2 } = render(
-      <AIChatbotWithSSE sessionId={1} question={question2} isActive={true} />,
+      <Profiler id="AIChatbot-Compare2" onRender={profiler2.onRender}>
+        <AIChatbotWithSSE sessionId={1} question={question2} isActive={true} />
+      </Profiler>,
       { wrapper: createWrapper() }
     )
 
     await waitForStreamingComplete(question2.questionId, existingMessages.length + 1)
     const end2 = performance.now()
     unsub2()
-    const renderCount2 = getTotalRenderCount()
-    const chatItemCount2 = chatMessageItemRenderCount.value
-    const streamingCount2 = streamingMessageRenderCount.value
+    const result2 = profiler2.getResult()
     const duration2 = end2 - start2
     unmount2()
 
     // ========== 비교 결과 출력 ==========
-    const renderDiff = renderCount2 - renderCount1
+    const renderDiff = result2.renderCount - result1.renderCount
 
     console.log('\n=========== 📊 시나리오 비교 결과 ===========')
     console.table([
       {
         시나리오: '1 (메시지 없음)',
-        ChatMessageItem: chatItemCount1,
-        StreamingMessage: streamingCount1,
-        '총 렌더': renderCount1,
+        '총 렌더': result1.renderCount,
+        마운트: result1.mountCount,
+        업데이트: result1.updateCount,
         'State Update': stateUpdates1.length,
         '스트리밍(s)': (duration1 / 1000).toFixed(2),
       },
       {
         시나리오: '2 (메시지 2개)',
-        ChatMessageItem: chatItemCount2,
-        StreamingMessage: streamingCount2,
-        '총 렌더': renderCount2,
+        '총 렌더': result2.renderCount,
+        마운트: result2.mountCount,
+        업데이트: result2.updateCount,
         'State Update': stateUpdates2.length,
         '스트리밍(s)': (duration2 / 1000).toFixed(2),
       },
@@ -352,8 +406,8 @@ describe('AIChatbot 렌더링 성능 측정', () => {
     }
     console.log('==============================================\n')
 
-    expect(renderCount1).toBeGreaterThan(0)
-    expect(renderCount2).toBeGreaterThan(0)
+    expect(result1.renderCount).toBeGreaterThan(0)
+    expect(result2.renderCount).toBeGreaterThan(0)
     // 렌더 횟수 차이가 5 이하여야 최적화 성공
     expect(renderDiff).toBeLessThanOrEqual(5)
   })

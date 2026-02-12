@@ -6,19 +6,11 @@ import type { ChatMessage } from '@/types/exam'
 import AISparklesIcon from '@/components/icons/AISparklesIcon'
 import StreamdownRenderer from './StreamdownRenderer'
 
-// 테스트용 렌더 카운터
-export const chatMessageItemRenderCount = { value: 0 }
-export const resetChatMessageItemRenderCount = () => {
-  chatMessageItemRenderCount.value = 0
-}
-
 interface ChatMessageItemProps {
   message: ChatMessage
 }
 
 function ChatMessageItem({ message }: ChatMessageItemProps) {
-  // eslint-disable-next-line react-hooks/immutability -- 테스트용 렌더 카운터
-  chatMessageItemRenderCount.value++
   const isUser = message.role === 'USER'
 
   return (

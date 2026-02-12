@@ -5,19 +5,11 @@ import AISparklesIcon from '@/components/icons/AISparklesIcon'
 import StreamdownRenderer from './StreamdownRenderer'
 import { useExamStore } from '@/stores/use-exam-store'
 
-// 테스트용 렌더 카운터
-export const streamingMessageRenderCount = { value: 0 }
-export const resetStreamingMessageRenderCount = () => {
-  streamingMessageRenderCount.value = 0
-}
-
 interface StreamingMessageProps {
   questionId: number
 }
 
 function StreamingMessage({ questionId }: StreamingMessageProps) {
-  // eslint-disable-next-line react-hooks/immutability -- 테스트용 렌더 카운터
-  streamingMessageRenderCount.value++
   // streamingMessages만 직접 구독 → 부모(AIChatbot)는 리렌더 안됨
   const streamingMessage = useExamStore((state) => state.streamingMessages[questionId] ?? '')
 
