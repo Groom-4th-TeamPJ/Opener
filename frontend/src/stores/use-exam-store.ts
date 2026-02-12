@@ -12,7 +12,6 @@ interface QuestionState {
   isAnalysisActive: boolean
   hasNewQuestion: boolean
   chatMessages: ChatMessage[]
-  streamingMessage: string
 }
 
 interface ExamState {
@@ -24,6 +23,8 @@ interface ExamState {
   currentIndex: number
   // 문제별 상태 (questionId를 키로)
   questionStates: Record<number, QuestionState>
+  // 스트리밍 중인 메시지 (별도 관리)
+  streamingMessages: Record<number, string>
   // 시험 시작 호출
   setExam: (params: ExamRequestParams, examResultId: number) => void
   // 다음 문제 이동
@@ -51,7 +52,6 @@ const initialQuestionState: QuestionState = {
   isAnalysisActive: false,
   hasNewQuestion: false,
   chatMessages: [],
-  streamingMessage: '',
 }
 
 export const useExamStore = create<ExamState>()(
@@ -61,6 +61,7 @@ export const useExamStore = create<ExamState>()(
       examResultId: null,
       currentIndex: 0,
       questionStates: {},
+      streamingMessages: {},
 
       setExam: (params, examResultId) =>
         set((state) => {
@@ -75,6 +76,7 @@ export const useExamStore = create<ExamState>()(
             examResultId,
             currentIndex: 0,
             questionStates: {},
+            streamingMessages: {},
           }
         }),
 
@@ -113,28 +115,23 @@ export const useExamStore = create<ExamState>()(
         }),
 
       setStreamingMessage: (questionId, message) =>
-        set((state) => {
-          const currentState = state.questionStates[questionId] ?? { ...initialQuestionState }
-          return {
-            questionStates: {
-              ...state.questionStates,
-              [questionId]: {
-                ...currentState,
-                streamingMessage: message,
-              },
-            },
-          }
-        }),
+        set((state) => ({
+          streamingMessages: {
+            ...state.streamingMessages,
+            [questionId]: message,
+          },
+        })),
 
       completeStreaming: (questionId) =>
         set((state) => {
           const currentState = state.questionStates[questionId] ?? { ...initialQuestionState }
-          if (!currentState.streamingMessage) return state
+          const streamingMessage = state.streamingMessages[questionId] ?? ''
+          if (!streamingMessage) return state
 
           const newMessage: ChatMessage = {
             id: currentState.chatMessages.length + 1,
             role: 'ASSISTANT',
-            content: currentState.streamingMessage,
+            content: streamingMessage,
             timestamp: formatChatTimestamp(new Date()),
           }
 
@@ -144,8 +141,11 @@ export const useExamStore = create<ExamState>()(
               [questionId]: {
                 ...currentState,
                 chatMessages: [...currentState.chatMessages, newMessage],
-                streamingMessage: '',
               },
+            },
+            streamingMessages: {
+              ...state.streamingMessages,
+              [questionId]: '',
             },
           }
         }),
@@ -156,25 +156,19 @@ export const useExamStore = create<ExamState>()(
           examResultId: null,
           currentIndex: 0,
           questionStates: {},
+          streamingMessages: {},
         }),
     }),
     {
       name: 'exam-storage',
-      partialize: (state) => {
-        // streamingMessage는 persist에서 제외 (성능 이슈 방지)
-        const questionStatesWithoutStreaming = Object.fromEntries(
-          Object.entries(state.questionStates).map(([key, value]) => [
-            key,
-            { ...value, streamingMessage: '' },
-          ])
-        )
-        return {
-          examParams: state.examParams,
-          examResultId: state.examResultId,
-          currentIndex: state.currentIndex,
-          questionStates: questionStatesWithoutStreaming,
-        }
-      },
+      partialize: (state) => ({
+        // streamingMessages는 persist에서 제외 (성능 이슈 방지)
+        examParams: state.examParams,
+        examResultId: state.examResultId,
+        currentIndex: state.currentIndex,
+        questionStates: state.questionStates,
+        // streamingMessages 제외
+      }),
     }
   )
 )

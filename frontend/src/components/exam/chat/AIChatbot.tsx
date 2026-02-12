@@ -74,7 +74,7 @@ export default function AIChatbot({
     (state) => state.questionStates[question.questionId]?.chatMessages ?? EMPTY_CHAT_MESSAGES
   )
   const streamingMessage = useExamStore(
-    (state) => state.questionStates[question.questionId]?.streamingMessage ?? ''
+    (state) => state.streamingMessages[question.questionId] ?? ''
   )
 
   const isStreaming = !!streamingMessage

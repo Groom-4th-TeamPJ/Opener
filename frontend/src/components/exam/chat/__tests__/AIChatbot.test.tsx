@@ -86,7 +86,7 @@ async function waitForStreamingComplete(
     () => {
       const state = useExamStore.getState()
       const questionState = state.questionStates[questionId]
-      expect(questionState?.streamingMessage).toBe('')
+      expect(state.streamingMessages[questionId] ?? '').toBe('')
       expect(questionState?.chatMessages.length).toBe(expectedMessageCount)
     },
     { timeout }
@@ -125,7 +125,7 @@ describe('AIChatbot 렌더링 성능 측정', () => {
     let streamingEndTime = 0
 
     const unsubscribe = useExamStore.subscribe((state) => {
-      const streaming = state.questionStates[question.questionId]?.streamingMessage ?? ''
+      const streaming = state.streamingMessages[question.questionId] ?? ''
       if (streaming && stateUpdates.length === 0) {
         streamingStartTime = performance.now()
       }
@@ -183,7 +183,7 @@ describe('AIChatbot 렌더링 성능 측정', () => {
     let streamingEndTime = 0
 
     const unsubscribe = useExamStore.subscribe((state) => {
-      const streaming = state.questionStates[question.questionId]?.streamingMessage ?? ''
+      const streaming = state.streamingMessages[question.questionId] ?? ''
       if (streaming && stateUpdates.length === 0) {
         streamingStartTime = performance.now()
       }
@@ -231,7 +231,7 @@ describe('AIChatbot 렌더링 성능 측정', () => {
     let start1 = 0
 
     const unsub1 = useExamStore.subscribe((state) => {
-      const streaming = state.questionStates[question1.questionId]?.streamingMessage ?? ''
+      const streaming = state.streamingMessages[question1.questionId] ?? ''
       if (streaming && stateUpdates1.length === 0) start1 = performance.now()
       if (streaming) stateUpdates1.push(performance.now())
     })
@@ -270,7 +270,7 @@ describe('AIChatbot 렌더링 성능 측정', () => {
     let start2 = 0
 
     const unsub2 = useExamStore.subscribe((state) => {
-      const streaming = state.questionStates[question2.questionId]?.streamingMessage ?? ''
+      const streaming = state.streamingMessages[question2.questionId] ?? ''
       if (streaming && stateUpdates2.length === 0) start2 = performance.now()
       if (streaming) stateUpdates2.push(performance.now())
     })

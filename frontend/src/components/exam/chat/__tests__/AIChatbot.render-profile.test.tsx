@@ -83,7 +83,7 @@ function createStateUpdateTracker(questionId: number) {
   }
 
   const unsubscribe = useExamStore.subscribe((state) => {
-    const streaming = state.questionStates[questionId]?.streamingMessage ?? ''
+    const streaming = state.streamingMessages[questionId] ?? ''
     updates.push({
       timestamp: performance.now() - startTime,
       streamingMessage: streaming,
@@ -172,7 +172,7 @@ async function waitForStreamingComplete(questionId: number, timeout = 5000) {
     () => {
       const state = useExamStore.getState()
       const questionState = state.questionStates[questionId]
-      expect(questionState?.streamingMessage).toBe('')
+      expect(state.streamingMessages[questionId] ?? '').toBe('')
       expect(questionState?.chatMessages.length).toBeGreaterThan(0)
     },
     { timeout }

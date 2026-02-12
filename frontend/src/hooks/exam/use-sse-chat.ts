@@ -39,7 +39,7 @@ export function useSSEChat({ sessionId, questionId, enabled = true }: UseSSEChat
       try {
         const data = JSON.parse(event.data) as { chunk: string }
         const currentStreaming =
-          useExamStore.getState().questionStates[questionIdRef.current ?? 0]?.streamingMessage
+          useExamStore.getState().streamingMessages[questionIdRef.current ?? 0]
 
         if (!currentStreaming && fullMessageRef.current !== '') {
           fullMessageRef.current = ''

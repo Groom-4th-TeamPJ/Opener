@@ -24,9 +24,7 @@ export default function NavigationButton({ isLastQuestion, onNext }: NavigationB
   const { mutate: disconnectChat } = useDisconnectChat()
 
   const questionId = examData?.questions[currentIndex]?.questionId ?? 0
-  const streamingMessage = useExamStore(
-    (state) => state.questionStates[questionId]?.streamingMessage ?? ''
-  )
+  const streamingMessage = useExamStore((state) => state.streamingMessages[questionId] ?? '')
   const isStreaming = !!streamingMessage
 
   if (!examData) return null
