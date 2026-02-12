@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 import { Profiler, type ProfilerOnRenderCallback } from 'react'
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, waitFor, cleanup } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import AIChatbot from '@/components/exam/chat/AIChatbot'
@@ -201,7 +201,7 @@ describe('AIChatbot 렌더링 프로파일링', () => {
   })
 
   describe('렌더링 비용 지표 측정', () => {
-    it('Render Count: 스트리밍 중 전체 컴포넌트 렌더 횟수를 측정한다', async () => {
+    test('Render Count: 스트리밍 중 전체 컴포넌트 렌더 횟수를 측정한다', async () => {
       const chunks = ['Hello', ', ', 'World', '!']
       setSSEMockConfig({ chunks, delayMs: 20 })
 
@@ -230,7 +230,7 @@ describe('AIChatbot 렌더링 프로파일링', () => {
       expect(result.updateCount).toBeGreaterThanOrEqual(chunks.length)
     })
 
-    it('Render Duration: actualDuration을 측정한다', async () => {
+    test('Render Duration: actualDuration을 측정한다', async () => {
       const chunks = ['테스트', ' ', '메시지', '입니다', '.']
       setSSEMockConfig({ chunks, delayMs: 20 })
 
@@ -259,7 +259,7 @@ describe('AIChatbot 렌더링 프로파일링', () => {
       expect(result.totalActualDuration).toBeGreaterThan(0)
     })
 
-    it('청크 수 증가에 따른 렌더링 비용 변화를 측정한다', async () => {
+    test('청크 수 증가에 따른 렌더링 비용 변화를 측정한다', async () => {
       const testCases = [
         { name: '5 chunks', chunks: 'Hello'.split('') },
         { name: '20 chunks', chunks: 'Hello, World! 테스트!'.split('') },
@@ -313,7 +313,7 @@ describe('AIChatbot 렌더링 프로파일링', () => {
   })
 
   describe('스트리밍 특화 지표 측정', () => {
-    it('State Update Rate: 초당 상태 업데이트 횟수를 측정한다', async () => {
+    test('State Update Rate: 초당 상태 업데이트 횟수를 측정한다', async () => {
       const chunks = '스트리밍 테스트 메시지입니다.'.split('')
       setSSEMockConfig({ chunks, delayMs: 10 })
 
@@ -339,7 +339,7 @@ describe('AIChatbot 렌더링 프로파일링', () => {
       expect(result.totalUpdates).toBeGreaterThan(0)
     })
 
-    it('완료된 메시지가 스트리밍 중 리렌더링되는지 확인한다', async () => {
+    test('완료된 메시지가 스트리밍 중 리렌더링되는지 확인한다', async () => {
       // 1. 먼저 첫 번째 메시지를 완료시킴
       const firstChunks = ['첫 번째 메시지']
       setSSEMockConfig({ chunks: firstChunks, delayMs: 10 })
@@ -400,7 +400,7 @@ describe('AIChatbot 렌더링 프로파일링', () => {
   })
 
   describe('동일 조건 재현성 검증', () => {
-    it('동일한 MSW 설정으로 동일한 결과가 재현된다', async () => {
+    test('동일한 MSW 설정으로 동일한 결과가 재현된다', async () => {
       const chunks = ['재현성', ' ', '테스트']
       const runs: MeasurementResult[] = []
 

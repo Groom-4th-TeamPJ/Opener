@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
@@ -16,32 +15,6 @@ import { useExamStore } from '@/stores/use-exam-store'
 import Loading from '@/components/shared/Loading'
 import ChatMessageItem from './ChatMessageItem'
 import StreamingMessage from './StreamingMessage'
-
-/**
- * 렌더링 성능 측정용 유틸리티
- * 테스트 환경에서 사용
- */
-export const measurementData = {
-  renderCount: 0,
-  firstChunkTime: 0,
-  lastChunkTime: 0,
-}
-
-export function resetMeasurement() {
-  measurementData.renderCount = 0
-  measurementData.firstChunkTime = 0
-  measurementData.lastChunkTime = 0
-}
-
-export function printMeasurement() {
-  const streamingDuration = (measurementData.lastChunkTime - measurementData.firstChunkTime) / 1000
-  console.log('\n=========== 📊 측정 결과 ===========')
-  console.log(`스트리밍 시간: ${streamingDuration.toFixed(2)}초`)
-  console.log('')
-  console.log('◆ AIChatbot')
-  console.log(`  렌더 횟수: ${measurementData.renderCount}`)
-  console.log('=====================================\n')
-}
 
 interface AIChatbotProps {
   isActive: boolean
