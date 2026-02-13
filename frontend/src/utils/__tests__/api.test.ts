@@ -16,7 +16,6 @@ const expectedSummaryData = {
 }
 
 const expectedCanData = {
-  currentCans: 10,
   currentCan: 10,
 }
 
