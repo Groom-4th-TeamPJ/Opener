@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
 import { server, http, HttpResponse } from '@/mocks/server'
 
 vi.mock('sonner', () => ({
@@ -56,7 +56,7 @@ describe('api wrapper 테스트', () => {
     server.resetHandlers()
   })
 
-  it('401이면 refresh 성공 후 원 요청을 재시도해서 성공한다', async () => {
+  test('401이면 refresh 성공 후 원 요청을 재시도해서 성공한다', async () => {
     const api = await freshApi()
 
     let protectedCallCount = 0
@@ -84,7 +84,7 @@ describe('api wrapper 테스트', () => {
     expect(window.location.href).toBe('')
   })
 
-  it('refresh가 실패하면: throw 발생, 800ms 뒤 toast + /login 이동', async () => {
+  test('refresh가 실패하면: throw 발생, 800ms 뒤 toast + /login 이동', async () => {
     const api = await freshApi()
     vi.useFakeTimers()
 
@@ -113,7 +113,7 @@ describe('api wrapper 테스트', () => {
     expect(window.location.href).toBe('/login')
   })
 
-  it('동시에 401이 여러 개 떠도 refresh는 1번만 실행된다', async () => {
+  test('동시에 401이 여러 개 떠도 refresh는 1번만 실행된다', async () => {
     const api = await freshApi()
     let refreshCallCount = 0
     let p1Count = 0
@@ -147,7 +147,7 @@ describe('api wrapper 테스트', () => {
     expect(p2Count).toBe(2)
   })
 
-  it('동시에 refresh 실패가 여러 번 발생해도 toast/redirect는 1번만 실행된다', async () => {
+  test('동시에 refresh 실패가 여러 번 발생해도 toast/redirect는 1번만 실행된다', async () => {
     const api = await freshApi()
     vi.useFakeTimers()
 
