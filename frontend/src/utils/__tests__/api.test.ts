@@ -1,11 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { server, http, HttpResponse } from '@/test/server'
+import { server, http, HttpResponse } from '@/mocks/server'
 
 vi.mock('sonner', () => ({
   toast: { error: vi.fn() },
 }))
 import { toast } from 'sonner'
-import { apiFail, apiOk } from '@/test/api-response'
+import { apiFail, apiOk } from '@/mocks/utils/api-response'
+import { API_PATHS } from '@/constants/api-path'
+
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'https://opener.ai.kr/api'
 
 const expectedSummaryData = {
   userName: '홍길동',
@@ -60,20 +63,20 @@ describe('api wrapper 테스트', () => {
     let refreshCallCount = 0
 
     server.use(
-      http.get('https://opener.ai.kr/api/dashboard/summary', () => {
+      http.get(`${BASE_URL}${API_PATHS.DASHBOARD.SUMMARY}`, () => {
         protectedCallCount += 1
         if (protectedCallCount === 1) {
           return apiFail('unauthorized', 401)
         }
         return apiOk(expectedSummaryData)
       }),
-      http.post('https://opener.ai.kr/api/auth/refresh', () => {
+      http.post(`${BASE_URL}${API_PATHS.AUTH.REFRESH}`, () => {
         refreshCallCount += 1
         return HttpResponse.json(null, { status: 200 })
       })
     )
 
-    const res = await api('/dashboard/summary', { method: 'GET' })
+    const res = await api(API_PATHS.DASHBOARD.SUMMARY, { method: 'GET' })
     expect(res).toEqual(expectedSummaryData)
     expect(protectedCallCount).toBe(2) // 401 + 재시도
     expect(refreshCallCount).toBe(1) // refresh 1회
@@ -86,13 +89,13 @@ describe('api wrapper 테스트', () => {
     vi.useFakeTimers()
 
     server.use(
-      http.get('https://opener.ai.kr/api/dashboard/summary', () => apiFail('unauthorized', 401)),
-      http.post('https://opener.ai.kr/api/auth/refresh', () =>
+      http.get(`${BASE_URL}${API_PATHS.DASHBOARD.SUMMARY}`, () => apiFail('unauthorized', 401)),
+      http.post(`${BASE_URL}${API_PATHS.AUTH.REFRESH}`, () =>
         HttpResponse.json({}, { status: 401 })
       )
     )
 
-    const promise = api('/dashboard/summary', { method: 'GET' })
+    const promise = api(API_PATHS.DASHBOARD.SUMMARY, { method: 'GET' })
 
     // throw 확인
     await expect(promise).rejects.toBeDefined()
@@ -117,25 +120,25 @@ describe('api wrapper 테스트', () => {
     let p2Count = 0
 
     server.use(
-      http.get('https://opener.ai.kr/api/dashboard/summary', () => {
+      http.get(`${BASE_URL}${API_PATHS.DASHBOARD.SUMMARY}`, () => {
         p1Count += 1
         if (p1Count === 1) return apiFail('unauthorized', 401)
         return apiOk(expectedSummaryData)
       }),
-      http.get('https://opener.ai.kr/api/users/me/cans/count', () => {
+      http.get(`${BASE_URL}${API_PATHS.USERS.ME}`, () => {
         p2Count += 1
         if (p2Count === 1) return apiFail('unauthorized', 401)
         return apiOk(expectedCanData)
       }),
-      http.post('https://opener.ai.kr/api/auth/refresh', async () => {
+      http.post(`${BASE_URL}${API_PATHS.AUTH.REFRESH}`, async () => {
         refreshCallCount += 1
         return HttpResponse.json(null, { status: 200 })
       })
     )
 
     const [r1, r2] = await Promise.all([
-      api('/dashboard/summary', { method: 'GET' }),
-      api('/users/me/cans/count', { method: 'GET' }),
+      api(API_PATHS.DASHBOARD.SUMMARY, { method: 'GET' }),
+      api(API_PATHS.USERS.ME, { method: 'GET' }),
     ])
     expect(r1).toEqual(expectedSummaryData)
     expect(r2).toEqual(expectedCanData)
@@ -149,16 +152,16 @@ describe('api wrapper 테스트', () => {
     vi.useFakeTimers()
 
     server.use(
-      http.get('https://opener.ai.kr/api/dashboard/summary', () => apiFail('unauthorized', 401)),
-      http.get('https://opener.ai.kr/api/users/me/cans/count', () => apiFail('unauthorized', 401)),
-      http.post('https://opener.ai.kr/api/auth/refresh', () =>
+      http.get(`${BASE_URL}${API_PATHS.DASHBOARD.SUMMARY}`, () => apiFail('unauthorized', 401)),
+      http.get(`${BASE_URL}${API_PATHS.USERS.ME}`, () => apiFail('unauthorized', 401)),
+      http.post(`${BASE_URL}${API_PATHS.AUTH.REFRESH}`, () =>
         HttpResponse.json({}, { status: 401 })
       )
     )
 
     const [r1, r2] = await Promise.allSettled([
-      api('/dashboard/summary', { method: 'GET' }, true),
-      api('/users/me/cans/count', { method: 'GET' }, true),
+      api(API_PATHS.DASHBOARD.SUMMARY, { method: 'GET' }, true),
+      api(API_PATHS.USERS.ME, { method: 'GET' }, true),
     ])
 
     expect(r1.status).toBe('rejected')
