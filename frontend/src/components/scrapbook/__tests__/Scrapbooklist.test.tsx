@@ -1,5 +1,5 @@
 import {afterEach, describe, expect, test, vi} from "vitest";
-import ScrapBookList from "../ScrapBookList";
+import ScrapBookList from "@/components/scrapbook/ScrapBookList";
 import { render, screen } from "@testing-library/react";
 import useScrapBookList from "@/hooks/scrapbook/use-scrapbook-list";
 

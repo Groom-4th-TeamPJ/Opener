@@ -1,4 +1,4 @@
-import ScrapBookPagination from "../ScrapBookPagination";
+import ScrapBookPagination from "@/components/scrapbook/ScrapBookPagination";
 import { describe, expect, test } from "vitest";
 import { render, screen } from '@testing-library/react'
 
