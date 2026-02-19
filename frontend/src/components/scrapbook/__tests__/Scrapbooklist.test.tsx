@@ -41,11 +41,11 @@ vi.mock('next/navigation', () => ({
     usePathname: () => "/scrapbook/1"
 }))
 
-vi.mock('../ScrapBookListItem', () => ({
+vi.mock('@/components/scrapbook/ScrapBookListItem', () => ({
  default: () => <div>mockScrapBookListItem</div> 
 }))
 
-vi.mock('../ScrapBookPagination', () => ({
+vi.mock('@/components/scrapbook/ScrapBookPagination', () => ({
     default: () => <div>mockScrapBookPagination</div>
 }))
 
@@ -66,7 +66,7 @@ describe('ScrapBookList', () => {
   vi.clearAllMocks()
 })
 
-test('스크랩북 리스트에 에러가 발생하면 에러 메시지가 보인다.', () => {
+test('스크랩북 리스트에 에러가 발생하면 렌더링이 실패한다.', () => {
     mockedHook.mockReturnValue(createMockUseScrapBookListReturn({
         isError: true,
     })  )
