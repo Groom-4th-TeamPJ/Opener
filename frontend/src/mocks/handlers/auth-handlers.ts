@@ -13,6 +13,14 @@ export const loginHandlers = createPresetHandler(
       resolver: () => apiOk(null, '로그인이 정상 처리되었습니다', 200),
     },
     { label: '401 - 로그인 실패', resolver: () => apiFail('아이디/비밀번호 오류', 401) },
+    {
+      label: '401 - 로그인 실패 (A_015)',
+      resolver: () =>
+        apiFail('계정이 잠겼습니다. 5분 후 다시 시도해주세요.', 401, {
+          code: 'A_015',
+          reason: '계정이 잠겼습니다. 5분 후 다시 시도해주세요.',
+        }),
+    },
   ]
 )
 
@@ -26,7 +34,11 @@ export const signupHandlers = createPresetHandler(
     },
     {
       label: '401 - 회원가입 실패 (중복/검증)',
-      resolver: () => apiFail('이미 사용 중인 이메일입니다', 401),
+      resolver: () =>
+        apiFail('이미 존재하는 계정입니다.', 401, {
+          code: 'S_001',
+          reason: '이미 존재하는 계정입니다.',
+        }),
     },
   ]
 )
