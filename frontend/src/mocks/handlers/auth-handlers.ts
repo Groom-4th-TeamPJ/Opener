@@ -1,6 +1,7 @@
 import { API_PATHS } from '@/constants/api-path'
 import createPresetHandler from '@/mocks/preset-factory'
 import { apiOk, apiFail } from '@/mocks/utils/api-response'
+import { HttpResponse } from 'msw'
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'https://opener.ai.kr/api'
 
@@ -44,6 +45,6 @@ export const signupHandlers = createPresetHandler(
 )
 
 export const refreshHandlers = createPresetHandler('post', `${BASE_URL}${API_PATHS.AUTH.REFRESH}`, [
-  { label: '200 - refresh 성공', resolver: () => apiOk(null, 'refresh ok', 200) },
-  { label: '401 - refresh 실패', resolver: () => apiFail('expired', 401) },
+  { label: '200 - refresh 성공', resolver: () => HttpResponse.json(null, { status: 200 }) },
+  { label: '401 - refresh 실패', resolver: () => HttpResponse.json(null, { status: 401 }) },
 ])
