@@ -19,7 +19,6 @@ spring:
     show-sql: false
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
 
   # Flyway 마이그레이션 설정
   flyway:
