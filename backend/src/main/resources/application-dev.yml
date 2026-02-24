@@ -71,7 +71,7 @@ spring:
   # Spring AI 설정
   ai:
     openai:
-      api-key: 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
+      api-key: ${OPENAI_API_KEY}
       chat:
         options:
           model: ${OPENAI_CHAT_MODEL:gpt-4.1}
