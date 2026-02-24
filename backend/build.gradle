@@ -38,8 +38,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
-    // Netty DNS resolver for MacOS (resolves DNS resolution warnings on MacOS)
-    runtimeOnly 'io.netty:netty-resolver-dns-native-macos:4.1.116.Final:osx-aarch_64'
+    // Netty DNS resolver for MacOS - must match runtime Netty version (4.2.x with Spring Boot 4)
+    runtimeOnly 'io.netty:netty-resolver-dns-native-macos:4.2.7.Final:osx-aarch_64'
 
     // Database
     runtimeOnly 'org.postgresql:postgresql'
@@ -97,4 +97,24 @@ tasks.named('test') {
 // Spring Boot JAR configuration
 tasks.named('bootJar') {
     mainClass = 'spring.backend.BackendApplication'
+}
+
+// .env 파일 로드 (로컬 개발용)
+tasks.named('bootRun') {
+    doFirst {
+        def envFile = file('.env')
+        if (envFile.exists()) {
+            envFile.readLines()
+                .findAll { it && !it.startsWith('#') && it.contains('=') }
+                .each { line ->
+                    def idx = line.indexOf('=')
+                    def key = line.substring(0, idx).trim()
+                    def value = line.substring(idx + 1).trim()
+                    environment(key, value)
+                }
+            logger.lifecycle(".env loaded from ${envFile.absolutePath}")
+        } else {
+            logger.warn(".env file not found at ${envFile.absolutePath}")
+        }
+    }
 }

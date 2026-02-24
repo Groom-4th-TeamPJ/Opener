@@ -19,7 +19,6 @@ spring:
     show-sql: false
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
 
   # Flyway 마이그레이션 설정
   flyway:
@@ -146,6 +145,9 @@ jwt:
 
 # Application 커스텀 설정
 app:
+  cookie:
+    secure: false    # HTTP 로컬 환경에서 쿠키 전송 허용
+    same-site: Lax   # localhost same-site 환경에서는 Lax로 충분 (None+Secure는 HTTPS 필요)
   # CORS 설정
   cors:
     allowed-origins:

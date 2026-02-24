@@ -3,6 +3,11 @@ package spring.backend.shared.infrastructure.redis.config;
 import io.lettuce.core.ReadFrom;
 import io.lettuce.core.cluster.ClusterClientOptions;
 import io.lettuce.core.cluster.ClusterTopologyRefreshOptions;
+import io.lettuce.core.internal.HostAndPort;
+import io.lettuce.core.resource.ClientResources;
+import io.lettuce.core.resource.DefaultClientResources;
+import io.lettuce.core.resource.DnsResolvers;
+import io.lettuce.core.resource.MappingSocketAddressResolver;
 import java.time.Duration;
 import java.util.List;
 import lombok.Getter;
@@ -88,11 +93,26 @@ public class ChatRedisConfig {
                 .validateClusterNodeMembership(true)
                 .build();
 
+        // host.docker.internal → localhost 변환 (Mac 호스트에서는 이 호스트명을 해석할 수 없음)
+        // MappingSocketAddressResolver: 클러스터 토폴로지 응답의 호스트명을 연결 직전에 교체
+        @SuppressWarnings("deprecation")
+        MappingSocketAddressResolver socketAddressResolver = MappingSocketAddressResolver.create(
+                DnsResolvers.JVM_DEFAULT,
+                hostAndPort -> "host.docker.internal".equals(hostAndPort.getHostText())
+                        ? HostAndPort.of("localhost", hostAndPort.getPort())
+                        : hostAndPort
+        );
+
+        ClientResources clientResources = DefaultClientResources.builder()
+                .socketAddressResolver(socketAddressResolver)
+                .build();
+
         // Lettuce 클라이언트 설정
         LettuceClientConfiguration clientConfig = LettuceClientConfiguration.builder()
                 .readFrom(ReadFrom.REPLICA_PREFERRED)               // 읽기는 Replica 우선
                 .commandTimeout(Duration.ofMillis(this.timeout))
                 .clientOptions(clusterClientOptions)
+                .clientResources(clientResources)
                 .build();
 
         return new LettuceConnectionFactory(clusterConfig, clientConfig);

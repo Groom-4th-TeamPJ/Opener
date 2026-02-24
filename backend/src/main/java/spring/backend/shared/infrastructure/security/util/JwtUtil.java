@@ -28,15 +28,21 @@ public class JwtUtil {
     private final SecretKey secretKey;
     private final long accessTokenExpiration;
     private final long refreshTokenExpiration;
+    private final boolean cookieSecure;
+    private final String cookieSameSite;
 
     public JwtUtil(
             @Value("${jwt.secret}") String secretKey,
             @Value("${jwt.access-token-expiration}") long accessTokenExpiration,
-            @Value("${jwt.refresh-token-expiration}") long refreshTokenExpiration
+            @Value("${jwt.refresh-token-expiration}") long refreshTokenExpiration,
+            @Value("${app.cookie.secure:true}") boolean cookieSecure,
+            @Value("${app.cookie.same-site:None}") String cookieSameSite
     ) {
         this.secretKey = Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
         this.accessTokenExpiration = accessTokenExpiration;
         this.refreshTokenExpiration = refreshTokenExpiration;
+        this.cookieSecure = cookieSecure;
+        this.cookieSameSite = cookieSameSite;
     }
 
     // Access Token 생성 (userId, name, role 포함)
@@ -154,18 +160,18 @@ public class JwtUtil {
         // Access Token HttpOnly에 적재
         ResponseCookie accessCookie = ResponseCookie.from("accessToken", accessToken)
                 .httpOnly(true)
-                .secure(true)
+                .secure(cookieSecure)
                 .path("/")
-                .sameSite("None")
+                .sameSite(cookieSameSite)
                 .maxAge(Duration.ofMinutes(60)) // 수명 : 1시간
                 .build();
 
         // Refresh Token HttpOnly에 적재
         ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", refreshToken)
                 .httpOnly(true)
-                .secure(true)
+                .secure(cookieSecure)
                 .path("/api/auth/refresh")
-                .sameSite("None")
+                .sameSite(cookieSameSite)
                 .maxAge(Duration.ofDays(7)) // 수명 : 7일
                 .build();
 
@@ -178,9 +184,9 @@ public class JwtUtil {
         // Access Token HttpOnly에 적재
         ResponseCookie accessCookie = ResponseCookie.from("accessToken", accessToken)
                 .httpOnly(true)
-                .secure(true)
+                .secure(cookieSecure)
                 .path("/")
-                .sameSite("None")
+                .sameSite(cookieSameSite)
                 .maxAge(Duration.ofMinutes(60)) // 수명 : 1시간
                 .build();
 
@@ -194,18 +200,18 @@ public class JwtUtil {
         // Access Token 쿠키 삭제 (path="/"로 설정된 쿠키)
         ResponseCookie clearAccessCookie = ResponseCookie.from("accessToken", "")
                 .httpOnly(true)
-                .secure(true)
+                .secure(cookieSecure)
                 .path("/")
-                .sameSite("None")
+                .sameSite(cookieSameSite)
                 .maxAge(0) // 즉시 만료
                 .build();
 
         // Refresh Token 쿠키 삭제 (path="/api/auth/refresh"로 설정된 쿠키)
         ResponseCookie clearRefreshCookie = ResponseCookie.from("refreshToken", "")
                 .httpOnly(true)
-                .secure(true)
+                .secure(cookieSecure)
                 .path("/api/auth/refresh")
-                .sameSite("None")
+                .sameSite(cookieSameSite)
                 .maxAge(0) // 즉시 만료
                 .build();
 

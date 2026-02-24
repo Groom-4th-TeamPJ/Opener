@@ -1,0 +1,6 @@
+export const EXAM_MODAL = {
+  INACTIVITY: 'INACTIVITY',
+  EXIT: 'EXIT',
+  NEW_QUESTION: 'NEW_QUESTION',
+  RESULT: 'RESULT',
+} as const

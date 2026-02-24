@@ -2,6 +2,9 @@ spring:
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev} # 환경변수 참조, 기본값 dev
 
+  config:
+    import: "optional:env[.env]" # spring-dotenv: .env 파일 로드 (없어도 무시)
+
   application:
     name: backend # 애플리케이션 이름
 
