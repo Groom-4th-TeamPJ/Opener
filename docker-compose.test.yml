@@ -41,7 +41,7 @@ services:
   redis-chat-1:
     image: redis:7-alpine
     container_name: redis-chat-1
-    command: redis-server /etc/redis/redis.conf --port 6380 --cluster-announce-ip 127.0.0.1 --cluster-announce-port 6380 --cluster-announce-bus-port 16380
+    command: redis-server /etc/redis/redis.conf --port 6380 --cluster-announce-hostname host.docker.internal --cluster-announce-port 6380 --cluster-announce-bus-port 16380
     environment:
       - TZ=Asia/Seoul
     ports:
@@ -52,6 +52,8 @@ services:
       - redis_chat_1_data:/data
     networks:
       - test-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: [ "CMD", "redis-cli", "-p", "6380", "ping" ]
       interval: 5s
@@ -61,7 +63,7 @@ services:
   redis-chat-2:
     image: redis:7-alpine
     container_name: redis-chat-2
-    command: redis-server /etc/redis/redis.conf --port 6381 --cluster-announce-ip 127.0.0.1 --cluster-announce-port 6381 --cluster-announce-bus-port 16381
+    command: redis-server /etc/redis/redis.conf --port 6381 --cluster-announce-hostname host.docker.internal --cluster-announce-port 6381 --cluster-announce-bus-port 16381
     environment:
       - TZ=Asia/Seoul
     ports:
@@ -72,6 +74,8 @@ services:
       - redis_chat_2_data:/data
     networks:
       - test-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: [ "CMD", "redis-cli", "-p", "6381", "ping" ]
       interval: 5s
@@ -81,7 +85,7 @@ services:
   redis-chat-3:
     image: redis:7-alpine
     container_name: redis-chat-3
-    command: redis-server /etc/redis/redis.conf --port 6382 --cluster-announce-ip 127.0.0.1 --cluster-announce-port 6382 --cluster-announce-bus-port 16382
+    command: redis-server /etc/redis/redis.conf --port 6382 --cluster-announce-hostname host.docker.internal --cluster-announce-port 6382 --cluster-announce-bus-port 16382
     environment:
       - TZ=Asia/Seoul
     ports:
@@ -92,6 +96,8 @@ services:
       - redis_chat_3_data:/data
     networks:
       - test-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: [ "CMD", "redis-cli", "-p", "6382", "ping" ]
       interval: 5s
@@ -101,7 +107,7 @@ services:
   redis-chat-4:
     image: redis:7-alpine
     container_name: redis-chat-4
-    command: redis-server /etc/redis/redis.conf --port 6383 --cluster-announce-ip 127.0.0.1 --cluster-announce-port 6383 --cluster-announce-bus-port 16383
+    command: redis-server /etc/redis/redis.conf --port 6383 --cluster-announce-hostname host.docker.internal --cluster-announce-port 6383 --cluster-announce-bus-port 16383
     environment:
       - TZ=Asia/Seoul
     ports:
@@ -112,6 +118,8 @@ services:
       - redis_chat_4_data:/data
     networks:
       - test-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: [ "CMD", "redis-cli", "-p", "6383", "ping" ]
       interval: 5s
@@ -121,7 +129,7 @@ services:
   redis-chat-5:
     image: redis:7-alpine
     container_name: redis-chat-5
-    command: redis-server /etc/redis/redis.conf --port 6384 --cluster-announce-ip 127.0.0.1 --cluster-announce-port 6384 --cluster-announce-bus-port 16384
+    command: redis-server /etc/redis/redis.conf --port 6384 --cluster-announce-hostname host.docker.internal --cluster-announce-port 6384 --cluster-announce-bus-port 16384
     environment:
       - TZ=Asia/Seoul
     ports:
@@ -132,6 +140,8 @@ services:
       - redis_chat_5_data:/data
     networks:
       - test-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: [ "CMD", "redis-cli", "-p", "6384", "ping" ]
       interval: 5s
@@ -141,7 +151,7 @@ services:
   redis-chat-6:
     image: redis:7-alpine
     container_name: redis-chat-6
-    command: redis-server /etc/redis/redis.conf --port 6385 --cluster-announce-ip 127.0.0.1 --cluster-announce-port 6385 --cluster-announce-bus-port 16385
+    command: redis-server /etc/redis/redis.conf --port 6385 --cluster-announce-hostname host.docker.internal --cluster-announce-port 6385 --cluster-announce-bus-port 16385
     environment:
       - TZ=Asia/Seoul
     ports:
@@ -152,6 +162,8 @@ services:
       - redis_chat_6_data:/data
     networks:
       - test-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: [ "CMD", "redis-cli", "-p", "6385", "ping" ]
       interval: 5s
