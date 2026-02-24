@@ -9,6 +9,7 @@ import { QUERY_KEYS } from '@/constants/query-key'
 import type { SubmitAnswerResponse } from '@/types/exam'
 import { useDisconnectChat } from '@/hooks/exam/queries/use-disconnect-chat'
 import { toast } from 'sonner'
+import { gaEvent } from '@/utils/ga'
 
 interface NavigationButtonProps {
   isLastQuestion: boolean
@@ -24,9 +25,7 @@ export default function NavigationButton({ isLastQuestion, onNext }: NavigationB
   const { mutate: disconnectChat } = useDisconnectChat()
 
   const questionId = examData?.questions[currentIndex]?.questionId ?? 0
-  const streamingMessage = useExamStore(
-    (state) => state.questionStates[questionId]?.streamingMessage ?? ''
-  )
+  const streamingMessage = useExamStore((state) => state.streamingMessages[questionId] ?? '')
   const isStreaming = !!streamingMessage
 
   if (!examData) return null
@@ -43,6 +42,10 @@ export default function NavigationButton({ isLastQuestion, onNext }: NavigationB
       await saveChatMessage({
         sessionId: examData.examResultId,
         questionResultId: submitResult.questionResultId,
+      })
+      gaEvent('scrapbook_event', {
+        action_type: 'save',
+        questionId: question.questionId,
       })
     }
 

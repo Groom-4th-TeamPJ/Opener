@@ -8,6 +8,7 @@ import { useSubmitResult } from '@/hooks/exam/queries/use-submit-answer'
 import { useGenerateQuestion } from '@/hooks/exam/queries/use-generate-question'
 import useCanCount from '@/hooks/header/use-can-count'
 import { toast } from 'sonner'
+import { gaEvent } from '@/utils/ga'
 
 interface QuestionActionButtonProps {
   onSubmit: () => void
@@ -67,6 +68,13 @@ export default function QuestionActionButton({
 
     const handleVariationClick = () => {
       if (!questionResultId) return
+      gaEvent('variation_cta_clicked', {
+        question_id: question.questionId,
+        question_type: question.questionType,
+        question_category: question.category?.code,
+        exam_year: examData.exam.examYear,
+        exam_type: examData.exam.examType.code,
+      })
       if (currentCan <= 0) {
         toast.error('캔이 부족합니다.', { duration: 3000 })
         return

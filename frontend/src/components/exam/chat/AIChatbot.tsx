@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Send } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import cn from '@/utils/cn'
 import type { Question, ChatMessage } from '@/types/exam'
 import Input from '@/components/common/Input'
@@ -11,8 +12,9 @@ import AISparklesIcon from '@/components/icons/AISparklesIcon'
 import { InfoTooltip } from '@/components/common/InfoTooltip'
 import { useSendChatMessage } from '@/hooks/exam/queries/use-send-chat-message'
 import { useExamStore } from '@/stores/use-exam-store'
-import StreamdownRenderer from './StreamdownRenderer'
 import Loading from '@/components/shared/Loading'
+import ChatMessageItem from './ChatMessageItem'
+import StreamingMessage from './StreamingMessage'
 
 interface AIChatbotProps {
   isActive: boolean
@@ -37,20 +39,18 @@ export default function AIChatbot({
   const [showDelayMessage, setShowDelayMessage] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const prevStreamingMessageRef = useRef('')
+  const prevIsStreamingRef = useRef(false)
   const { mutate: sendChatMessage } = useSendChatMessage()
   const examResultId = useExamStore((state) => state.examResultId)
   const addChatMessage = useExamStore((state) => state.addChatMessage)
   const { setStreamingMessage } = useExamStore.getState()
 
-  const chatMessages = useExamStore(
-    (state) => state.questionStates[question.questionId]?.chatMessages ?? EMPTY_CHAT_MESSAGES
+  const { chatMessages, isStreaming } = useExamStore(
+    useShallow((state) => ({
+      chatMessages: state.questionStates[question.questionId]?.chatMessages ?? EMPTY_CHAT_MESSAGES,
+      isStreaming: !!state.streamingMessages[question.questionId],
+    }))
   )
-  const streamingMessage = useExamStore(
-    (state) => state.questionStates[question.questionId]?.streamingMessage ?? ''
-  )
-
-  const isStreaming = !!streamingMessage
 
   // 문제가 변경되면 상태 리셋
   useEffect(() => {
@@ -88,20 +88,20 @@ export default function AIChatbot({
 
   // AI 응답이 끝나면 입력창에 포커스
   useEffect(() => {
-    const wasStreaming = prevStreamingMessageRef.current.length > 0
-    const isNowEmpty = streamingMessage === ''
+    const wasStreaming = prevIsStreamingRef.current
+    const isNowNotStreaming = !isStreaming
 
-    if (wasStreaming && isNowEmpty && isActive) {
+    if (wasStreaming && isNowNotStreaming && isActive) {
       inputRef.current?.focus()
     }
-    prevStreamingMessageRef.current = streamingMessage
-  }, [streamingMessage, isActive])
+    prevIsStreamingRef.current = isStreaming
+  }, [isStreaming, isActive])
 
   useEffect(() => {
     requestAnimationFrame(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     })
-  }, [chatMessages, streamingMessage, isWaitingResponse])
+  }, [chatMessages, isStreaming, isWaitingResponse])
 
   const handleSend = () => {
     if (
@@ -172,38 +172,7 @@ export default function AIChatbot({
         ) : (
           <div className="space-y-4">
             {chatMessages.map((message) => (
-              <div
-                key={message.id}
-                className={cn(
-                  'animate-fade-in flex flex-col gap-2',
-                  message.role === 'USER' ? 'items-end' : 'items-start'
-                )}
-              >
-                {message.role === 'ASSISTANT' ? (
-                  <div className="flex gap-2 w-full">
-                    <div className="shrink-0 w-8 h-8 bg-primary-50 rounded-full flex items-center justify-center">
-                      <AISparklesIcon className="w-5 h-5" />
-                    </div>
-                    <div className="flex flex-col gap-2 flex-1">
-                      <div className="max-w-64 min-w-44 px-3 py-2.5 bg-neutral-50 rounded-tr-lg rounded-bl-lg rounded-br-lg flex flex-col gap-1">
-                        <div className="text-text-primary text-sm whitespace-pre-wrap [&_.katex]:text-base [&_p]:m-0">
-                          <StreamdownRenderer content={message.content} />
-                        </div>
-                      </div>
-                      <span className="text-neutral-300 text-xs">{message.timestamp}</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-end gap-2">
-                    <div className="max-w-64 min-w-44 px-3 py-2.5 bg-primary-100 rounded-tl-lg rounded-bl-lg rounded-br-lg">
-                      <p className="text-text-primary text-sm whitespace-pre-wrap">
-                        {message.content}
-                      </p>
-                    </div>
-                    <span className="text-neutral-300 text-xs">{message.timestamp}</span>
-                  </div>
-                )}
-              </div>
+              <ChatMessageItem key={message.id} message={message} />
             ))}
 
             {/* AI 응답 대기 중 로딩 */}
@@ -228,20 +197,7 @@ export default function AIChatbot({
             )}
 
             {/* 스트리밍 중인 AI 메시지 */}
-            {streamingMessage && (
-              <div className="animate-fade-in flex flex-col gap-2 items-start">
-                <div className="flex gap-2 w-full">
-                  <div className="shrink-0 w-8 h-8 bg-primary-50 rounded-full flex items-center justify-center">
-                    <AISparklesIcon className="w-5 h-5" />
-                  </div>
-                  <div className="flex flex-col gap-2 flex-1">
-                    <div className="max-w-64 min-w-44 px-3 py-2.5 bg-neutral-50 rounded-tr-lg rounded-bl-lg rounded-br-lg flex flex-col gap-1">
-                      <StreamdownRenderer content={streamingMessage} />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+            <StreamingMessage questionId={question.questionId} />
 
             <div ref={messagesEndRef} />
           </div>

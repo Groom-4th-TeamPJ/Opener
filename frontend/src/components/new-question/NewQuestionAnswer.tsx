@@ -5,7 +5,7 @@ import CorrectAnswerIcon from '@/components/icons/CorrectAnswerIcon'
 
 import WrongAnswerIcon from '@/components/icons/WrongAnswerIcon'
 import FRQAnswer from '@/components/shared/FRQAnswer'
-import ResultAnswer from '../shared/ResultAnswer'
+import ResultAnswer from '@/components/shared/ResultAnswer'
 
 export default function NewQuestionAnswer({
   type,
