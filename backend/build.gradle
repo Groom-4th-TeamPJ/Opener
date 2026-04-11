@@ -48,6 +48,7 @@ dependencies {
 
     // Redis
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    implementation 'org.apache.commons:commons-pool2'
 
     // RabbitMQ
     implementation 'org.springframework.boot:spring-boot-starter-amqp'
