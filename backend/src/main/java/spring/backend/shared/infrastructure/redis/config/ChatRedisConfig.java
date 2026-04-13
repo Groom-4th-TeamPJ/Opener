@@ -13,38 +13,20 @@ import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisClusterConfiguration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
+import org.springframework.data.redis.connection.lettuce.LettucePoolingClientConfiguration;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 /**
- * Redis Cluster Configuration for Chat Service
- *
- * <p>채팅 서비스를 위한 Redis Cluster 설정입니다.
- * 3개의 Master 노드와 3개의 Replica 노드로 구성됩니다.</p>
- *
- * <p>주요 기능:
- * <ul>
- *   <li>자동 페일오버 지원</li>
- *   <li>토폴로지 자동 갱신</li>
- *   <li>Replica 우선 읽기로 부하 분산</li>
- * </ul>
- * </p>
- *
- * <p>환경변수 설정 방법 (배포용 .env):
- * <pre>
- * REDIS_CLUSTER_NODE_0=redis-chat-1:6380
- * REDIS_CLUSTER_NODE_1=redis-chat-2:6381
- * ...
- * </pre>
- * </p>
+ * 채팅 서비스를 위한 Redis Cluster 설정
  */
 @Slf4j
 @Configuration
@@ -56,19 +38,8 @@ public class ChatRedisConfig {
     private Cluster cluster = new Cluster();
     private long timeout = 3000;
 
-    @Getter
-    @Setter
-    public static class Cluster {
-        private List<String> nodes;
-        private int maxRedirects = 3;
-    }
-
     /**
      * Redis Cluster 연결 팩토리
-     *
-     * <p>Lettuce 클라이언트를 사용하여 Redis Cluster에 연결합니다.</p>
-     *
-     * @return LettuceConnectionFactory
      */
     @Bean(name = "chatRedisConnectionFactory")
     public LettuceConnectionFactory chatRedisConnectionFactory() {
@@ -107,8 +78,17 @@ public class ChatRedisConfig {
                 .socketAddressResolver(socketAddressResolver)
                 .build();
 
-        // Lettuce 클라이언트 설정
-        LettuceClientConfiguration clientConfig = LettuceClientConfiguration.builder()
+        // Connection Pool 설정
+        @SuppressWarnings("rawtypes")
+        GenericObjectPoolConfig poolConfig = new GenericObjectPoolConfig();
+        poolConfig.setMaxTotal(20);
+        poolConfig.setMaxIdle(10);
+        poolConfig.setMinIdle(5);
+        poolConfig.setTestOnBorrow(true);
+
+        // Lettuce 클라이언트 설정 (Connection Pool 포함)
+        LettucePoolingClientConfiguration clientConfig = LettucePoolingClientConfiguration.builder()
+                .poolConfig(poolConfig)
                 .readFrom(ReadFrom.REPLICA_PREFERRED)               // 읽기는 Replica 우선
                 .commandTimeout(Duration.ofMillis(this.timeout))
                 .clientOptions(clusterClientOptions)
@@ -120,11 +100,6 @@ public class ChatRedisConfig {
 
     /**
      * Chat용 RedisTemplate
-     *
-     * <p>모든 직렬화에 StringRedisSerializer를 사용합니다.</p>
-     *
-     * @param connectionFactory chatRedisConnectionFactory
-     * @return StringRedisTemplate
      */
     @Bean(name = "chatRedisTemplate")
     public StringRedisTemplate chatRedisTemplate(
@@ -143,5 +118,12 @@ public class ChatRedisConfig {
 
         template.afterPropertiesSet();
         return template;
+    }
+
+    @Getter
+    @Setter
+    public static class Cluster {
+        private List<String> nodes;
+        private int maxRedirects = 3;
     }
 }
