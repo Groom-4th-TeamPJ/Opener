@@ -72,6 +72,9 @@ dependencies {
     // Environment Variables (.env file support)
     implementation 'me.paulschwarz:spring-dotenv:4.0.0'
 
+    // State Machine
+    implementation 'org.springframework.statemachine:spring-statemachine-core:4.0.0'
+
     // AOP and Retry
     implementation 'org.springframework.boot:spring-boot-starter-aop:3.5.9'
     implementation 'org.springframework.retry:spring-retry:2.0.1'
