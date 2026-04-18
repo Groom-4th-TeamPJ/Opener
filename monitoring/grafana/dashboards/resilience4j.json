@@ -1,0 +1,77 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "type": "state-timeline",
+      "title": "Circuit Breaker State",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "resilience4j_circuitbreaker_state{job=\"app-backend\"} == 1", "legendFormat": "{{name}} / {{state}}", "refId": "A"}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"type": "value", "options": {"0": {"color": "gray", "text": "—"}, "1": {"color": "red", "text": "active"}}}
+          ]
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Failure Rate",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "resilience4j_circuitbreaker_failure_rate{job=\"app-backend\"}", "legendFormat": "{{name}}", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "Calls per 5m by result",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "sum by (name, kind) (increase(resilience4j_circuitbreaker_calls_seconds_count{job=\"app-backend\"}[5m]))", "legendFormat": "{{name}} / {{kind}}", "refId": "A"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Slow Call Rate",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "resilience4j_circuitbreaker_slow_call_rate{job=\"app-backend\"}", "legendFormat": "{{name}}", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}, "overrides": []}
+    },
+    {
+      "type": "logs",
+      "title": "CB state transitions (Loki)",
+      "gridPos": {"h": 10, "w": 12, "x": 12, "y": 16},
+      "datasource": {"type": "loki", "uid": "${DS_LOKI}"},
+      "targets": [
+        {"expr": "{service=\"backend\"} |~ \"Circuit OPEN|CircuitBreaker\"", "refId": "A"}
+      ],
+      "options": {"showTime": true, "wrapLogMessage": true, "sortOrder": "Descending"}
+    }
+  ],
+  "refresh": "15s",
+  "schemaVersion": 39,
+  "tags": ["opener", "resilience4j"],
+  "templating": {
+    "list": [
+      {"name": "DS_PROMETHEUS", "type": "datasource", "query": "prometheus", "current": {"selected": true, "text": "Prometheus", "value": "Prometheus"}},
+      {"name": "DS_LOKI", "type": "datasource", "query": "loki", "current": {"selected": true, "text": "Loki", "value": "Loki"}}
+    ]
+  },
+  "time": {"from": "now-1h", "to": "now"},
+  "timezone": "browser",
+  "title": "Opener — Resilience4j Circuit Breaker",
+  "uid": "opener-resilience4j",
+  "version": 1
+}

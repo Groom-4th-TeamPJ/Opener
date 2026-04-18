@@ -31,6 +31,10 @@ services:
       - GF_DATABASE_PASSWORD=grafana_pw
     volumes:
       - grafana-data:/var/lib/grafana
+      # Datasource + dashboard provider config (Step 3)
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      # Dashboard JSONs — referenced by dashboards.yaml provider
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports:
       - "3001:3000"
     restart: unless-stopped
@@ -39,6 +43,7 @@ services:
     depends_on:
       - Prometheus
       - grafana-db
+      - Loki
 
   grafana-db:
     image: postgres:16
@@ -50,6 +55,36 @@ services:
       - "5433:5432"
     volumes:
       - grafana-db-data:/var/lib/postgresql/data
+    networks:
+      - monitoring-network
+
+  # ========== Logs: Loki + Promtail (Monitoring Step 2) ==========
+  Loki:
+    image: grafana/loki:3.0.0
+    container_name: Loki
+    command: -config.file=/etc/loki/loki-config.yaml
+    volumes:
+      - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki-data:/loki
+    ports:
+      - "3100:3100"
+    restart: unless-stopped
+    networks:
+      - monitoring-network
+
+  Promtail:
+    image: grafana/promtail:3.0.0
+    container_name: Promtail
+    command: -config.file=/etc/promtail/promtail-config.yaml
+    volumes:
+      - ./promtail/promtail-config.yaml:/etc/promtail/promtail-config.yaml:ro
+      # Backend JSON log file mount — must match logback-spring.xml's <file> path on host
+      - /var/log/backend:/var/log/backend:ro
+      # Docker socket for container stdout scraping (job: docker-containers)
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - Loki
+    restart: unless-stopped
     networks:
       - monitoring-network
 
@@ -70,6 +105,7 @@ volumes:
   prometheus-data:
   grafana-data:
   grafana-db-data:
+  loki-data:
 
 networks:
   monitoring-network:

@@ -82,6 +82,12 @@ dependencies {
     // Resilience4j Circuit Breaker
     implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
 
+    // Observability - Structured Logging & Tracing
+    // - logstash-logback-encoder: JSON 로그 포맷 (Loki ingest 호환)
+    // - micrometer-tracing-bridge-otel: Micrometer → OpenTelemetry traceId/spanId MDC 자동 주입
+    implementation 'net.logstash.logback:logstash-logback-encoder:7.4'
+    implementation 'io.micrometer:micrometer-tracing-bridge-otel'
+
     // Monitoring
     runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
     implementation 'net.ttddyy.observation:datasource-micrometer-spring-boot:2.0.1'

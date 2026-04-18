@@ -1,0 +1,61 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+  log_level: info
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # 1) Backend JSON log file (rolling, managed by logback-spring.xml)
+  #    Docker host bind mounts /var/log/backend into the Promtail container.
+  - job_name: backend-file
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: backend
+          service: backend
+          env: prod
+          __path__: /var/log/backend/application*.log
+    pipeline_stages:
+      # a. Parse the JSON payload logback-spring.xml emits
+      - json:
+          expressions:
+            level: level
+            logger: logger
+            message: message
+            thread: thread
+            traceId: traceId
+            spanId: spanId
+            requestId: requestId
+            sessionId: sessionId
+            ts: '"@timestamp"'
+      # b. Promote "level" and "logger" to Loki labels (low-cardinality only).
+      #    traceId/requestId stay inside the log line to avoid a label explosion.
+      - labels:
+          level:
+          logger:
+      # c. Use the original @timestamp so out-of-order writes don't confuse ranges
+      - timestamp:
+          source: ts
+          format: RFC3339Nano
+
+  # 2) Docker container stdout (optional, if backend is containerized with json-file driver)
+  - job_name: docker-containers
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 15s
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: 'container'
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: 'service'
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: 'stream'
+    pipeline_stages:
+      - docker: {}
