@@ -217,8 +217,7 @@ public class ChatServiceImpl implements ChatService {
                 sessionId, userId, sinks.size());
 
         // Sink 존재 확인 (SSE 연결 유지 여부)
-        Sinks.Many<ServerSentEvent<String>> sink = sinks.get(sessionId);
-        if (sink == null) {
+        if (!sinks.containsKey(sessionId)) {
             log.error("[Chat] SSE 연결 없음 - sessionId: {}, 활성 세션 목록: {}",
                     sessionId, sinks.keySet());
             throw new BusinessException(ErrorCode.SESSION_EXPIRED);
@@ -240,13 +239,42 @@ public class ChatServiceImpl implements ChatService {
         RedisMessageDto userRedisMessageDto = redisMessageMapper.toDtoUser(req);
         chatRedisService.saveMessage(sessionId, userRedisMessageDto);
 
-        // TODO(human): LLM 스트리밍 구독 파이프라인 구현
-        // llmService.chatStream()이 반환하는 Flux<String>을 subscribe()로 구독하여:
-        // 1) 첫 청크 수신 시 STREAM_START 상태 전이
-        // 2) 각 청크를 SSE로 emit (emitChunk 사용)
-        // 3) 전체 응답 수집 (StringBuilder)
-        // 4) 완료 시: Redis에 전체 응답 저장 + SSE 완료 이벤트 + STREAM_COMPLETE 상태 전이
-        // 5) 에러 시: SSE 에러 이벤트 + STREAM_ERROR 상태 전이
+        // LLM 응답 수집용
+        StringBuilder llmResponseBuilder = new StringBuilder();
+        AtomicBoolean streamStarted = new AtomicBoolean(false);
+
+        // LLM Flux를 non-blocking subscribe
+        llmService.chatStream(sessionId.toString(), userMessage)
+                .doOnNext(chunk -> {
+                    // 첫 청크 → STREAM_START 상태 전이
+                    if (streamStarted.compareAndSet(false, true)) {
+                        stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_START);
+                    }
+
+                    // SSE 청크 전송
+                    emitChunk(sessionId, chunk);
+
+                    // 전체 응답 수집
+                    llmResponseBuilder.append(chunk);
+                })
+                .doOnComplete(() -> {
+                    // 완전한 LLM 응답을 Redis에 저장
+                    String fullLlmResponse = llmResponseBuilder.toString();
+                    RedisMessageDto llmRedisMessageDto = redisMessageMapper.toDtoLlm(fullLlmResponse);
+                    chatRedisService.saveMessage(sessionId, llmRedisMessageDto);
+
+                    // SSE 완료 이벤트
+                    emitComplete(sessionId);
+
+                    // State Machine: STREAM_COMPLETE (STREAMING → COMPLETED)
+                    stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_COMPLETE);
+                })
+                .doOnError(error -> {
+                    log.error("[Chat] 메시지 처리 중 예외 발생 - sessionId: {}", sessionId, error);
+                    emitError(sessionId, error.getMessage(), null);
+                    stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_ERROR);
+                })
+                .subscribe();
     }
 
     @Override
@@ -277,8 +305,7 @@ public class ChatServiceImpl implements ChatService {
         Long questionResultId = req.questionResultId();
 
         // Sink 존재 확인
-        Sinks.Many<ServerSentEvent<String>> sink = sinks.get(sessionId);
-        if (sink == null) {
+        if (!sinks.containsKey(sessionId)) {
             throw new BusinessException(ErrorCode.SESSION_EXPIRED);
         }
 
@@ -442,7 +469,7 @@ public class ChatServiceImpl implements ChatService {
 
     // ── 유틸리티 ─────────────────────────────────────────
 
-    // Question의 모든 정보를 하나의 문자열로 변환
+    // Question 정보를 문자열로 변환
     private String buildProblemContext(Question question) {
         if (question.getPassages() == null || question.getPassages().isEmpty()) {
             throw new BusinessException(ErrorCode.QUESTION_HAS_NO_PASSAGES);
