@@ -4,11 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +33,8 @@ import spring.backend.domain.chat.service.spec.ChatRedisService;
 import spring.backend.domain.chat.service.spec.ChatService;
 import spring.backend.domain.chat.service.spec.LlmService;
 import spring.backend.domain.chat.service.spec.RagService;
+import spring.backend.domain.chat.statemachine.ChatSessionEvent;
+import spring.backend.domain.chat.statemachine.ChatSessionStateMachineService;
 import spring.backend.domain.exam.model.dto.Passage;
 import spring.backend.domain.exam.model.entity.ExamResult;
 import spring.backend.domain.exam.model.entity.Question;
@@ -68,6 +66,7 @@ public class ChatServiceImpl implements ChatService {
     private final QuestionResultRepository questionResultRepository;
     private final ExamResultRepository examResultRepository;
     private final CanService canService;
+    private final ChatSessionStateMachineService stateMachineService;
 
     // SSE 연결 관리 (sessionId → SseEmitter)
     private final ConcurrentHashMap<Long, SseEmitter> emitters = new ConcurrentHashMap<>();
@@ -85,7 +84,8 @@ public class ChatServiceImpl implements ChatService {
             JpaQuestionRepository questionRepository,
             QuestionResultRepository questionResultRepository,
             ExamResultRepository examResultRepository,
-            CanService canService
+            CanService canService,
+            ChatSessionStateMachineService stateMachineService
     ) {
         this.chatRedisService = chatRedisService;
         this.llmService = llmService;
@@ -100,6 +100,7 @@ public class ChatServiceImpl implements ChatService {
         this.questionResultRepository = questionResultRepository;
         this.examResultRepository = examResultRepository;
         this.canService = canService;
+        this.stateMachineService = stateMachineService;
     }
 
     @Override
@@ -134,6 +135,7 @@ public class ChatServiceImpl implements ChatService {
             // 세션 해제 동작
             newEmitter.onCompletion(() -> {
                 emitters.remove(sessionId);
+                stateMachineService.removeMachine(sessionId);
                 log.info("[SSE] 연결 정상 종료 (onCompletion) - sessionId: {}, 남은 연결 수: {}",
                         sessionId, emitters.size());
             });
@@ -141,6 +143,7 @@ public class ChatServiceImpl implements ChatService {
             // 타임아웃시 ConcurrentHashMap 에서 emitter 제거
             newEmitter.onTimeout(() -> {
                 emitters.remove(sessionId);
+                stateMachineService.removeMachine(sessionId);
                 log.warn("[SSE] 연결 타임아웃 ({}ms 초과) - sessionId: {}, 남은 연결 수: {}",
                         SSE_TIMEOUT, sessionId, emitters.size());
             });
@@ -148,6 +151,7 @@ public class ChatServiceImpl implements ChatService {
             // 세션 예외 발생 처리 (클라이언트 연결 끊김은 정상적인 상황이므로 DEBUG로 처리)
             newEmitter.onError(e -> {
                 emitters.remove(sessionId);
+                stateMachineService.removeMachine(sessionId);
                 // 클라이언트 연결 끊김 관련 예외는 DEBUG 레벨로 처리
                 if (isClientDisconnectException(e)) {
                     log.debug("[SSE] 클라이언트 연결 끊김 - sessionId: {}, 오류: {}, 남은 연결 수: {}",
@@ -157,11 +161,6 @@ public class ChatServiceImpl implements ChatService {
                             sessionId, e.getMessage(), emitters.size());
                 }
             });
-
-            // sessionId로 Emitter 저장
-            emitters.put(sessionId, newEmitter);
-
-            log.debug("[SSE] Emitter 저장 완료 - sessionId: {}", sessionId);
 
             User user = userRepository.findUserById(userId);
 
@@ -176,7 +175,16 @@ public class ChatServiceImpl implements ChatService {
             // 세션용 레디스 초기화
             chatRedisService.initializeSession(sessionId, userId);
 
-            // 연결 성공 테스트 데이터 전송
+            // State Machine: 연결 성공 상태 전이 (IDLE → CONNECTED)
+            stateMachineService.getOrCreateMachine(sessionId);
+            stateMachineService.sendEvent(sessionId, ChatSessionEvent.CONNECT_SUCCESS);
+
+            // 모든 인프라 준비 완료 후 Emitter를 Map에 등록
+            emitters.put(sessionId, newEmitter);
+
+            log.debug("[SSE] Emitter 저장 완료 - sessionId: {}", sessionId);
+
+            // 클라이언트에게 커넥션 연결 성공 알림
             sendSseConnected(newEmitter, sessionId.toString());
 
             log.info("[SSE] ✅ 새 연결 성공 - sessionId: {}, userId: {}, userName: {}, 현재 활성 연결 수: {}",
@@ -187,6 +195,9 @@ public class ChatServiceImpl implements ChatService {
         } catch (Exception e) {
             // 오류시 새롭게 생성된 세션 삭제
             emitters.remove(sessionId);
+
+            // State Machine: 연결 실패
+            stateMachineService.removeMachine(sessionId);
             log.error("[SSE] ❌ 연결 생성 실패 - sessionId: {}, userId: {}, 오류: {}",
                     sessionId, userId, e.getMessage(), e);
             throw new BusinessException(ErrorCode.SESSION_INITIALIZE_FAIL);
@@ -212,6 +223,10 @@ public class ChatServiceImpl implements ChatService {
 
             // redis에서 세션 삭제
             chatRedisService.deleteSession(sessionId);
+
+            // State Machine: 세션 종료 (→ IDLE) + 제거
+            stateMachineService.sendEvent(sessionId, ChatSessionEvent.CLOSE);
+            stateMachineService.removeMachine(sessionId);
 
             log.info("[SSE] ✅ 세션 해제 완료 - sessionId: {}, userId: {}, 남은 연결 수: {}",
                     sessionId, userId, emitters.size());
@@ -248,47 +263,30 @@ public class ChatServiceImpl implements ChatService {
         // 권한 검증
         chatRedisService.validateSessionOwner(sessionId, userId);
 
+        // State Machine: SEND_MESSAGE (CONNECTED/COMPLETED → PROCESSING)
+        if (!stateMachineService.sendEvent(sessionId, ChatSessionEvent.SEND_MESSAGE)) {
+            log.warn("[Chat] 상태 전이 거부 - sessionId: {}, 현재 상태: {}",
+                    sessionId, stateMachineService.getCurrentState(sessionId));
+            throw new BusinessException(ErrorCode.SESSION_EXPIRED);
+        }
+
         try {
             // 사용자 메시지를 Redis에 저장
             RedisMessageDto userRedisMessageDto = redisMessageMapper.toDtoUser(req);
             chatRedisService.saveMessage(sessionId, userRedisMessageDto);
 
-            // 첫 청크 대기용 Future 생성
-            CompletableFuture<Void> firstChunkReceived = new CompletableFuture<>();
-
-            // 타임아웃 발생 플래그 (스레드 안전)
-            AtomicBoolean timedOut = new AtomicBoolean(false);
-
-            // 타임아웃 체크를 별도 스레드에서 비동기 실행
-            CompletableFuture.runAsync(() -> {
-                try {
-                    // 30초 대기, 타임아웃 시 예외 발생
-                    firstChunkReceived.orTimeout(30, TimeUnit.SECONDS).join();
-                } catch (CompletionException e) {
-                    if (e.getCause() instanceof TimeoutException) {
-                        log.error("[Chat] LLM 응답 타임아웃 (30초 초과) - sessionId: {}", sessionId);
-                        timedOut.set(true);
-                        sendSseError(sseEmitter, sessionId.toString(), "LLM 응답 시간(30초)이 초과되었습니다");
-                    }
-                }
-            });
-
             // LLM 응답을 수집할 StringBuilder
             StringBuilder llmResponseBuilder = new StringBuilder();
+            AtomicBoolean streamStarted = new AtomicBoolean(false);
 
-            // LLM 스트리밍 호출
+            // LLM 스트리밍 호출 (Circuit Breaker로 보호됨 - Phase 2)
             llmService.chatStream(
                     sessionId.toString(),
                     userMessage,
                     chunk -> {
-                        // 타임아웃 발생 시 청크 처리 중단
-                        if (timedOut.get()) {
-                            return;
-                        }
-
-                        // 첫 청크면 타임아웃 해제
-                        if (!firstChunkReceived.isDone()) {
-                            firstChunkReceived.complete(null);
+                        // 첫 청크면 State Machine: STREAM_START
+                        if (streamStarted.compareAndSet(false, true)) {
+                            stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_START);
                         }
 
                         // 각 청크를 SSE로 전송
@@ -299,12 +297,6 @@ public class ChatServiceImpl implements ChatService {
                     }
             );
 
-            // 타임아웃 발생 시 저장하지 않고 종료
-            if (timedOut.get()) {
-                log.warn("[Chat] 타임아웃으로 인해 메시지 저장 생략 - sessionId: {}", sessionId);
-                return;
-            }
-
             // 완전한 LLM 응답을 Redis에 저장
             String fullLlmResponse = llmResponseBuilder.toString();
             RedisMessageDto llmRedisMessageDto = redisMessageMapper.toDtoLlm(fullLlmResponse);
@@ -313,9 +305,13 @@ public class ChatServiceImpl implements ChatService {
             // 완료 이벤트 전송
             sendSseComplete(sseEmitter, sessionId.toString());
 
+            // State Machine: STREAM_COMPLETE (STREAMING → COMPLETED)
+            stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_COMPLETE);
+
         } catch (Exception e) {
             log.error("[Chat] 메시지 처리 중 예외 발생 - sessionId: {}", sessionId, e);
             sendSseError(sseEmitter, sessionId.toString(), e.getMessage());
+            stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_ERROR);
         }
     }
 
@@ -446,6 +442,13 @@ public class ChatServiceImpl implements ChatService {
         // 세션 검증
         chatRedisService.validateSessionOwner(sessionId, userId);
 
+        // State Machine: SEND_MESSAGE (CONNECTED/COMPLETED → PROCESSING)
+        if (!stateMachineService.sendEvent(sessionId, ChatSessionEvent.SEND_MESSAGE)) {
+            log.warn("[OpenerAnalysis] 상태 전이 거부 - sessionId: {}, 현재 상태: {}",
+                    sessionId, stateMachineService.getCurrentState(sessionId));
+            throw new BusinessException(ErrorCode.SESSION_EXPIRED);
+        }
+
         // Can 차감 시도 - 실패 시 SSE 에러 전송 후 조기 반환
         try {
             canService.useUserCan(userId, 1);
@@ -472,45 +475,17 @@ public class ChatServiceImpl implements ChatService {
             // Passages를 문자열로 변환
             String problemContext = buildProblemContext(question);
 
-            // 첫 청크 대기용 Future 생성
-            CompletableFuture<Void> firstChunkReceived = new CompletableFuture<>();
-
-            // 타임아웃 발생 플래그 (스레드 안전)
-            AtomicBoolean timedOut = new AtomicBoolean(false);
-
-            // 타임아웃 체크를 별도 스레드에서 비동기 실행
-            CompletableFuture.runAsync(() -> {
-                try {
-                    // 15초 대기, 타임아웃 시 예외 발생
-                    firstChunkReceived.orTimeout(30, TimeUnit.SECONDS).join();
-                } catch (CompletionException e) {
-                    if (e.getCause() instanceof TimeoutException) {
-                        log.error("[OpenerAnalysis] RAG 응답 타임아웃 (30초 초과) - sessionId: {}", sessionId);
-                        timedOut.set(true);
-                        sendSseError(sseEmitter, sessionId.toString(),
-                                ErrorCode.LLM_TIMEOUT.getMessage(),
-                                ErrorCode.LLM_TIMEOUT.getCode());
-                        // Can 복구
-                        canService.recoverUserCan(userId, 1);
-                    }
-                }
-            });
-
             // RAG 응답을 수집할 StringBuilder
             StringBuilder ragResponseBuilder = new StringBuilder();
+            AtomicBoolean ragStreamStarted = new AtomicBoolean(false);
 
-            // RAG 서비스를 통해 유사 문제 생성 (스트리밍)
+            // RAG 서비스를 통해 유사 문제 생성 (스트리밍, Circuit Breaker로 보호됨 - Phase 2)
             ragService.generateSimilarProblemStream(
                     problemContext,
                     chunk -> {
-                        // 타임아웃 발생 시 청크 처리 중단
-                        if (timedOut.get()) {
-                            return;
-                        }
-
-                        // 첫 청크면 타임아웃 해제
-                        if (!firstChunkReceived.isDone()) {
-                            firstChunkReceived.complete(null);
+                        // 첫 청크면 State Machine: STREAM_START
+                        if (ragStreamStarted.compareAndSet(false, true)) {
+                            stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_START);
                         }
 
                         // 각 청크를 SSE로 전송
@@ -520,12 +495,6 @@ public class ChatServiceImpl implements ChatService {
                         ragResponseBuilder.append(chunk);
                     }
             );
-
-            // 타임아웃 발생 시 저장하지 않고 종료
-            if (timedOut.get()) {
-                log.warn("[OpenerAnalysis] 타임아웃으로 인해 메시지 저장 및 업데이트 생략 - sessionId: {}", sessionId);
-                return;
-            }
 
             // 2. 완전한 RAG 응답을 Redis에 저장
             String fullRagResponse = ragResponseBuilder.toString();
@@ -552,12 +521,15 @@ public class ChatServiceImpl implements ChatService {
             examResultRepository.save(examResult);
             questionResultRepository.save(questionResult);
 
+            // State Machine: STREAM_COMPLETE (STREAMING → COMPLETED)
+            stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_COMPLETE);
 
         } catch (BusinessException e) {
             // 비즈니스 예외: 에러 코드 포함하여 전송
             ErrorCode errorCode = e.getErrorCode();
             log.error("[OpenerAnalysis] 비즈니스 예외 발생 - userId: {}, errorCode: {}", userId, errorCode.getCode(), e);
             sendSseError(sseEmitter, sessionId.toString(), errorCode.getMessage(), errorCode.getCode());
+            stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_ERROR);
             canService.recoverUserCan(userId, 1);
         } catch (Exception e) {
             // 기타 예외: 내부 서버 오류로 처리
@@ -565,6 +537,7 @@ public class ChatServiceImpl implements ChatService {
             sendSseError(sseEmitter, sessionId.toString(),
                     ErrorCode.INTERNAL_SERVER_ERROR.getMessage(),
                     ErrorCode.INTERNAL_SERVER_ERROR.getCode());
+            stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_ERROR);
             canService.recoverUserCan(userId, 1);
         }
     }
