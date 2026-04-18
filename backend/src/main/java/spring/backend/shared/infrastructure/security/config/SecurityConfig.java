@@ -68,7 +68,8 @@ public class SecurityConfig {
                                 "/login/oauth2/code/**",
                                 "/actuator",
                                 "/actuator/health",
-                                "/actuator/prometheus"
+                                "/actuator/prometheus",
+                                "/test/**"  // dev-only: k6 스레드 풀 부하 테스트 엔드포인트
                         ).permitAll()
                         //  .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/index.html", "/v3/**").permitAll()
                         .anyRequest().authenticated()
