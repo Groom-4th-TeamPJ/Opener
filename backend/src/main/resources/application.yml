@@ -33,7 +33,10 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus
+        include: health,info,metrics,prometheus,circuitbreakers,circuitbreakerevents
+  health:
+    circuitbreakers:
+      enabled: true
   endpoint:
     health:
       show-details: when-authorized
@@ -68,10 +71,30 @@ app:
     login-success-uri: ${OAUTH2_LOGIN_SUCCESS_URI:https://opener.ai.kr}
     failure-redirect-uri: ${OAUTH2_FAILURE_REDIRECT_URI:https://opener.ai.kr/login}
 
-# Async 설정
-task:
-  execution:
-    pool:
-      core-size: 10
-      max-size: 20
-      queue-capacity: 100
+# Virtual Thread 활성화 시 task.execution.pool 설정 무시
+# (Spring Boot가 VT 기반 SimpleAsyncTaskExecutor를 자동 제공)
+
+# Resilience4j Circuit Breaker
+# - llm: OpenAI 스트리밍 호출 보호 (장애 전파 차단)
+# - redis-chat: Chat Redis Cluster 장애 시 빠른 실패
+resilience4j:
+  circuitbreaker:
+    instances:
+      llm:
+        registerHealthIndicator: true
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50            # 실패율 50% 초과 시 OPEN
+        waitDurationInOpenState: 30s        # 30초 후 HALF-OPEN 전이
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+      redis-chat:
+        registerHealthIndicator: true
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 20
+        minimumNumberOfCalls: 10
+        failureRateThreshold: 60
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 5
+        automaticTransitionFromOpenToHalfOpenEnabled: true
