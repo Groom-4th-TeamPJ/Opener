@@ -5,7 +5,6 @@ import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import jakarta.annotation.PostConstruct;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -74,158 +73,121 @@ public class OpenAiLlmService implements LlmService {
 
     @Override
     @CircuitBreaker(name = "llm-chat", fallbackMethod = "chatStreamFallback")
-    public void chatStream(String sessionId, String userMessage, Consumer<String> chunkConsumer) {
-        try {
-            // Spring AI ChatMemory를 통해 대화 히스토리 가져오기
-            List<Message> chatHistory = chatMemory.get(sessionId);
+    public Flux<String> chatStream(String sessionId, String userMessage) {
+        // Spring AI ChatMemory를 통해 대화 히스토리 가져오기
+        List<Message> chatHistory = chatMemory.get(sessionId);
 
-            log.debug("[LLM+RAG] 대화 히스토리 조회 완료 - sessionId: {}, 메시지 수: {}",
-                    sessionId, chatHistory.size());
+        log.debug("[LLM+RAG] 대화 히스토리 조회 완료 - sessionId: {}, 메시지 수: {}",
+                sessionId, chatHistory.size());
 
-            // 가장 최근 사용자 메시지로 유사 문서 검색
-            String lastUserMessage = chatHistory.stream()
-                    .filter(m -> m instanceof UserMessage)
-                    .reduce((first, second) -> second) // 마지막 메시지
-                    .map(Message::getText)
-                    .orElse(userMessage);
+        // 가장 최근 사용자 메시지로 유사 문서 검색
+        String lastUserMessage = chatHistory.stream()
+                .filter(m -> m instanceof UserMessage)
+                .reduce((first, second) -> second)
+                .map(Message::getText)
+                .orElse(userMessage);
 
-            log.info("[LLM+RAG] VectorStore 검색 시작 - 쿼리 길이: {}, topK: {}, threshold: {}",
-                    lastUserMessage.length(), topK, similarityThreshold);
+        log.info("[LLM+RAG] VectorStore 검색 시작 - 쿼리 길이: {}, topK: {}, threshold: {}",
+                lastUserMessage.length(), topK, similarityThreshold);
 
-            // VectorStore에서 유사 문서 검색
-            SearchRequest searchRequest = SearchRequest.builder()
-                    .query(lastUserMessage)
-                    .topK(topK)
-                    .similarityThreshold(similarityThreshold)
-                    .build();
+        // VectorStore에서 유사 문서 검색
+        SearchRequest searchRequest = SearchRequest.builder()
+                .query(lastUserMessage)
+                .topK(topK)
+                .similarityThreshold(similarityThreshold)
+                .build();
 
-            List<Document> similarDocuments = vectorStore.similaritySearch(searchRequest);
+        List<Document> similarDocuments = vectorStore.similaritySearch(searchRequest);
 
-            log.info("[LLM+RAG] 유사 문서 검색 완료 - 검색된 문서 수: {} (threshold: {})",
-                    similarDocuments.size(), similarityThreshold);
+        log.info("[LLM+RAG] 유사 문서 검색 완료 - 검색된 문서 수: {} (threshold: {})",
+                similarDocuments.size(), similarityThreshold);
 
-            // 검색된 문서가 없으면 디버깅 정보 제공
-            if (similarDocuments.isEmpty()) {
-                SearchRequest debugRequest = SearchRequest.builder()
-                        .query(lastUserMessage)
-                        .topK(3)
-                        .similarityThreshold(0.0)
-                        .build();
-                List<Document> debugDocs = vectorStore.similaritySearch(debugRequest);
-                if (!debugDocs.isEmpty()) {
-                    log.warn("[LLM+RAG] ⚠️ 임계값({}) 때문에 문서가 필터링됨. 임계값 없이 검색 시 {}개 문서 발견.",
-                            similarityThreshold, debugDocs.size());
-                    for (Document doc : debugDocs) {
-                        Object distanceObj = doc.getMetadata().get("distance");
-                        double distance = distanceObj != null ? ((Number) distanceObj).doubleValue() : 0.0;
-                        double similarity = 1.0 - distance;  // Cosine Similarity = 1 - Cosine Distance
-                        log.warn("[LLM+RAG] - 문서: {}, 거리: {}, 유사도: {} (threshold: {})",
-                                doc.getMetadata().get("source"),
-                                String.format("%.3f", distance),
-                                String.format("%.3f", similarity),
-                                similarityThreshold);
-                    }
-                } else {
-                    log.warn("[LLM+RAG] ⚠️ VectorStore에 문서가 없습니다.");
-                }
-            }
+        if (similarDocuments.isEmpty()) {
+            logDebugSearchInfo(lastUserMessage);
+        }
 
-            // RAG 컨텍스트를 포함한 메시지 리스트 구성
-            List<Message> messagesWithRag = new ArrayList<>();
+        // RAG 컨텍스트를 포함한 메시지 리스트 구성
+        List<Message> messagesWithRag = new ArrayList<>();
 
-            // 유사 문서가 있으면 시스템 메시지로 추가 (규칙 + RAG 컨텍스트)
-            if (!similarDocuments.isEmpty()) {
-                String ragContext = similarDocuments.stream()
-                        .map(doc -> {
-                            log.debug("[LLM+RAG] 검색된 문서 - 유사도: {}, 내용 길이: {}",
-                                    doc.getMetadata().get("distance"),
-                                    doc.getText().length());
-                            return doc.getText();
-                        })
-                        .collect(Collectors.joining("\n\n=== 참고 자료 구분 ===\n\n"));
-
-                // 규칙 + RAG 컨텍스트를 포함한 시스템 프롬프트 생성
-                String systemPrompt = promptLoader.buildChatRagSystemPromptWithRule(ragContext);
-
-                messagesWithRag.add(new SystemMessage(systemPrompt));
-                log.debug("[LLM+RAG] 규칙 + RAG 컨텍스트 추가 - 전체 길이: {}", ragContext.length());
-            } else {
-                // 유사 문서가 없어도 규칙 시스템 프롬프트는 적용
-                String systemRulePrompt = promptLoader.loadChatRulePrompt();
-                messagesWithRag.add(new SystemMessage(systemRulePrompt));
-                log.warn("[LLM+RAG] 유사 문서를 찾지 못했습니다. 규칙 프롬프트만 적용하여 진행합니다.");
-            }
-
-            // 기존 대화 히스토리 추가
-            messagesWithRag.addAll(chatHistory);
-
-            // Spring AI ChatClient를 사용한 스트리밍 (대화 히스토리 + RAG)
-            ChatClient chatClient = chatClientBuilder.build();
-
-            log.debug("[LLM+RAG] 최종 메시지 수: {} (RAG 포함)", messagesWithRag.size());
-
-            Flux<String> streamResponse = chatClient
-                    .prompt()
-                    .messages(messagesWithRag)
-                    .stream()
-                    .content();
-
-            // 각 청크를 Consumer에 전달
-            streamResponse
-                    .doOnNext(chunk -> {
-                        if (chunk != null && !chunk.isEmpty()) {
-                            chunkConsumer.accept(chunk);
-                        }
+        if (!similarDocuments.isEmpty()) {
+            String ragContext = similarDocuments.stream()
+                    .map(doc -> {
+                        log.debug("[LLM+RAG] 검색된 문서 - 유사도: {}, 내용 길이: {}",
+                                doc.getMetadata().get("distance"),
+                                doc.getText().length());
+                        return doc.getText();
                     })
-                    .doOnError(error -> {
-                        log.error("[LLM+RAG] 스트리밍 중 에러 발생 - sessionId: {}", sessionId, error);
-                    })
-                    .doOnComplete(() -> {
-                        log.debug("[LLM+RAG] 스트리밍 완료 - sessionId: {}", sessionId);
-                    })
-                    .blockLast(); // 스트리밍 완료까지 대기
+                    .collect(Collectors.joining("\n\n=== 참고 자료 구분 ===\n\n"));
 
-        } catch (Exception e) {
-            // 상세 예외 정보 로깅
-            String errorType = e.getClass().getSimpleName();
-            String errorMessage = e.getMessage();
-            Throwable rootCause = e.getCause();
-            String rootCauseMessage = rootCause != null ? rootCause.getMessage() : "없음";
+            String systemPrompt = promptLoader.buildChatRagSystemPromptWithRule(ragContext);
+            messagesWithRag.add(new SystemMessage(systemPrompt));
+            log.debug("[LLM+RAG] 규칙 + RAG 컨텍스트 추가 - 전체 길이: {}", ragContext.length());
+        } else {
+            String systemRulePrompt = promptLoader.loadChatRulePrompt();
+            messagesWithRag.add(new SystemMessage(systemRulePrompt));
+            log.warn("[LLM+RAG] 유사 문서를 찾지 못했습니다. 규칙 프롬프트만 적용하여 진행합니다.");
+        }
 
-            log.error("[LLM+RAG] LLM 응답 실패 - sessionId: {}, 예외타입: {}, 메시지: {}, 원인: {}",
-                    sessionId, errorType, errorMessage, rootCauseMessage);
-            log.error("[LLM+RAG] 상세 스택트레이스:", e);
+        messagesWithRag.addAll(chatHistory);
 
-            // API 키 관련 오류 감지
-            if (errorMessage != null && (
-                    errorMessage.contains("API key") ||
-                    errorMessage.contains("api_key") ||
-                    errorMessage.contains("Unauthorized") ||
-                    errorMessage.contains("401") ||
-                    errorMessage.contains("authentication"))) {
-                log.error("[LLM+RAG] ⚠️ API 키 문제 의심 - OPENAI_API_KEY 환경변수를 확인하세요!");
+        ChatClient chatClient = chatClientBuilder.build();
+        log.debug("[LLM+RAG] 최종 메시지 수: {} (RAG 포함)", messagesWithRag.size());
+
+        // Flux를 직접 반환 — blockLast() 없이 호출자가 subscribe()로 Non-blocking 소비
+        return chatClient
+                .prompt()
+                .messages(messagesWithRag)
+                .stream()
+                .content()
+                .filter(chunk -> chunk != null && !chunk.isEmpty())
+                .doOnError(error ->
+                        log.error("[LLM+RAG] 스트리밍 중 에러 발생 - sessionId: {}", sessionId, error))
+                .doOnComplete(() ->
+                        log.debug("[LLM+RAG] 스트리밍 완료 - sessionId: {}", sessionId));
+    }
+
+    // 유사 문서 검색 실패 시 디버깅용 재검색
+    private void logDebugSearchInfo(String query) {
+        SearchRequest debugRequest = SearchRequest.builder()
+                .query(query)
+                .topK(3)
+                .similarityThreshold(0.0)
+                .build();
+        List<Document> debugDocs = vectorStore.similaritySearch(debugRequest);
+        if (!debugDocs.isEmpty()) {
+            log.warn("[LLM+RAG] 임계값({}) 때문에 문서가 필터링됨. 임계값 없이 검색 시 {}개 문서 발견.",
+                    similarityThreshold, debugDocs.size());
+            for (Document doc : debugDocs) {
+                Object distanceObj = doc.getMetadata().get("distance");
+                double distance = distanceObj != null ? ((Number) distanceObj).doubleValue() : 0.0;
+                double similarity = 1.0 - distance;
+                log.warn("[LLM+RAG] - 문서: {}, 거리: {}, 유사도: {} (threshold: {})",
+                        doc.getMetadata().get("source"),
+                        String.format("%.3f", distance),
+                        String.format("%.3f", similarity),
+                        similarityThreshold);
             }
-
-            throw new BusinessException(ErrorCode.LLM_RESPONSE_FAIL);
+        } else {
+            log.warn("[LLM+RAG] VectorStore에 문서가 없습니다.");
         }
     }
 
     @SuppressWarnings("unused")
-    private void chatStreamFallback(String sessionId, String userMessage,
-                                    Consumer<String> chunkConsumer, CallNotPermittedException ex) {
+    private Flux<String> chatStreamFallback(String sessionId, String userMessage,
+                                            CallNotPermittedException ex) {
         log.warn("[LLM+RAG] Circuit OPEN - 즉시 실패 반환 - sessionId: {}", sessionId);
-        throw new BusinessException(ErrorCode.LLM_CIRCUIT_OPEN);
+        return Flux.error(new BusinessException(ErrorCode.LLM_CIRCUIT_OPEN));
     }
 
     @SuppressWarnings("unused")
-    private void chatStreamFallback(String sessionId, String userMessage,
-                                    Consumer<String> chunkConsumer, Throwable t) {
+    private Flux<String> chatStreamFallback(String sessionId, String userMessage,
+                                            Throwable t) {
         log.error("[LLM+RAG] LLM 호출 실패(CB 카운트됨) - sessionId: {}, cause: {}",
                 sessionId, t.getMessage());
         if (t instanceof BusinessException be) {
-            throw be;
+            return Flux.error(be);
         }
-        throw new BusinessException(ErrorCode.LLM_RESPONSE_FAIL);
+        return Flux.error(new BusinessException(ErrorCode.LLM_RESPONSE_FAIL));
     }
 
     @Override
