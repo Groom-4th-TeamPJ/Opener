@@ -42,19 +42,14 @@ spring:
           min-idle: 5
 
   # 프로덕션 로깅
+  # pattern/rolling/file 설정은 logback-spring.xml(prod profile)에서 관리
+  # (JSON 구조화 로그 + requestId/traceId MDC + 10MB rolling)
   logging:
     level:
       root: WARN
       spring.backend: INFO
       org.springframework.security: WARN
       org.flywaydb: INFO
-    pattern:
-      console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
-      file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
-    file:
-      name: /var/log/backend/application.log
-      max-size: 10MB
-      max-history: 30
 
   # Actuator 보안 설정
   management:

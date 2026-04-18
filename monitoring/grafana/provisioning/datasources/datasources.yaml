@@ -1,0 +1,27 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://Prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: "15s"
+      httpMethod: POST
+
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://Loki:3100
+    editable: false
+    jsonData:
+      maxLines: 1000
+      # When clicking a traceId in a log line, jump to Tempo (Step 4).
+      # Until Tempo is wired, this field just extracts traceId for copy-paste.
+      derivedFields:
+        - datasourceUid: ""
+          matcherRegex: "traceId=(\\w+)"
+          name: traceId
+          url: "$${__value.raw}"
