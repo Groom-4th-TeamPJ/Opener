@@ -32,7 +32,7 @@ export const options = {
         },
     },
     thresholds: {
-        http_req_duration: ['p99<3000'],
+        http_req_duration: ['p(99)<3000'],
         http_req_failed: ['rate<0.01'],
     },
 };

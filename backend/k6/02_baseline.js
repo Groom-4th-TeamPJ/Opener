@@ -17,7 +17,7 @@ export const options = {
     vus: 10,        // core=10 이하 → 큐 진입 없음
     duration: '30s',
     thresholds: {
-        http_req_duration: ['p95<500'],  // 비동기 즉시 반환 → 매우 빠름
+        http_req_duration: ['p(95)<500'],  // 비동기 즉시 반환 → 매우 빠름
         http_req_failed: ['rate<0.01'],
     },
 };

@@ -55,8 +55,8 @@ export const options = {
     },
     thresholds: {
         http_req_failed: ['rate<0.05'],     // 실패율 5% 미만
-        redis_stress_latency: ['p95<500'],       // p95 500ms 미만
-        http_req_duration: ['p95<1000'],      // 전체 p95 1초 미만
+        redis_stress_latency: ['p(95)<500'],       // p95 500ms 미만
+        http_req_duration: ['p(95)<1000'],      // 전체 p95 1초 미만
     },
 };
 

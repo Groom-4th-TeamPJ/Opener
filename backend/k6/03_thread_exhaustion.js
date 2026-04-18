@@ -39,7 +39,7 @@ export const options = {
     },
     thresholds: {
         // 이 임계값들이 깨지는 시점 = 스레드 풀 한계
-        http_req_duration: ['p95<5000'],
+        http_req_duration: ['p(95)<5000'],
         http_req_failed: ['rate<0.05'],
     },
 };
