@@ -1,8 +1,8 @@
 /**
  * 시나리오: Redis Connection Pool 부하 테스트
  *
- * 목적: Lettuce Connection Pool 적용 전/후 Redis 동시 접근 성능 비교.
- *       VU 50이 동시에 Redis SET/GET/DELETE를 반복하여 연결 풀 효과를 측정한다.
+ * 목적: Lettuce Connection Pool 적용 전/후 Redis 동시 접근 성능 비교
+ *       VU 50이 동시에 Redis SET/GET/DELETE를 반복하여 연결 풀 효과를 측정
  *
  * 사용법:
  *   # Pool 적용 전 기준선 측정
@@ -17,15 +17,15 @@
  * 실행: k6 run k6/06_redis_connection_pool.js
  */
 import http from 'k6/http';
-import { check, sleep } from 'k6';
-import { Trend, Counter } from 'k6/metrics';
+import {check, sleep} from 'k6';
+import {Counter, Trend} from 'k6/metrics';
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080/api';
-const OPS      = __ENV.OPS      || '10';
+const OPS = __ENV.OPS || '10';
 
 // Custom metrics
 const redisLatency = new Trend('redis_stress_latency', true);
-const redisErrors  = new Counter('redis_stress_errors');
+const redisErrors = new Counter('redis_stress_errors');
 
 export const options = {
     scenarios: {
@@ -54,9 +54,9 @@ export const options = {
         },
     },
     thresholds: {
-        http_req_failed:          ['rate<0.05'],     // 실패율 5% 미만
-        redis_stress_latency:     ['p95<500'],       // p95 500ms 미만
-        http_req_duration:        ['p95<1000'],      // 전체 p95 1초 미만
+        http_req_failed: ['rate<0.05'],     // 실패율 5% 미만
+        redis_stress_latency: ['p95<500'],       // p95 500ms 미만
+        http_req_duration: ['p95<1000'],      // 전체 p95 1초 미만
     },
 };
 
