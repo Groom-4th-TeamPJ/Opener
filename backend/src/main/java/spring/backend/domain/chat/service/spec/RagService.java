@@ -1,7 +1,8 @@
 package spring.backend.domain.chat.service.spec;
 
-import java.util.function.Consumer;
+import reactor.core.publisher.Flux;
 
 public interface RagService {
-    void generateSimilarProblemStream(String problemContext, Consumer<String> chunkConsumer);
+    // 유사 문제 생성 스트리밍 — Flux 반환으로 Non-blocking 소비 지원
+    Flux<String> generateSimilarProblemStream(String problemContext);
 }
