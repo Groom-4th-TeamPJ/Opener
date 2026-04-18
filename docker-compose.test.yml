@@ -261,37 +261,128 @@ services:
     restart: unless-stopped
 
   # ============================================
-  # k6 부하 테스트 (Docker Compose profile: k6)
+  # k6 부하 테스트 (profile: k6)
   # ============================================
   # 사용법:
-  #   기본 테스트 (03_thread_exhaustion):
-  #     docker compose -f docker-compose.test.yml --profile k6 run --rm k6
-  #
-  #   특정 스크립트 실행:
-  #     docker compose -f docker-compose.test.yml --profile k6 run --rm k6 run /scripts/01_auth_check.js
-  #
-  #   환경변수 오버라이드:
-  #     docker compose -f docker-compose.test.yml --profile k6 run --rm \
-  #       -e RPS=10 -e HOLD_SECONDS=5 k6 run /scripts/04_rps_limit.js
+  #   docker compose -f docker-compose.test.yml --profile k6 run --rm k6
+  #   docker compose -f docker-compose.test.yml --profile k6 run --rm k6 run /scripts/01_auth_check.js
+  #   docker compose -f docker-compose.test.yml --profile k6 run --rm -e RPS=10 k6 run /scripts/04_rps_limit.js
   k6:
     image: grafana/k6:latest
     container_name: k6-load-test
     volumes:
       - ./backend/k6:/scripts
     environment:
-      # 백엔드가 호스트 머신에서 실행되므로 host.docker.internal 사용
       - BASE_URL=http://host.docker.internal:8080/api
       - TEST_EMAIL=test@test.com
       - TEST_PASSWORD=password123
-      - HOLD_SECONDS=8   # 스레드 점유 시간(초) — LLM 처리 시간 모의
+      - HOLD_SECONDS=8
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
       - test-network
     profiles:
       - k6
-    # 기본 명령: 스레드 풀 고갈 테스트. docker compose run 시 오버라이드 가능.
     command: run --summary-trend-stats "avg,min,med,max,p(90),p(95),p(99)" /scripts/03_thread_exhaustion.js
+
+  # ============================================
+  # 모니터링 (profile: monitoring)
+  # ============================================
+  # 사용법:
+  #   docker compose -f docker-compose.test.yml --profile monitoring up -d
+  #   Grafana: http://localhost:3001 (admin / admin1234)
+  #   Prometheus: http://localhost:9090
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus-test
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./monitoring/prometheus/prometheus-test.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data_test:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-remote-write-receiver"
+    ports:
+      - "9090:9090"
+    networks:
+      - test-network
+    profiles:
+      - monitoring
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:3.0.0
+    container_name: loki-test
+    command: -config.file=/etc/loki/loki-config.yaml
+    volumes:
+      - ./monitoring/loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki_data_test:/loki
+    ports:
+      - "3100:3100"
+    networks:
+      - test-network
+    profiles:
+      - monitoring
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:3.0.0
+    container_name: promtail-test
+    command: -config.file=/etc/promtail/promtail-config.yaml
+    volumes:
+      - ./monitoring/promtail/promtail-test-config.yaml:/etc/promtail/promtail-config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+    networks:
+      - test-network
+    profiles:
+      - monitoring
+    restart: unless-stopped
+
+  grafana-db:
+    image: postgres:16
+    container_name: grafana-db-test
+    environment:
+      - POSTGRES_DB=grafana
+      - POSTGRES_USER=grafana
+      - POSTGRES_PASSWORD=grafana_pw
+    volumes:
+      - grafana_db_data_test:/var/lib/postgresql/data
+    networks:
+      - test-network
+    profiles:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana-test
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin1234
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_DATABASE_TYPE=postgres
+      - GF_DATABASE_HOST=grafana-db:5432
+      - GF_DATABASE_NAME=grafana
+      - GF_DATABASE_USER=grafana
+      - GF_DATABASE_PASSWORD=grafana_pw
+    volumes:
+      - grafana_data_test:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+      - grafana-db
+      - loki
+    networks:
+      - test-network
+    profiles:
+      - monitoring
+    restart: unless-stopped
 
 networks:
   test-network:
@@ -307,3 +398,7 @@ volumes:
   redis_chat_5_data:
   redis_chat_6_data:
   rabbitmq_data:
+  prometheus_data_test:
+  loki_data_test:
+  grafana_data_test:
+  grafana_db_data_test:
