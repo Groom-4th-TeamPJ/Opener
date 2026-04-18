@@ -1,23 +1,15 @@
 package spring.backend.shared.config;
 
-import java.util.concurrent.Executor;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.scheduling.annotation.AsyncConfigurer;
 import org.springframework.scheduling.annotation.EnableAsync;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+/**
+ * Virtual Thread가 활성화되면 Spring Boot가 자동으로
+ * VT 기반 SimpleAsyncTaskExecutor를 제공하므로 수동 Executor 불필요.
+ *
+ * @see application.yml: spring.threads.virtual.enabled=true
+ */
 @Configuration
 @EnableAsync
-public class AsyncConfig implements AsyncConfigurer {
-
-    @Override
-    public Executor getAsyncExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(10);
-        executor.setMaxPoolSize(50);
-        executor.setQueueCapacity(100);
-        executor.setThreadNamePrefix("async-chat-");
-        executor.initialize();
-        return executor;
-    }
+public class AsyncConfig {
 }

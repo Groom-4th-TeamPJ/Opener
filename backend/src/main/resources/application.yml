@@ -2,6 +2,10 @@ spring:
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev} # 환경변수 참조, 기본값 dev
 
+  threads:
+    virtual:
+      enabled: true # Virtual Thread 활성화 (Java 21+, Spring Boot 3.2+)
+
   config:
     import: "optional:env[.env]" # spring-dotenv: .env 파일 로드 (없어도 무시)
 
