@@ -36,7 +36,7 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 public class ChatRedisConfig {
 
     private Cluster cluster = new Cluster();
-    private long timeout = 3000;
+    private Duration timeout = Duration.ofMillis(3000);
 
     /**
      * Redis Cluster 연결 팩토리
@@ -90,7 +90,7 @@ public class ChatRedisConfig {
         LettucePoolingClientConfiguration clientConfig = LettucePoolingClientConfiguration.builder()
                 .poolConfig(poolConfig)
                 .readFrom(ReadFrom.REPLICA_PREFERRED)               // 읽기는 Replica 우선
-                .commandTimeout(Duration.ofMillis(this.timeout))
+                .commandTimeout(this.timeout)
                 .clientOptions(clusterClientOptions)
                 .clientResources(clientResources)
                 .build();

@@ -23,8 +23,8 @@ public class AuthRedisConfig {
   @Value("${spring.data.redis.auth.port}")
   private int redisPort;
 
-  @Value("${spring.data.redis.auth.timeout:3000}")
-  private long timeout;
+  @Value("${spring.data.redis.auth.timeout:3000ms}")
+  private Duration timeout;
 
   @Primary
   @Bean
@@ -41,7 +41,7 @@ public class AuthRedisConfig {
 
     LettucePoolingClientConfiguration clientConfig = LettucePoolingClientConfiguration.builder()
             .poolConfig(poolConfig)
-            .commandTimeout(Duration.ofMillis(timeout))
+            .commandTimeout(timeout)
             .build();
 
     return new LettuceConnectionFactory(config, clientConfig);
