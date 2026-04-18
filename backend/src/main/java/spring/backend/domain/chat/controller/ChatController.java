@@ -1,12 +1,12 @@
 package spring.backend.domain.chat.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import reactor.core.publisher.Flux;
 import spring.backend.domain.chat.dto.request.ChatSaveRequest;
 import spring.backend.domain.chat.dto.request.ChatSendRequest;
 import spring.backend.domain.chat.dto.request.GenerateQuestionRequest;
@@ -43,17 +43,11 @@ public class ChatController {
             value = "/connect",
             produces = MediaType.TEXT_EVENT_STREAM_VALUE
     )
-    public ResponseEntity<SseEmitter> connectSession(
+    public Flux<ServerSentEvent<String>> connectSession(
             @RequestParam Long sessionId,
             @AuthenticationPrincipal AuthUser authUser) {
 
-        SseEmitter emitter = chatService.connectSession(sessionId, authUser.id());
-
-        return ResponseEntity.ok()
-                .header("Connection", "keep-alive")
-                .header("Cache-Control", "no-cache")
-                .header("X-Accel-Buffering", "no")
-                .body(emitter);
+        return chatService.connectSession(sessionId, authUser.id());
     }
 
     @Operation (
@@ -67,7 +61,7 @@ public class ChatController {
             @RequestBody ChatSendRequest req,
             @AuthenticationPrincipal AuthUser authUser) {
 
-        chatService.processMessageAsync(req, authUser.id());
+        chatService.processMessage(req, authUser.id());
 
         return ResponseEntity.ok().build();
     }
@@ -82,7 +76,7 @@ public class ChatController {
             @RequestBody ChatSaveRequest req,
             @AuthenticationPrincipal AuthUser authUser) {
 
-        chatService.saveMessagesAsync(req, authUser.id());
+        chatService.saveMessages(req, authUser.id());
 
         return ResponseEntity.ok().build();
     }
