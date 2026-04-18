@@ -260,6 +260,39 @@ services:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
+  # ============================================
+  # k6 부하 테스트 (Docker Compose profile: k6)
+  # ============================================
+  # 사용법:
+  #   기본 테스트 (03_thread_exhaustion):
+  #     docker compose -f docker-compose.test.yml --profile k6 run --rm k6
+  #
+  #   특정 스크립트 실행:
+  #     docker compose -f docker-compose.test.yml --profile k6 run --rm k6 run /scripts/01_auth_check.js
+  #
+  #   환경변수 오버라이드:
+  #     docker compose -f docker-compose.test.yml --profile k6 run --rm \
+  #       -e RPS=10 -e HOLD_SECONDS=5 k6 run /scripts/04_rps_limit.js
+  k6:
+    image: grafana/k6:latest
+    container_name: k6-load-test
+    volumes:
+      - ./backend/k6:/scripts
+    environment:
+      # 백엔드가 호스트 머신에서 실행되므로 host.docker.internal 사용
+      - BASE_URL=http://host.docker.internal:8080/api
+      - TEST_EMAIL=test@test.com
+      - TEST_PASSWORD=password123
+      - HOLD_SECONDS=8   # 스레드 점유 시간(초) — LLM 처리 시간 모의
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - test-network
+    profiles:
+      - k6
+    # 기본 명령: 스레드 풀 고갈 테스트. docker compose run 시 오버라이드 가능.
+    command: run --summary-trend-stats "avg,min,med,max,p(90),p(95),p(99)" /scripts/03_thread_exhaustion.js
+
 networks:
   test-network:
     driver: bridge
