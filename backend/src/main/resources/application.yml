@@ -75,18 +75,28 @@ app:
 # (Spring Boot가 VT 기반 SimpleAsyncTaskExecutor를 자동 제공)
 
 # Resilience4j Circuit Breaker
-# - llm: OpenAI 스트리밍 호출 보호 (장애 전파 차단)
+# - llm-chat: 일반 채팅 OpenAI 스트리밍 보호
+# - llm-rag: 오프너 분석 OpenAI 스트리밍 보호
 # - redis-chat: Chat Redis Cluster 장애 시 빠른 실패
 resilience4j:
   circuitbreaker:
     instances:
-      llm:
+      llm-chat:
         registerHealthIndicator: true
         slidingWindowType: COUNT_BASED
         slidingWindowSize: 10
         minimumNumberOfCalls: 5
         failureRateThreshold: 50            # 실패율 50% 초과 시 OPEN
         waitDurationInOpenState: 30s        # 30초 후 HALF-OPEN 전이
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+      llm-rag:
+        registerHealthIndicator: true
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
         permittedNumberOfCallsInHalfOpenState: 3
         automaticTransitionFromOpenToHalfOpenEnabled: true
       redis-chat:

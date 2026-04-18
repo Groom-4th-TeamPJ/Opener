@@ -1,5 +1,7 @@
 package spring.backend.domain.chat.service.impl;
 
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import jakarta.annotation.PostConstruct;
 import java.util.ArrayList;
 import java.util.List;
@@ -71,6 +73,7 @@ public class OpenAiLlmService implements LlmService {
     }
 
     @Override
+    @CircuitBreaker(name = "llm-chat", fallbackMethod = "chatStreamFallback")
     public void chatStream(String sessionId, String userMessage, Consumer<String> chunkConsumer) {
         try {
             // Spring AI ChatMemory를 통해 대화 히스토리 가져오기
@@ -205,6 +208,24 @@ public class OpenAiLlmService implements LlmService {
 
             throw new BusinessException(ErrorCode.LLM_RESPONSE_FAIL);
         }
+    }
+
+    @SuppressWarnings("unused")
+    private void chatStreamFallback(String sessionId, String userMessage,
+                                    Consumer<String> chunkConsumer, CallNotPermittedException ex) {
+        log.warn("[LLM+RAG] Circuit OPEN - 즉시 실패 반환 - sessionId: {}", sessionId);
+        throw new BusinessException(ErrorCode.LLM_CIRCUIT_OPEN);
+    }
+
+    @SuppressWarnings("unused")
+    private void chatStreamFallback(String sessionId, String userMessage,
+                                    Consumer<String> chunkConsumer, Throwable t) {
+        log.error("[LLM+RAG] LLM 호출 실패(CB 카운트됨) - sessionId: {}, cause: {}",
+                sessionId, t.getMessage());
+        if (t instanceof BusinessException be) {
+            throw be;
+        }
+        throw new BusinessException(ErrorCode.LLM_RESPONSE_FAIL);
     }
 
     @Override

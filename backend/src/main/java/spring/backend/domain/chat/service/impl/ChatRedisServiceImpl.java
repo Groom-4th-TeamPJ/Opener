@@ -1,6 +1,8 @@
 package spring.backend.domain.chat.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
@@ -92,6 +94,7 @@ public class ChatRedisServiceImpl implements ChatRedisService {
     }
 
     @Override
+    @CircuitBreaker(name = "redis-chat", fallbackMethod = "saveMessageFallback")
     public void saveMessage(Long sessionId, RedisMessageDto message) {
         String messageKey = getMessageKey(sessionId);
         String sessionKey = getSessionKey(sessionId);
@@ -192,6 +195,7 @@ public class ChatRedisServiceImpl implements ChatRedisService {
      * @throws BusinessException 권한이 없거나 세션이 존재하지 않는 경우
      */
     @Override
+    @CircuitBreaker(name = "redis-chat", fallbackMethod = "validateSessionOwnerFallback")
     public void validateSessionOwner(Long sessionId, UUID userId) {
         String sessionKey = getSessionKey(sessionId);
 
@@ -218,5 +222,39 @@ public class ChatRedisServiceImpl implements ChatRedisService {
             log.error("[Redis Cluster] 세션 권한 검증 중 예외 발생 - sessionId: {}, userId: {}", sessionId, userId, e);
             throw new BusinessException(ErrorCode.INVALID_SESSION);
         }
+    }
+
+    // Circuit OPEN 상태 — Redis 장애 지속 중이므로 즉시 차단
+    @SuppressWarnings("unused")
+    private void saveMessageFallback(Long sessionId, RedisMessageDto message, CallNotPermittedException ex) {
+        log.warn("[Redis Cluster] Circuit OPEN - 메시지 저장 차단 - sessionId: {}", sessionId);
+        throw new BusinessException(ErrorCode.REDIS_CIRCUIT_OPEN);
+    }
+
+    // 일반 Redis I/O 예외 — CB 실패 카운트에 반영됨
+    @SuppressWarnings("unused")
+    private void saveMessageFallback(Long sessionId, RedisMessageDto message, Throwable t) {
+        if (t instanceof BusinessException be) {
+            throw be;
+        }
+        log.error("[Redis Cluster] 메시지 저장 실패(CB 카운트됨) - sessionId: {}, cause: {}",
+                sessionId, t.getMessage());
+        throw new BusinessException(ErrorCode.MESSAGE_INPUT_FAIL);
+    }
+
+    @SuppressWarnings("unused")
+    private void validateSessionOwnerFallback(Long sessionId, UUID userId, CallNotPermittedException ex) {
+        log.warn("[Redis Cluster] Circuit OPEN - 세션 권한 검증 차단 - sessionId: {}", sessionId);
+        throw new BusinessException(ErrorCode.REDIS_CIRCUIT_OPEN);
+    }
+
+    @SuppressWarnings("unused")
+    private void validateSessionOwnerFallback(Long sessionId, UUID userId, Throwable t) {
+        if (t instanceof BusinessException be) {
+            throw be;
+        }
+        log.error("[Redis Cluster] 세션 권한 검증 실패(CB 카운트됨) - sessionId: {}, cause: {}",
+                sessionId, t.getMessage());
+        throw new BusinessException(ErrorCode.INVALID_SESSION);
     }
 }

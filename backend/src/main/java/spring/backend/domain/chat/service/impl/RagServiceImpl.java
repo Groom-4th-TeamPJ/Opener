@@ -1,5 +1,7 @@
 package spring.backend.domain.chat.service.impl;
 
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -39,6 +41,7 @@ public class RagServiceImpl implements RagService {
     private double similarityThreshold;
 
     @Override
+    @CircuitBreaker(name = "llm-rag", fallbackMethod = "generateSimilarProblemStreamFallback")
     public void generateSimilarProblemStream(String problemContext, Consumer<String> chunkConsumer) {
         try {
             log.info("[RAG] 오프너 분석 시작 - 문제 컨텍스트 길이: {}", problemContext.length());
@@ -141,5 +144,24 @@ public class RagServiceImpl implements RagService {
             log.error("[RAG] RAG 서비스 실행 실패", e);
             throw new BusinessException(ErrorCode.LLM_RESPONSE_FAIL);
         }
+    }
+
+    @SuppressWarnings("unused")
+    private void generateSimilarProblemStreamFallback(String problemContext,
+                                                      Consumer<String> chunkConsumer,
+                                                      CallNotPermittedException ex) {
+        log.warn("[RAG] Circuit OPEN - 즉시 실패 반환");
+        throw new BusinessException(ErrorCode.LLM_CIRCUIT_OPEN);
+    }
+
+    @SuppressWarnings("unused")
+    private void generateSimilarProblemStreamFallback(String problemContext,
+                                                      Consumer<String> chunkConsumer,
+                                                      Throwable t) {
+        log.error("[RAG] 오프너 분석 실패(CB 카운트됨) - cause: {}", t.getMessage());
+        if (t instanceof BusinessException be) {
+            throw be;
+        }
+        throw new BusinessException(ErrorCode.LLM_GENERATE_FAIL);
     }
 }
