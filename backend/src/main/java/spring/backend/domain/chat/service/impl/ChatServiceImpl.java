@@ -109,7 +109,6 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
-    @Transactional
     public Flux<ServerSentEvent<String>> connectSession(Long sessionId, UUID userId) {
 
         log.info("[SSE] 연결 요청 시작 - sessionId: {}, userId: {}", sessionId, userId);
