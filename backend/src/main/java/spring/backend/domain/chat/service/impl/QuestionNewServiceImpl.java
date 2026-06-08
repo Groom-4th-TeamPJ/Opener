@@ -58,19 +58,21 @@ public class QuestionNewServiceImpl implements QuestionNewService {
     private final ObjectMapper objectMapper;
     private final CanService canService;
 
+    // RAG 파라미터 외부화 -> 검색 품질을 코드 수정 없이 yml 로 조정
     @Value("${app.rag.top-k:5}")
     private int topK;
 
     @Value("${app.rag.similarity-threshold:0.7}")
     private double similarityThreshold;
 
+    // @Transactional -> 변형문제 저장 + Can 차감이 한 단위, 중간 실패 시 일관성 유지
     @Override
     @Transactional
     public GenerateQuestionResponse generateQuestion(
             GenerateQuestionRequest request,
             UUID userId
     ) {
-        // Can 차감 - 실패 시 예외가 GlobalExceptionHandler로 전파됨
+        // 작업 전 선차감 -> LLM 비용 발생 전에 잔액 검증, 부족 시 즉시 중단
         canService.useUserCan(userId, 1);
 
         try {
@@ -88,7 +90,7 @@ public class QuestionNewServiceImpl implements QuestionNewService {
             QuestionResult questionResult = questionResultRepository.findById(request.questionResultId())
                     .orElseThrow(() -> new BusinessException(ErrorCode.RESULT_NOT_FOUND));
 
-            // 권한 검증: QuestionResult의 소유자가 요청한 사용자인지 확인
+            // 소유자 검증 -> id 만 알면 남의 시험 결과로 문제 생성 가능하므로 실제 주인과 대조
             if (!questionResult.getExamResult().getUserId().equals(userId)) {
                 throw new BusinessException(ErrorCode.INVALID_QUESTION);
             }
@@ -97,10 +99,10 @@ public class QuestionNewServiceImpl implements QuestionNewService {
             String problemContext = buildProblemContext(originalQuestion);
             log.debug("[QuestionNew] 원본 문제 컨텍스트 길이: {}", problemContext.length());
 
-            // 5. RAG: 유사 문서 검색
+            // RAG -> 원본 문제와 유사한 기출/자료를 검색해 LLM 에 근거로 제공, 환각 줄이고 출제 형식 맞춤
             String retrievedContext = searchSimilarDocuments(problemContext);
 
-            // 6. LLM으로 변형 문제 생성 (60초 타임아웃)
+            // CompletableFuture + orTimeout -> 동기 LLM 호출이 무한 대기하면 트랜잭션/스레드가 묶이므로 60초 강제 컷
             String llmResponse = CompletableFuture
                     .supplyAsync(() -> generateWithLLM(retrievedContext, problemContext))
                     .orTimeout(60, TimeUnit.SECONDS)
@@ -128,7 +130,7 @@ public class QuestionNewServiceImpl implements QuestionNewService {
                     .build();
 
         } catch (CompletionException e) {
-            // LLM 타임아웃 또는 실행 중 예외 처리
+            // 실패 분기마다 Can 복구 -> 결과를 못 받았는데 비용만 빠지는 불공정 방지
             if (e.getCause() instanceof TimeoutException) {
                 log.error("[QuestionNew] LLM 응답 타임아웃 (60초 초과) - userId: {}", userId);
                 canService.recoverUserCan(userId, 1);
@@ -192,6 +194,7 @@ public class QuestionNewServiceImpl implements QuestionNewService {
      */
     private String searchSimilarDocuments(String problemContext) {
         try {
+            // 원본 문제 텍스트를 쿼리로 임베딩 검색 -> 키워드가 아닌 의미 기반으로 유사 자료 확보
             SearchRequest searchRequest = SearchRequest.builder()
                     .query(problemContext)
                     .topK(topK)
@@ -210,6 +213,7 @@ public class QuestionNewServiceImpl implements QuestionNewService {
                     .map(Document::getText)
                     .collect(Collectors.joining("\n\n=== 참고 자료 구분 ===\n\n"));
 
+        // 검색 실패해도 빈 문자열 반환 -> RAG 는 보조 수단이므로 실패가 문제 생성 전체를 막지 않게 함
         } catch (Exception e) {
             log.error("[QuestionNew] 유사 문서 검색 실패", e);
             return "";
@@ -247,6 +251,7 @@ public class QuestionNewServiceImpl implements QuestionNewService {
     /**
      * JSON 응답 전처리: LaTeX 백슬래시 및 비정상적인 구조 제거
      */
+    // LLM 출력은 100% 정형 JSON 보장 안 됨 -> 파싱 전 비정상 패턴 정리해 역직렬화 실패율 낮춤
     private String preprocessJson(String jsonStr) {
         String preprocessed = jsonStr;
 
@@ -356,6 +361,7 @@ public class QuestionNewServiceImpl implements QuestionNewService {
     /**
      * exam domain Category를 chat domain Category로 매핑
      */
+    // 도메인 간 enum 분리 -> exam 과 chat 이 서로의 enum 에 직접 의존하지 않도록 경계에서 명시 변환
     private Category mapCategory(spring.backend.domain.exam.model.enums.Category examCategory) {
         return switch (examCategory) {
             case ALG -> Category.ALG;

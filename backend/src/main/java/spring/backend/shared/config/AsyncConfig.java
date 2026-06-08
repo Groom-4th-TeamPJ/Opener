@@ -9,6 +9,8 @@ import org.springframework.scheduling.annotation.EnableAsync;
  *
  * @see application.yml: spring.threads.virtual.enabled=true
  */
+// @EnableAsync -> @Async 메서드를 별도 스레드로 분리, 호출자가 결과를 기다리지 않게 함
+// Executor 빈 미정의 -> Virtual Thread 활성화 시 Spring 이 VT 기반 Executor 자동 제공하므로 수동 설정 불필요
 @Configuration
 @EnableAsync
 public class AsyncConfig {

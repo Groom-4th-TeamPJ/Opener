@@ -1,0 +1,310 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "liveNow": false,
+  "panels": [
+    {"type": "row", "title": "① 부하 개요 (k6 · HTTP)", "collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}},
+    {
+      "type": "timeseries",
+      "title": "k6 Virtual Users (VUs)",
+      "description": "k6 부하 강도. k6를 experimental-prometheus-rw output으로 실행해야 표시됨",
+      "gridPos": {"h": 7, "w": 6, "x": 0, "y": 1},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "k6_vus", "legendFormat": "VUs", "refId": "A"},
+        {"expr": "k6_vus_max", "legendFormat": "VUs max", "refId": "B"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short", "custom": {"fillOpacity": 20, "drawStyle": "line"}}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP Requests/sec (method별)",
+      "gridPos": {"h": 7, "w": 6, "x": 6, "y": 1},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "sum by (method) (rate(http_server_requests_seconds_count{job=\"app-backend\"}[1m]))", "legendFormat": "{{method}}", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP Latency p95 / p99 (전체)",
+      "gridPos": {"h": 7, "w": 6, "x": 12, "y": 1},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"app-backend\"}[1m])))", "legendFormat": "p95", "refId": "A"},
+        {"expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"app-backend\"}[1m])))", "legendFormat": "p99", "refId": "B"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "Error Rate 5xx (%)",
+      "gridPos": {"h": 7, "w": 6, "x": 18, "y": 1},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "sum(rate(http_server_requests_seconds_count{job=\"app-backend\",status=~\"5..\"}[1m])) / clamp_min(sum(rate(http_server_requests_seconds_count{job=\"app-backend\"}[1m])), 0.001)", "legendFormat": "5xx ratio", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0}, "overrides": []}
+    },
+
+    {"type": "row", "title": "② 스레드 사용 (Tomcat 요청 스레드 + JVM)", "collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 8}},
+    {
+      "type": "timeseries",
+      "title": "Tomcat 요청 스레드 (busy / current / max)",
+      "description": "server.tomcat.mbeanregistry.enabled=true 필요. 부하 시 busy가 max에 붙으면 요청 스레드 포화",
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 9},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "tomcat_threads_busy_threads{job=\"app-backend\"}", "legendFormat": "busy", "refId": "A"},
+        {"expr": "tomcat_threads_current_threads{job=\"app-backend\"}", "legendFormat": "current", "refId": "B"},
+        {"expr": "tomcat_threads_config_max_threads{job=\"app-backend\"}", "legendFormat": "config max", "refId": "C"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "JVM 스레드 상태별 (state)",
+      "description": "runnable / blocked / waiting / timed-waiting — 블로킹 대기 누적 관측",
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 9},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "jvm_threads_states_threads{job=\"app-backend\"}", "legendFormat": "{{state}}", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short", "custom": {"stacking": {"mode": "normal"}, "fillOpacity": 30}}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "JVM 스레드 총량 (live / daemon / peak)",
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 9},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "jvm_threads_live_threads{job=\"app-backend\"}", "legendFormat": "live", "refId": "A"},
+        {"expr": "jvm_threads_daemon_threads{job=\"app-backend\"}", "legendFormat": "daemon", "refId": "B"},
+        {"expr": "jvm_threads_peak_threads{job=\"app-backend\"}", "legendFormat": "peak", "refId": "C"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []}
+    },
+
+    {"type": "row", "title": "③ GC & 힙 메모리", "collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 16}},
+    {
+      "type": "timeseries",
+      "title": "GC Pause (p95 / max)",
+      "gridPos": {"h": 7, "w": 6, "x": 0, "y": 17},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum by (le, action) (rate(jvm_gc_pause_seconds_bucket{job=\"app-backend\"}[1m])))", "legendFormat": "p95 {{action}}", "refId": "A"},
+        {"expr": "jvm_gc_pause_seconds_max{job=\"app-backend\"}", "legendFormat": "max {{action}}", "refId": "B"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "GC 횟수 (회/s)",
+      "gridPos": {"h": 7, "w": 6, "x": 6, "y": 17},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "rate(jvm_gc_pause_seconds_count{job=\"app-backend\"}[1m])", "legendFormat": "{{action}} ({{cause}})", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "Heap Used vs Max",
+      "gridPos": {"h": 7, "w": 6, "x": 12, "y": 17},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "sum(jvm_memory_used_bytes{area=\"heap\",job=\"app-backend\"})", "legendFormat": "used", "refId": "A"},
+        {"expr": "sum(jvm_memory_max_bytes{area=\"heap\",job=\"app-backend\"})", "legendFormat": "max", "refId": "B"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "메모리 Allocation Rate",
+      "description": "단위 시간당 힙 할당량 — 높을수록 GC 압력 증가",
+      "gridPos": {"h": 7, "w": 6, "x": 18, "y": 17},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "rate(jvm_gc_memory_allocated_bytes_total{job=\"app-backend\"}[1m])", "legendFormat": "alloc/s", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "Bps"}, "overrides": []}
+    },
+
+    {"type": "row", "title": "④ 로드율 / CPU", "collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 24}},
+    {
+      "type": "timeseries",
+      "title": "System Load Average (1m) vs CPU 코어 수",
+      "description": "load avg가 코어 수를 넘으면 CPU 대기 큐 적체 신호",
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 25},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "system_load_average_1m{job=\"app-backend\"}", "legendFormat": "load avg 1m", "refId": "A"},
+        {"expr": "system_cpu_count{job=\"app-backend\"}", "legendFormat": "cpu cores", "refId": "B"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU 사용률 (process / system)",
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 25},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "process_cpu_usage{job=\"app-backend\"}", "legendFormat": "process", "refId": "A"},
+        {"expr": "system_cpu_usage{job=\"app-backend\"}", "legendFormat": "system", "refId": "B"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "percentunit", "max": 1, "min": 0}, "overrides": []}
+    },
+
+    {"type": "row", "title": "⑤ 커넥션 풀 (DB · Redis · RabbitMQ)", "collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 32}},
+    {
+      "type": "timeseries",
+      "title": "HikariCP 커넥션 (active / idle / pending / max)",
+      "gridPos": {"h": 7, "w": 6, "x": 0, "y": 33},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "hikaricp_connections_active{job=\"app-backend\"}", "legendFormat": "active", "refId": "A"},
+        {"expr": "hikaricp_connections_idle{job=\"app-backend\"}", "legendFormat": "idle", "refId": "B"},
+        {"expr": "hikaricp_connections_pending{job=\"app-backend\"}", "legendFormat": "pending", "refId": "C"},
+        {"expr": "hikaricp_connections_max{job=\"app-backend\"}", "legendFormat": "max", "refId": "D"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "HikariCP 획득 대기 p95 + pending",
+      "description": "pending 상승 + acquire 지연 = 커넥션 풀 포화",
+      "gridPos": {"h": 7, "w": 6, "x": 6, "y": 33},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum by (le) (rate(hikaricp_connections_acquire_seconds_bucket{job=\"app-backend\"}[1m])))", "legendFormat": "acquire p95", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "Redis Connected Clients (노드별)",
+      "gridPos": {"h": 7, "w": 6, "x": 12, "y": 33},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "redis_connected_clients{job=\"infra-redis\"}", "legendFormat": "{{instance}}", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "RabbitMQ Connections",
+      "gridPos": {"h": 7, "w": 6, "x": 18, "y": 33},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "rabbitmq_connections{job=\"infra-rabbitmq\"}", "legendFormat": "connections", "refId": "A"},
+        {"expr": "rabbitmq_channels{job=\"infra-rabbitmq\"}", "legendFormat": "channels", "refId": "B"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []}
+    },
+
+    {"type": "row", "title": "⑥ 도메인 / 장애 안정성 (SSE · Circuit Breaker · 저장 큐)", "collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 40}},
+    {
+      "type": "timeseries",
+      "title": "Active SSE Connections",
+      "description": "chat.sse.active.connections 커스텀 게이지 — 동시 스트리밍 연결 수",
+      "gridPos": {"h": 7, "w": 6, "x": 0, "y": 41},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "chat_sse_active_connections{job=\"app-backend\"}", "legendFormat": "active SSE", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short", "custom": {"fillOpacity": 20}}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "Circuit Breaker State (열림=1)",
+      "description": "resilience4j 서킷 OPEN 시점 — 외부 LLM 장애 격리 관측",
+      "gridPos": {"h": 7, "w": 6, "x": 6, "y": 41},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "resilience4j_circuitbreaker_state{job=\"app-backend\"} == 1", "legendFormat": "{{name}} {{state}}", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short", "max": 1, "min": 0}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "Circuit Breaker Failure Rate (%)",
+      "gridPos": {"h": 7, "w": 6, "x": 12, "y": 41},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "resilience4j_circuitbreaker_failure_rate{job=\"app-backend\"}", "legendFormat": "{{name}}", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "percent"}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "저장 큐 깊이 (ready / DLQ)",
+      "description": "저장 파이프라인 적체 + 실패 격리(DLQ) 관측",
+      "gridPos": {"h": 7, "w": 6, "x": 18, "y": 41},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "rabbitmq_queue_messages_ready{queue=\"chat.message.save.queue\"}", "legendFormat": "ready", "refId": "A"},
+        {"expr": "rabbitmq_queue_messages_unacked{queue=\"chat.message.save.queue\"}", "legendFormat": "unacked", "refId": "B"},
+        {"expr": "rabbitmq_queue_messages_ready{queue=\"chat.message.save.dlq\"}", "legendFormat": "DLQ", "refId": "C"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []}
+    },
+
+    {"type": "row", "title": "⑦ AI 품질 · 세션 (RAG · TTFT · State Machine)", "collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 48}},
+    {
+      "type": "timeseries",
+      "title": "RAG 벡터 검색 p95 / 평균",
+      "description": "vectorStore.similaritySearch 소요 (rag.vector.search) — 오프너 분석 호출 시 데이터 생성",
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 49},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum by (le) (rate(rag_vector_search_seconds_bucket{job=\"app-backend\"}[5m])))", "legendFormat": "p95", "refId": "A"},
+        {"expr": "rate(rag_vector_search_seconds_sum{job=\"app-backend\"}[5m]) / clamp_min(rate(rag_vector_search_seconds_count{job=\"app-backend\"}[5m]), 0.001)", "legendFormat": "avg", "refId": "B"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "SSE 첫 토큰 지연 (TTFT) p95 / 평균",
+      "description": "chat.sse.ttft — 메시지 전송 후 첫 토큰까지 (실제 채팅 시 데이터 생성)",
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 49},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum by (le) (rate(chat_sse_ttft_seconds_bucket{job=\"app-backend\"}[5m])))", "legendFormat": "p95", "refId": "A"},
+        {"expr": "rate(chat_sse_ttft_seconds_sum{job=\"app-backend\"}[5m]) / clamp_min(rate(chat_sse_ttft_seconds_count{job=\"app-backend\"}[5m]), 0.001)", "legendFormat": "avg", "refId": "B"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "State Machine 전이 (accepted / rejected)",
+      "description": "chat.statemachine.transition — rejected=비정상 전이 차단",
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 49},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "sum by (result) (rate(chat_statemachine_transition_total{job=\"app-backend\"}[5m]))", "legendFormat": "{{result}}", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []}
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["opener", "load-test", "measurement"],
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {"selected": true, "text": "Prometheus", "value": "Prometheus"}
+      }
+    ]
+  },
+  "time": {"from": "now-30m", "to": "now"},
+  "timezone": "browser",
+  "title": "Opener — 부하테스트 종합 (스레드 · GC · 로드 · 커넥션)",
+  "uid": "opener-load-test",
+  "version": 1
+}

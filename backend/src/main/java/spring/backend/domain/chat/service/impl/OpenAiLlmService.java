@@ -24,6 +24,8 @@ import spring.backend.domain.chat.service.spec.LlmService;
 import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
 
+// @ConditionalOnProperty -> RAG 켜질 때만 이 구현 활성, 꺼지면 OpenAiLlmServiceWithoutRag 가 대신 주입
+// 같은 LlmService 인터페이스를 RAG 유무로 갈아끼움 -> 호출부(ChatServiceImpl) 코드는 변경 불필요
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -36,8 +38,8 @@ import spring.backend.shared.response.exception.BusinessException;
 public class OpenAiLlmService implements LlmService {
 
     private final ChatClient.Builder chatClientBuilder;
-    private final ChatMemory chatMemory; // Spring AI ChatMemory 인터페이스 사용
-    private final VectorStore vectorStore; // RAG용 VectorStore
+    private final ChatMemory chatMemory;   // 인터페이스 의존 -> 구현이 RedisChatMemoryAdapter 여도 LLM 코드는 몰라도 됨
+    private final VectorStore vectorStore; // RAG 검색용 -> 시험 문제 맥락에 맞는 근거 자료 확보
     private final spring.backend.domain.chat.util.PromptLoader promptLoader;
 
     @Value("${app.rag.top-k:5}")
@@ -49,6 +51,7 @@ public class OpenAiLlmService implements LlmService {
     @Value("${spring.ai.openai.api-key:}")
     private String openaiApiKey;
 
+    // @PostConstruct -> 빈 생성 직후 API 키 바인딩 검증, 첫 요청 때 실패하지 않고 기동 시점에 조기 발견
     @PostConstruct
     public void validateApiKeyBinding() {
         log.info("[LLM+RAG] ========== OpenAI API 키 바인딩 검증 ==========");
@@ -71,16 +74,17 @@ public class OpenAiLlmService implements LlmService {
         log.info("[LLM+RAG] ================================================");
     }
 
+    // @CircuitBreaker -> OpenAI 장애 누적 시 호출 차단, 느린 외부 API 가 SSE 스레드를 잡아 전체 지연되는 것 방지
     @Override
     @CircuitBreaker(name = "llm-chat", fallbackMethod = "chatStreamFallback")
     public Flux<String> chatStream(String sessionId, String userMessage) {
-        // Spring AI ChatMemory를 통해 대화 히스토리 가져오기
+        // 히스토리 주입 -> 멀티턴 맥락 유지, 이전 대화 모르면 답변 일관성 깨짐
         List<Message> chatHistory = chatMemory.get(sessionId);
-
+ 
         log.debug("[LLM+RAG] 대화 히스토리 조회 완료 - sessionId: {}, 메시지 수: {}",
                 sessionId, chatHistory.size());
 
-        // 가장 최근 사용자 메시지로 유사 문서 검색
+        // 최근 사용자 메시지로 검색 -> 전체 히스토리보다 현재 질문에 집중해 검색 정확도 향상
         String lastUserMessage = chatHistory.stream()
                 .filter(m -> m instanceof UserMessage)
                 .reduce((first, second) -> second)
@@ -133,7 +137,7 @@ public class OpenAiLlmService implements LlmService {
         ChatClient chatClient = chatClientBuilder.build();
         log.debug("[LLM+RAG] 최종 메시지 수: {} (RAG 포함)", messagesWithRag.size());
 
-        // Flux를 직접 반환 — blockLast() 없이 호출자가 subscribe()로 Non-blocking 소비
+        // Flux 직접 반환(block 없음) -> 호출자가 논블로킹 구독, 토큰 단위로 SSE 실시간 푸시 가능
         return chatClient
                 .prompt()
                 .messages(messagesWithRag)
@@ -231,10 +235,10 @@ public class OpenAiLlmService implements LlmService {
             // API 키 관련 오류 감지
             if (errorMessage != null && (
                     errorMessage.contains("API key") ||
-                    errorMessage.contains("api_key") ||
-                    errorMessage.contains("Unauthorized") ||
-                    errorMessage.contains("401") ||
-                    errorMessage.contains("authentication"))) {
+                            errorMessage.contains("api_key") ||
+                            errorMessage.contains("Unauthorized") ||
+                            errorMessage.contains("401") ||
+                            errorMessage.contains("authentication"))) {
                 log.error("[LLM+RAG] ⚠️ API 키 문제 의심 - OPENAI_API_KEY 환경변수를 확인하세요!");
             }
 

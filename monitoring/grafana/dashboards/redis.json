@@ -1,0 +1,92 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Redis Up (노드별)",
+      "description": "Auth + Chat Cluster 6노드의 생존 여부 (1=up). cluster failover 시 노드 상태 확인",
+      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "redis_up{job=\"infra-redis\"}", "legendFormat": "{{instance}}", "refId": "A"}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode": "absolute", "steps": [
+            {"value": null, "color": "red"},
+            {"value": 1, "color": "green"}
+          ]}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Memory Used (노드별)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "redis_memory_used_bytes{job=\"infra-redis\"}", "legendFormat": "{{instance}}", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "Connected Clients (노드별)",
+      "description": "동시 채팅 부하 시 연결 수 — Lettuce 풀(20) 경합과 함께 해석",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "redis_connected_clients{job=\"infra-redis\"}", "legendFormat": "{{instance}}", "refId": "A"},
+        {"expr": "redis_blocked_clients{job=\"infra-redis\"}", "legendFormat": "blocked {{instance}}", "refId": "B"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Ops/sec (commands processed)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "rate(redis_commands_processed_total{job=\"infra-redis\"}[1m])", "legendFormat": "{{instance}}", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "Keyspace Hit Ratio",
+      "description": "hits / (hits + misses) — 캐시 효율. 채팅 세션 조회 적중률",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "sum by (instance) (rate(redis_keyspace_hits_total{job=\"infra-redis\"}[5m])) / clamp_min(sum by (instance) (rate(redis_keyspace_hits_total{job=\"infra-redis\"}[5m])) + sum by (instance) (rate(redis_keyspace_misses_total{job=\"infra-redis\"}[5m])), 1)", "legendFormat": "{{instance}}", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "Evicted / Rejected (이상 신호)",
+      "description": "evicted_keys(메모리 부족 축출) · rejected_connections(maxclients 초과) — 0이 정상",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 22},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "increase(redis_evicted_keys_total{job=\"infra-redis\"}[5m])", "legendFormat": "evicted {{instance}}", "refId": "A"},
+        {"expr": "increase(redis_rejected_connections_total{job=\"infra-redis\"}[5m])", "legendFormat": "rejected {{instance}}", "refId": "B"}
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["opener", "redis", "cluster"],
+  "templating": {
+    "list": [
+      {"name": "DS_PROMETHEUS", "type": "datasource", "query": "prometheus", "current": {"selected": true, "text": "Prometheus", "value": "Prometheus"}}
+    ]
+  },
+  "time": {"from": "now-1h", "to": "now"},
+  "timezone": "browser",
+  "title": "Opener — Redis (Auth + Chat Cluster)",
+  "uid": "opener-redis",
+  "version": 1
+}

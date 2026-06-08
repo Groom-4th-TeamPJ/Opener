@@ -18,3 +18,37 @@ scrape_configs:
         labels:
           env: "test"
           service: "backend"
+
+  # RabbitMQ (저장 파이프라인 / DLQ 관측)
+  # /metrics/per-object 로 큐별 메트릭(rabbitmq_queue_messages_ready{queue=...}) 노출 — Save Queue Depth/DLQ 패널용
+  - job_name: "infra-rabbitmq"
+    metrics_path: /metrics/per-object
+    static_configs:
+      - targets: ["rabbitmq:15692"]
+        labels:
+          env: "test"
+          service: "rabbitmq"
+
+  # Redis (Auth standalone + Chat Cluster 6노드) — redis_exporter 멀티타깃
+  # Prometheus 가 redis-exporter:9121/scrape?target=redis://<node> 로 노드별 수집
+  - job_name: "infra-redis"
+    metrics_path: /scrape
+    static_configs:
+      - targets:
+          - redis://redis-auth:6379
+          - redis://redis-chat-1:6380
+          - redis://redis-chat-2:6381
+          - redis://redis-chat-3:6382
+          - redis://redis-chat-4:6383
+          - redis://redis-chat-5:6384
+          - redis://redis-chat-6:6385
+        labels:
+          env: "test"
+          service: "redis"
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: redis-exporter:9121

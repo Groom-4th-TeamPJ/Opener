@@ -24,12 +24,15 @@ import spring.backend.domain.chat.service.spec.ChatService;
 import spring.backend.domain.chat.service.spec.QuestionNewService;
 import spring.backend.shared.infrastructure.security.dto.AuthUser;
 
+// @RestController -> 반환값을 JSON 본문으로 직렬화, View 없이 API 응답에 특화
+// @RequestMapping("/chat") -> 채팅 엔드포인트 공통 prefix 한 곳에서 관리
 @RestController
 @RequestMapping("/chat")
 @RequiredArgsConstructor
 @Tag(name = "\uD83D\uDCAC Chat", description = "AI 채팅 / 분석")
 public class ChatController {
 
+    // 인터페이스 타입으로 주입 -> 컨트롤러는 구현 세부사항 모르게 하여 결합도 낮춤
     private final ChatService chatService;
     private final QuestionNewService questionNewService;
 
@@ -39,12 +42,15 @@ public class ChatController {
             description = "특정 채팅 세션에 대해 서버-발송 이벤트(SSE) 연결을 설정합니다.\n" +
                     "- 클라이언트는 이 엔드포인트에 연결하여 서버로부터 실시간 메시지를 수신할 수 있습니다."
     )
+    // produces=TEXT_EVENT_STREAM -> 응답을 끊지 않고 SSE 스트림으로 유지, 서버 푸시 가능
+    // 반환 타입 Flux -> 논블로킹으로 청크를 흘려보내 스레드 점유 없이 다수 동시 연결 처리
     @GetMapping(
             value = "/connect",
             produces = MediaType.TEXT_EVENT_STREAM_VALUE
     )
     public Flux<ServerSentEvent<String>> connectSession(
             @RequestParam Long sessionId,
+            // @AuthenticationPrincipal -> 토큰에서 검증된 사용자 주입, 클라이언트 전달 id 위변조 차단
             @AuthenticationPrincipal AuthUser authUser) {
 
         return chatService.connectSession(sessionId, authUser.id());
@@ -56,6 +62,7 @@ public class ChatController {
                     "- 서버는 이 메시지를 처리하고 응답을 생성합니다."
     )
     // 메시지 전송 (사용자 → 서버) POST /api/chat/message
+    // 본문 없이 200 만 반환 -> 실제 LLM 응답은 SSE 스트림으로 가므로 HTTP 응답은 접수 확인만
     @PostMapping("/message")
     public ResponseEntity<Void> sendMessage(
             @RequestBody ChatSendRequest req,
@@ -70,7 +77,7 @@ public class ChatController {
             summary = "채팅 메시지 저장",
             description = "채팅 내역을 서버에 저장합니다."
     )
-    // 대화 저장 (Redis → PostgreSQL) POST /api/chat/conversations/{sessionId}/save
+    // 대화 저장 (Redis → PostgreSQL) -> 휘발성 버퍼 내용을 사용자가 원하는 시점에 영구 보관
     @PostMapping("/save-message")
     public ResponseEntity<Void> saveConversation(
             @RequestBody ChatSaveRequest req,

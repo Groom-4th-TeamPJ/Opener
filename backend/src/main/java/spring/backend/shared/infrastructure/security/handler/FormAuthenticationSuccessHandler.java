@@ -34,6 +34,7 @@ public class FormAuthenticationSuccessHandler implements AuthenticationSuccessHa
           JwtUtil jwtUtil,
           CredentialRepository credentialRepository,
           ObjectMapper objectMapper,
+          // @Qualifier -> @Primary 인증 Redis 를 명시 주입, RefreshToken 캐시 전용 격리
           @Qualifier("authRedisTemplate") StringRedisTemplate redisTemplate
   ) {
     this.jwtUtil = jwtUtil;
@@ -42,6 +43,7 @@ public class FormAuthenticationSuccessHandler implements AuthenticationSuccessHa
     this.redisTemplate = redisTemplate;
   }
 
+  // @Transactional -> 로그인 성공 부수효과(lastLoginAt 갱신·실패 카운트 리셋)를 한 단위로 커밋
   @Override
   @Transactional
   public void onAuthenticationSuccess(
@@ -59,8 +61,7 @@ public class FormAuthenticationSuccessHandler implements AuthenticationSuccessHa
             .findUserCredentialByEmail(email)
             .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
 
-    // 로그인 성공 처리: lastLoginAt 업데이트 + 실패 카운트 리셋
-    // Transactional이라 save() 안해도 영속성 컨텍스트가 자동저장
+    // save() 호출 없음 -> 트랜잭션 안 영속 엔티티는 더티체킹으로 자동 UPDATE, 명시 저장 불필요
     credentials.recordLoginSuccess();
 
     // 조회한 credentials로 user 조회
@@ -84,7 +85,8 @@ public class FormAuthenticationSuccessHandler implements AuthenticationSuccessHa
     response.setCharacterEncoding("UTF-8");
     objectMapper.writeValue(response.getWriter(), apiResponse);
 
-    // Auth Redis에 refresh Token 캐싱
+    // 발급과 동시에 Redis 저장 -> 이후 재발급 때 이 값과 대조해 탈취/구버전 RefreshToken 차단
+    // TTL 7일 = RefreshToken 수명 -> 만료 토큰이 메모리에 남지 않고 자동 정리
     String redisKey = "refreshToken:" + user.getId();
     redisTemplate.opsForValue().set(redisKey, refreshToken, 7, TimeUnit.DAYS);
   }

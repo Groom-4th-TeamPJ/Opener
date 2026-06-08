@@ -9,6 +9,7 @@ import spring.backend.domain.chat.dto.redis_dto.RedisMessageDto;
 import spring.backend.domain.chat.dto.request.ChatSendRequest;
 import spring.backend.domain.chat.model.entity.ChatMessageContent;
 
+// 변환 책임을 매퍼로 분리 -> 서비스가 DTO↔엔티티 변환 코드로 오염되지 않게 함
 @Component
 public class RedisMessageMapper {
 

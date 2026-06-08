@@ -30,6 +30,11 @@ public class GlobalResponse implements ResponseBodyAdvice<Object> {
             return false;
         }
 
+        // String 반환은 StringHttpMessageConverter가 선택되므로 객체로 감싸면 ClassCastException 발생 -> 제외
+        if (String.class.isAssignableFrom(returnType.getParameterType())) {
+            return false;
+        }
+
         // Spring Boot Actuator 관련 응답은 래핑하지 않음
         String cls = returnType.getContainingClass().getName();
         if (cls.startsWith("org.springframework.boot.actuate") ||
@@ -63,6 +68,12 @@ public class GlobalResponse implements ResponseBodyAdvice<Object> {
 
         // 이미 ApiResponseFormat이면 그대로 반환 (이중 검증)
         if (body instanceof ApiResponseFormat) {
+            return body;
+        }
+
+        // String 본문은 StringHttpMessageConverter가 처리하므로 감싸지 않음 (ResponseEntity<String> 포함)
+        // supports()의 getParameterType()은 ResponseEntity를 unwrap하지 않아 여기서 실제 body 타입으로 차단
+        if (body instanceof String) {
             return body;
         }
 

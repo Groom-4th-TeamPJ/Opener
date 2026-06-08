@@ -1,5 +1,6 @@
 package spring.backend.domain.chat.statemachine;
 
+// 상태를 바꾸는 트리거를 enum 으로 분리 -> 상태 전이 규칙을 이벤트 기준으로 한 곳에서 선언 가능
 public enum ChatSessionEvent {
     CONNECT_SUCCESS,   // SSE 연결 성공
     CONNECT_FAIL,      // SSE 연결 실패

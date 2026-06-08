@@ -33,6 +33,32 @@ public class ThreadPoolTestController {
     }
 
     /**
+     * 동기 점유 부하 — @Async 없이 요청 스레드가 직접 슬립 VT on/off + Tomcat 스레드 풀 크기에 따라 동시 처리량이 어떻게 달라지는지 A/B 측정용
+     *
+     * @param seconds 요청 스레드 점유 시간(초), 기본값 2
+     */
+    @PostMapping("/load-sync")
+    public ResponseEntity<Void> triggerLoadSync(
+            @RequestParam(defaultValue = "2") int seconds) {
+        threadPoolTestService.holdThreadSync(seconds);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * 가상 장애 주입 — 외부 호출 없이 서킷브레이커 fast-fail 측정용 fail=true + delayMs 지연으로 느린 실패를 만들면 실패율 임계치 초과 시 서킷 OPEN,
+     * 이후 호출은 fallback 으로 즉시 차단됨
+     *
+     * @param fail 예외 발생 여부, 기본 true
+     * @param delayMs 응답 전 지연(ms), 기본 3000
+     */
+    @PostMapping("/circuit")
+    public ResponseEntity<String> circuit(
+            @RequestParam(defaultValue = "true") boolean fail,
+            @RequestParam(defaultValue = "3000") long delayMs) {
+        return ResponseEntity.ok(threadPoolTestService.unstableCall(fail, delayMs));
+    }
+
+    /**
      * Redis 커넥션 풀 부하 테스트 Auth Redis + Chat Redis에 SET/GET/DELETE 반복
      *
      * @param ops 반복 횟수, 기본값 10

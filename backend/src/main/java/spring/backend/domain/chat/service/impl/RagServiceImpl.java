@@ -2,6 +2,7 @@ package spring.backend.domain.chat.service.impl;
 
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.util.List;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,7 @@ import spring.backend.domain.chat.service.spec.RagService;
 import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
 
+// @ConditionalOnProperty -> RAG 비활성 환경에선 이 빈 자체를 안 만들어 VectorStore 미존재 시 부팅 실패 방지
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -32,13 +34,17 @@ public class RagServiceImpl implements RagService {
     private final VectorStore vectorStore;
     private final ChatClient.Builder chatClientBuilder;
     private final spring.backend.domain.chat.util.PromptLoader promptLoader;
+    private final MeterRegistry meterRegistry;
 
+    // @Value 외부화 -> 검색 개수/임계값을 코드 수정·재배포 없이 yml 로 튜닝
     @Value("${app.rag.top-k:5}")
     private int topK;
 
+    // 임계값 -> 무관한 문서가 프롬프트에 섞여 답변 품질을 떨어뜨리는 것 차단
     @Value("${app.rag.similarity-threshold:0.7}")
     private double similarityThreshold;
 
+    // @CircuitBreaker -> OpenAI 장애·지연이 길어지면 즉시 실패시켜, SSE 스레드가 응답 대기에 묶이는 연쇄 지연 차단
     @Override
     @CircuitBreaker(name = "llm-rag", fallbackMethod = "generateSimilarProblemStreamFallback")
     public Flux<String> generateSimilarProblemStream(String problemContext) {
@@ -50,7 +56,9 @@ public class RagServiceImpl implements RagService {
                 .similarityThreshold(similarityThreshold)
                 .build();
 
-        List<Document> similarDocuments = vectorStore.similaritySearch(searchRequest);
+        // 벡터 검색 소요를 Timer 로 계측 (rag.vector.search) -> 대시보드 p95 패널
+        List<Document> similarDocuments = meterRegistry.timer("rag.vector.search")
+                .record(() -> vectorStore.similaritySearch(searchRequest));
 
         log.info("[RAG] 유사 문서 검색 완료 - 검색된 문서 수: {} (threshold: {})",
                 similarDocuments.size(), similarityThreshold);
@@ -74,7 +82,7 @@ public class RagServiceImpl implements RagService {
             log.warn("[RAG] 유사 문서를 찾지 못했습니다. 일반 LLM 응답으로 진행합니다.");
         }
 
-        // 프롬프트 구성
+        // 검색 결과 유무로 프롬프트 분기 -> 자료 없을 때 빈 컨텍스트로 환각 유도하지 않고 일반 분석으로 폴백
         String prompt = !retrievedContext.isEmpty()
                 ? promptLoader.buildRagOpenerAnalysisPrompt(retrievedContext, problemContext)
                 : promptLoader.buildNoRagOpenerAnalysisPrompt(problemContext);
@@ -116,6 +124,7 @@ public class RagServiceImpl implements RagService {
         }
     }
 
+    // fallback 2개로 오버로드 -> Circuit OPEN(차단)과 일반 호출 실패를 다른 에러코드로 구분 응답
     @SuppressWarnings("unused")
     private Flux<String> generateSimilarProblemStreamFallback(String problemContext,
                                                               CallNotPermittedException ex) {

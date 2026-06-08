@@ -14,9 +14,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+// 채팅 영속화를 비동기 큐로 분리 -> DB 저장 지연이 사용자 응답(SSE)을 막지 않게 함
 @Configuration
 public class RabbitMQConfig {
 
+    // 프로필 주입 -> dev 에서만 리스너 수동 시작하기 위해 런타임 환경 판별
     @Value("${spring.profiles.active:prod}")
     private String activeProfile;
 
@@ -32,8 +34,8 @@ public class RabbitMQConfig {
     public static final String CHAT_MESSAGE_SAVE_ROUTING_KEY = "chat.message.save";
     public static final String CHAT_MESSAGE_DLQ_ROUTING_KEY = "chat.message.save.dlq";
 
-    // 채팅 메시지 저장 큐 선언 durable=true: 서버 재시작시에도 큐 유지(영속성)
-    // DLX(Dead Letter Exchange) 설정: 메시지 처리 실패 시 DLQ로 라우팅
+    // durable=true -> 브로커 재시작에도 큐와 메시지 유지, 저장 이벤트 유실 방지
+    // DLX 연결 -> 처리 실패 메시지를 버리지 않고 DLQ 로 보내 추후 재처리/분석 가능
     @Bean
     public Queue chatMessageSaveQueue() {
         return org.springframework.amqp.core.QueueBuilder
@@ -49,7 +51,7 @@ public class RabbitMQConfig {
         return new Queue(CHAT_MESSAGE_DLQ, true);
     }
 
-    // Direct Exchange 선언 Direct Exchange: Routing Key가 정확히 일치하는 큐로만 메시지 전송
+    // Direct Exchange -> 라우팅 키 정확 일치 큐로만 전송, 단순 1:1 라우팅에 가장 가볍고 명확
     @Bean
     public DirectExchange chatExchange() {
         return new DirectExchange(CHAT_MESSAGE_EXCHANGE);
@@ -79,7 +81,7 @@ public class RabbitMQConfig {
                 .with(CHAT_MESSAGE_DLQ_ROUTING_KEY);
     }
 
-    // 메시지 컨버터 - JSON 직렬화/역직렬화 Java 객체 <-> JSON 자동 변환
+    // JSON 컨버터 -> 언어/버전 독립 포맷으로 전송, 자바 기본 직렬화 의존성 문제 회피
     @Bean
     public MessageConverter jsonMessageConverter() {
         return new JacksonJsonMessageConverter();
@@ -101,10 +103,10 @@ public class RabbitMQConfig {
         factory.setConnectionFactory(connectionFactory);
         factory.setMessageConverter(jsonMessageConverter());
 
-        // 재시도 실패 시 메시지를 DLQ로 보냄 (reject하여 Dead Letter Exchange로 라우팅)
-        factory.setDefaultRequeueRejected(false); // reject된 메시지를 다시 큐에 넣지 않음
+        // requeue=false -> 실패 메시지를 같은 큐에 재투입하지 않음, 무한 재시도 루프 차단하고 DLQ 로 보냄
+        factory.setDefaultRequeueRejected(false);
 
-        // 개발 환경에서는 자동 시작 안 함 (DevQueueCleaner가 큐 정리 후 수동 시작)
+        // dev 는 자동 시작 끔 -> DevQueueCleaner 가 옛 메시지 비운 뒤 수동 시작해야 깨끗한 상태 보장
         if ("dev".equals(activeProfile)) {
             factory.setAutoStartup(false);
         }

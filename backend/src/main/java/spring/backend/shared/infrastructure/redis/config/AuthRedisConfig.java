@@ -14,6 +14,7 @@ import org.springframework.data.redis.connection.lettuce.LettucePoolingClientCon
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
+// 인증 토큰 전용 standalone Redis -> 채팅 클러스터와 분리해 장애 영향 격리
 @Configuration
 public class AuthRedisConfig {
 
@@ -26,18 +27,20 @@ public class AuthRedisConfig {
   @Value("${spring.data.redis.auth.timeout:3000ms}")
   private Duration timeout;
 
+  // @Primary -> Redis 빈이 둘이라 기본 주입 대상을 인증용으로 지정, chat 은 @Qualifier 로 명시 선택
   @Primary
   @Bean
   public RedisConnectionFactory authRedisConnectionFactory() {
     RedisStandaloneConfiguration config =
             new RedisStandaloneConfiguration(redisHost, redisPort);
 
+    // 커넥션 풀 -> 토큰 검증이 매 요청 발생하므로 연결 재사용으로 지연 최소화
     @SuppressWarnings("rawtypes")
     GenericObjectPoolConfig poolConfig = new GenericObjectPoolConfig();
     poolConfig.setMaxTotal(20);
     poolConfig.setMaxIdle(10);
     poolConfig.setMinIdle(5);
-    poolConfig.setTestOnBorrow(true);
+    poolConfig.setTestOnBorrow(true);                               // 빌릴 때 검증 -> 끊긴 커넥션 사용 차단
 
     LettucePoolingClientConfiguration clientConfig = LettucePoolingClientConfiguration.builder()
             .poolConfig(poolConfig)

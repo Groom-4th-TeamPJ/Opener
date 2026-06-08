@@ -1,0 +1,105 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Active SSE Connections",
+      "description": "현재 활성 SSE 연결 수 (ChatServiceImpl sinks 게이지) — 헤드라인 동시성 지표",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "chat_sse_active_connections{job=\"app-backend\"}", "legendFormat": "active connections", "refId": "A"}
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "SSE Connections (now)",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "chat_sse_active_connections{job=\"app-backend\"}", "refId": "A"}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode": "absolute", "steps": [
+            {"value": null, "color": "green"},
+            {"value": 500, "color": "yellow"},
+            {"value": 1000, "color": "red"}
+          ]}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Save Queue Depth (ready / unacked)",
+      "description": "chat.message.save.queue — ready 가 계속 쌓이면 Consumer 처리 지연(consumer lag)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "rabbitmq_queue_messages_ready{queue=\"chat.message.save.queue\"}", "legendFormat": "ready", "refId": "A"},
+        {"expr": "rabbitmq_queue_messages_unacked{queue=\"chat.message.save.queue\"}", "legendFormat": "unacked", "refId": "B"},
+        {"expr": "rabbitmq_queue_consumers{queue=\"chat.message.save.queue\"}", "legendFormat": "consumers", "refId": "C"}
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "DLQ Depth (실패 격리 메시지)",
+      "description": "chat.message.save.dlq — 0 이 정상, 0보다 크면 저장 실패가 발생해 격리된 것",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "rabbitmq_queue_messages_ready{queue=\"chat.message.save.dlq\"}", "refId": "A"}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode": "absolute", "steps": [
+            {"value": null, "color": "green"},
+            {"value": 1, "color": "red"}
+          ]}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Chat Endpoint Latency p95 (SSE 경로)",
+      "description": "/chat/* URI 의 p95 — 첫 토큰 체감(TTFB)과 분리해 해석",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum by (le, uri) (rate(http_server_requests_seconds_bucket{job=\"app-backend\", uri=~\"/chat.*\"}[5m])))", "legendFormat": "{{uri}} p95", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "Save Pipeline Throughput (msg/s)",
+      "description": "received(발행) vs delivered(컨슈머 전달) vs acknowledged(처리완료) 비율 — 적체/처리 균형 확인",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 24},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "rate(rabbitmq_global_messages_received_total[1m])", "legendFormat": "received", "refId": "A"},
+        {"expr": "rate(rabbitmq_global_messages_delivered_total[1m])", "legendFormat": "delivered", "refId": "B"},
+        {"expr": "rate(rabbitmq_global_messages_acknowledged_total[1m])", "legendFormat": "acknowledged", "refId": "C"},
+        {"expr": "rate(rabbitmq_global_messages_redelivered_total[1m])", "legendFormat": "redelivered", "refId": "D"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []}
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["opener", "chat", "sse", "rabbitmq"],
+  "templating": {
+    "list": [
+      {"name": "DS_PROMETHEUS", "type": "datasource", "query": "prometheus", "current": {"selected": true, "text": "Prometheus", "value": "Prometheus"}}
+    ]
+  },
+  "time": {"from": "now-1h", "to": "now"},
+  "timezone": "browser",
+  "title": "Opener — Chat Pipeline (SSE + RabbitMQ)",
+  "uid": "opener-chat-pipeline",
+  "version": 1
+}

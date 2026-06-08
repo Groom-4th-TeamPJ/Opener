@@ -18,11 +18,14 @@ import spring.backend.domain.chat.service.spec.ChatRedisService;
  * Spring AI의 ChatMemory 인터페이스를 구현하는 어댑터
  * 기존 ChatRedisService를 래핑하여 Spring AI의 멀티턴 대화 기능 제공
  */
+// 어댑터 패턴 -> Spring AI 의 ChatMemory 규격에 우리 Redis 저장소를 끼워 맞춰
+// LLM 호출 시 멀티턴 히스토리가 자동으로 주입되게 함 (Redis 코드 수정 없이 연동)
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class RedisChatMemoryAdapter implements ChatMemory {
 
+    // 기존 서비스 재사용 -> 저장 로직을 중복 구현하지 않고 위임만 함
     private final ChatRedisService chatRedisService;
 
     @Override
@@ -41,6 +44,7 @@ public class RedisChatMemoryAdapter implements ChatMemory {
             log.debug("[ChatMemory] 메시지 저장 완료 - conversationId: {}, 메시지 수: {}",
                     conversationId, messages.size());
 
+        // 저장 실패해도 예외 전파 안 함 -> 히스토리 누락이 LLM 응답 자체를 막지 않도록 함
         } catch (NumberFormatException e) {
             log.error("[ChatMemory] 잘못된 conversationId 형식 - conversationId: {}", conversationId, e);
         } catch (Exception e) {

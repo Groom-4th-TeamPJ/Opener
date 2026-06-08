@@ -2,6 +2,8 @@ package spring.backend.domain.chat.service.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -51,10 +53,12 @@ import spring.backend.domain.user.repository.spec.UserRepository;
 import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
 
+// 인터페이스 구현체에만 @Service -> spec 은 추상, 구현 교체/테스트 대역 주입이 쉬워짐
 @Slf4j
 @Service
 public class ChatServiceImpl implements ChatService {
 
+    // 모든 의존성 final + 생성자 주입 -> 불변 보장, 외부에서 교체 불가하여 안전하게 사용
     private final ChatRedisService chatRedisService;
     private final LlmService llmService;
     private final RagService ragService;
@@ -70,8 +74,10 @@ public class ChatServiceImpl implements ChatService {
     private final CanService canService;
     private final ChatSessionStateMachineService stateMachineService;
     private final TransactionTemplate transactionTemplate;
+    private final MeterRegistry meterRegistry;
 
-    // SSE 연결 관리 (sessionId → Sink) — Sink에 emit하면 구독 중인 Flux로 SSE 전송
+    // 활성 SSE 연결을 메모리에 보관 -> 메시지 도착 시 해당 세션 Sink 로 즉시 푸시 가능
+    // ConcurrentHashMap -> 동시 연결/해제가 같은 Map 을 건드려도 락 없이 스레드 안전
     private final ConcurrentHashMap<Long, Sinks.Many<ServerSentEvent<String>>> sinks = new ConcurrentHashMap<>();
 
     public ChatServiceImpl(
@@ -83,13 +89,17 @@ public class ChatServiceImpl implements ChatService {
             RedisMessageMapper redisMessageMapper,
             ChatMessageRepository chatMessageRepository,
             ChatMessageProducer chatMessageProducer,
+            // @Qualifier -> Redis 빈이 둘이므로 채팅 클러스터 템플릿을 명시 선택
             @Qualifier("chatRedisTemplate") StringRedisTemplate redisTemplate,
             JpaQuestionRepository questionRepository,
             QuestionResultRepository questionResultRepository,
             ExamResultRepository examResultRepository,
             CanService canService,
             ChatSessionStateMachineService stateMachineService,
-            PlatformTransactionManager transactionManager
+            // 매니저만 주입받아 직접 TransactionTemplate 구성 -> 리액티브 콜백 안에서 트랜잭션 범위를 수동 제어
+            PlatformTransactionManager transactionManager,
+            // 모니터링용 -> 활성 SSE 연결 수를 Prometheus 게이지로 노출
+            MeterRegistry meterRegistry
     ) {
         this.chatRedisService = chatRedisService;
         this.llmService = llmService;
@@ -106,6 +116,12 @@ public class ChatServiceImpl implements ChatService {
         this.canService = canService;
         this.stateMachineService = stateMachineService;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.meterRegistry = meterRegistry;
+
+        // 활성 SSE 연결 수 게이지 등록 -> 헤드라인 지표(동시 연결)를 Grafana 에서 실시간 관측
+        Gauge.builder("chat.sse.active.connections", sinks, java.util.Map::size)
+                .description("현재 활성 SSE 연결 수")
+                .register(meterRegistry);
     }
 
     @Override
@@ -113,7 +129,7 @@ public class ChatServiceImpl implements ChatService {
 
         log.info("[SSE] 연결 요청 시작 - sessionId: {}, userId: {}", sessionId, userId);
 
-        // 기존 Sink가 있으면 재사용 (재연결)
+        // 기존 Sink 재사용 -> 네트워크 끊김 후 재연결 시 진행 중이던 대화 스트림을 잃지 않게 함
         Sinks.Many<ServerSentEvent<String>> existingSink = sinks.get(sessionId);
         if (existingSink != null) {
             log.info("[SSE] 기존 연결 재사용 - sessionId: {}, userId: {}, 현재 활성 연결 수: {}",
@@ -142,10 +158,10 @@ public class ChatServiceImpl implements ChatService {
             stateMachineService.getOrCreateMachine(sessionId);
             stateMachineService.sendEvent(sessionId, ChatSessionEvent.CONNECT_SUCCESS);
 
-            // Sink 생성 — multicast + backpressure buffer
+            // multicast -> 같은 세션 다중 구독 허용, onBackpressureBuffer -> 클라이언트가 느려도 청크 버퍼링해 유실 방지
             Sinks.Many<ServerSentEvent<String>> sink = Sinks.many().multicast().onBackpressureBuffer();
 
-            // 모든 인프라 준비 완료 후 Sink를 Map에 등록
+            // 인프라(Redis·StateMachine) 준비 완료 후 마지막에 등록 -> 절반만 준비된 세션에 메시지 유입 방지
             sinks.put(sessionId, sink);
 
             log.debug("[SSE] Sink 저장 완료 - sessionId: {}", sessionId);
@@ -156,7 +172,7 @@ public class ChatServiceImpl implements ChatService {
             log.info("[SSE] 새 연결 성공 - sessionId: {}, userId: {}, userName: {}, 현재 활성 연결 수: {}",
                     sessionId, userId, user.getName(), sinks.size());
 
-            // Flux 반환 — 클라이언트 연결 해제 시 자동 정리
+            // doOnCancel 로 정리 -> 클라이언트가 끊으면 Sink/StateMachine 을 비워 메모리 누수 방지
             return sink.asFlux()
                     .doOnCancel(() -> {
                         sinks.remove(sessionId);
@@ -174,6 +190,7 @@ public class ChatServiceImpl implements ChatService {
         }
     }
 
+    // @Transactional -> 세션 종료에 동반되는 DB 변경을 원자적으로 묶음
     @Override
     @Transactional
     public void disconnectSession(Long sessionId, UUID userId) {
@@ -241,13 +258,17 @@ public class ChatServiceImpl implements ChatService {
         // LLM 응답 수집용
         StringBuilder llmResponseBuilder = new StringBuilder();
         AtomicBoolean streamStarted = new AtomicBoolean(false);
+        long ttftStartNanos = System.nanoTime();   // 첫 토큰 지연(TTFT) 측정 시작점
 
-        // LLM Flux를 non-blocking subscribe
+        // non-blocking subscribe -> 요청 스레드를 붙잡지 않고 청크가 올 때마다 콜백 실행, 동시성 확보
         llmService.chatStream(sessionId.toString(), userMessage)
                 .doOnNext(chunk -> {
-                    // 첫 청크 → STREAM_START 상태 전이
+                    // compareAndSet -> 첫 청크에서만 STREAM_START 를 한 번 보내도록 원자적 보장
                     if (streamStarted.compareAndSet(false, true)) {
                         stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_START);
+                        // 첫 토큰까지 시간(TTFT) 계측 -> 대시보드 첫 토큰 지연 패널
+                        meterRegistry.timer("chat.sse.ttft")
+                                .record(System.nanoTime() - ttftStartNanos, java.util.concurrent.TimeUnit.NANOSECONDS);
                     }
 
                     // SSE 청크 전송
@@ -290,7 +311,7 @@ public class ChatServiceImpl implements ChatService {
         // 권한 검증
         chatRedisService.validateSessionOwner(sessionId, userId);
 
-        // RabbitMQ를 통해 메시지 저장 이벤트 발행
+        // 직접 저장 대신 이벤트 발행 -> DB 저장을 비동기로 넘겨 사용자 응답을 지연 없이 반환
         chatMessageProducer.publishSaveMessageEvent(sessionId, userId, questionResultId);
 
         log.info("[Chat] 대화 저장 이벤트 발행 완료 - sessionId: {}", sessionId);
@@ -318,7 +339,7 @@ public class ChatServiceImpl implements ChatService {
             throw new BusinessException(ErrorCode.SESSION_EXPIRED);
         }
 
-        // Can 차감 시도 — 실패 시 SSE 에러 전송 후 조기 반환
+        // 스트리밍 시작 전 Can 선차감 -> 비용 검증 실패를 빨리 끊어 무의미한 LLM 호출 방지
         try {
             canService.useUserCan(userId, 1);
         } catch (BusinessException e) {
@@ -369,7 +390,7 @@ public class ChatServiceImpl implements ChatService {
                     // SSE 완료 이벤트
                     emitComplete(sessionId);
 
-                    // QuestionResult, ExamResult 업데이트 (별도 트랜잭션)
+                    // 별도 트랜잭션 -> 콜백은 요청 스레드 밖에서 실행되어 @Transactional 이 안 먹으므로 수동으로 경계 지정
                     transactionTemplate.executeWithoutResult(status -> {
                         QuestionResult questionResult = questionResultRepository.findById(questionResultId)
                                 .orElseThrow(() -> new BusinessException(ErrorCode.QUESTION_RESULT_NOT_FOUND));
@@ -399,6 +420,7 @@ public class ChatServiceImpl implements ChatService {
                                 ErrorCode.INTERNAL_SERVER_ERROR.getCode());
                     }
                     stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_ERROR);
+                    // 실패 시 Can 복구 -> 응답을 못 받았는데 비용만 차감되는 불공정 방지
                     canService.recoverUserCan(userId, 1);
                 })
                 .subscribe();
@@ -501,6 +523,7 @@ public class ChatServiceImpl implements ChatService {
         return context.toString();
     }
 
+    // readOnly=true -> 쓰기 없는 조회임을 명시, 더티체킹/플러시 생략으로 성능 이점
     @Override
     @Transactional(readOnly = true)
     public ChatHistoryResponse getChatHistoryByQuestionResultId(Long questionResultId) {
@@ -532,7 +555,7 @@ public class ChatServiceImpl implements ChatService {
                 .build();
     }
 
-    // SSE Heartbeat — 30초마다 모든 활성 연결에 ping 전송
+    // @Scheduled 주기 ping -> 유휴 연결이 프록시/방화벽에 끊기는 것 방지 + 죽은 연결 조기 감지/정리
     @Scheduled(fixedRate = 30000)
     public void sendHeartbeat() {
         if (sinks.isEmpty()) {

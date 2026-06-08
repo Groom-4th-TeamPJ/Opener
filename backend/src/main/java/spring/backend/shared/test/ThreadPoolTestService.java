@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -43,6 +44,41 @@ public class ThreadPoolTestService {
             Thread.currentThread().interrupt();
         }
         log.debug("[k6-vt] {} — 슬립 종료", Thread.currentThread().getName());
+    }
+
+    /**
+     * 요청(호출) 스레드를 동기로 점유 — @Async 없음 holdThread 와 달리 호출 스레드가 직접 슬립하므로 VT off + Tomcat 스레드 풀 고정 시 요청 스레드
+     * 고갈을 재현하고, VT on 시에는 연결당 스레드 점유가 사라지는 차이를 A/B 로 비교
+     */
+    public void holdThreadSync(int durationSeconds) {
+        log.debug("[k6-sync] {} — {}초 동기 슬립", Thread.currentThread().getName(), durationSeconds);
+        try {
+            Thread.sleep(durationSeconds * 1000L);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
+     * 가상 외부 의존성 호출 — 외부 네트워크 없이 서킷브레이커 동작을 재현 delayMs 만큼 지연 후 fail=true 면 예외 발생 (느린 실패). 실패율이 임계치를 넘으면 서킷이
+     * OPEN 되어 이후 호출은 fallback 으로 즉시 차단(fast-fail)
+     */
+    @CircuitBreaker(name = "test-circuit", fallbackMethod = "unstableFallback")
+    public String unstableCall(boolean fail, long delayMs) {
+        try {
+            Thread.sleep(delayMs);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        if (fail) {
+            throw new RuntimeException("simulated external failure");
+        }
+        return "ok";
+    }
+
+    // 서킷 OPEN 시 CallNotPermittedException 등으로 진입 — 지연 없이 즉시 반환(fast-fail)
+    public String unstableFallback(boolean fail, long delayMs, Throwable t) {
+        return "fallback:" + t.getClass().getSimpleName();
     }
 
     /**
@@ -92,8 +128,6 @@ public class ThreadPoolTestService {
         return elapsed;
     }
 
-    // TODO : combinedStress 구현 (이건 테스트 시나리오 복잡할 것 같아 추후 구체적으로 작성하기로..)
-
     /**
      * DB + Redis 복합 부하 테스트 실제 채팅 서비스 패턴 모사: Redis 세션 조회 → DB 쿼리 → Redis 결과 저장
      *
@@ -101,6 +135,38 @@ public class ThreadPoolTestService {
      * @return 결과 Map (dbElapsed, redisElapsed, totalElapsed)
      */
     public Map<String, Long> combinedStress(int ops) {
-        return Map.of();
+        long start = System.currentTimeMillis();
+        long redisElapsed = 0L;
+        long dbElapsed = 0L;
+        // Hash Tag 으로 같은 슬롯 보장 -> Cluster 멀티키 CROSSSLOT 회피
+        String keyPrefix = "combined-test:{stress}:" + Thread.currentThread().getName() + ":";
+
+        for (int i = 0; i < ops; i++) {
+            String key = keyPrefix + i;
+
+            // 1단계 Redis 세션 조회 모사
+            long r1 = System.currentTimeMillis();
+            chatRedisTemplate.opsForValue().set(key, "session" + i);
+            chatRedisTemplate.opsForValue().get(key);
+            redisElapsed += System.currentTimeMillis() - r1;
+
+            // 2단계 DB 쿼리 모사 -> HikariCP 커넥션 점유
+            long d1 = System.currentTimeMillis();
+            jdbcTemplate.queryForObject("SELECT 1", Integer.class);
+            dbElapsed += System.currentTimeMillis() - d1;
+
+            // 3단계 Redis 결과 저장 모사
+            long r2 = System.currentTimeMillis();
+            chatRedisTemplate.opsForValue().set(key, "result" + i);
+            chatRedisTemplate.delete(key);
+            redisElapsed += System.currentTimeMillis() - r2;
+        }
+
+        long total = System.currentTimeMillis() - start;
+        return Map.of(
+                "dbElapsed", dbElapsed,
+                "redisElapsed", redisElapsed,
+                "totalElapsed", total
+        );
     }
 }

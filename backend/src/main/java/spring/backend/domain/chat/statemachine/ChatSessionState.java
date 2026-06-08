@@ -1,5 +1,6 @@
 package spring.backend.domain.chat.statemachine;
 
+// 채팅 세션의 가능한 상태를 enum 으로 고정 -> 문자열/boolean 플래그 난립 막고 잘못된 전이를 컴파일 단위로 차단
 public enum ChatSessionState {
     IDLE,        // 초기 상태 (연결 전)
     CONNECTED,   // SSE 연결 완료, 메시지 대기 중

@@ -17,13 +17,15 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
-@Profile("dev") // 개발 환경에서만 활성화
+// @Profile("dev") -> 개발 환경에서만 빈 등록, 운영 데이터가 삭제되는 사고 원천 차단
+@Profile("dev")
 @RequiredArgsConstructor
 public class DevQueueCleaner {
 
     private final RabbitAdmin rabbitAdmin;
     private final RabbitListenerEndpointRegistry rabbitListenerEndpointRegistry;
 
+    // ApplicationReadyEvent 시점 -> 빈 초기화 완전히 끝난 뒤 실행, 큐 정리 중 메시지 소비 충돌 방지
     @EventListener(ApplicationReadyEvent.class)
     public void clearQueuesOnStartup() {
         log.info("=== [DEV] 개발 환경 감지: RabbitMQ 큐 정리 시작 ===");

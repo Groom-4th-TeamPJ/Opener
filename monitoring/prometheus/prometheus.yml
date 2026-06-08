@@ -45,3 +45,12 @@ scrape_configs:
           env: "prod"
           service: "nginx"
 
+  # 6) INFRA (RabbitMQ) — 저장 파이프라인 / DLQ
+  # rabbitmq_prometheus 플러그인이 :15692 로 메트릭 노출
+  - job_name: "infra-rabbitmq"
+    static_configs:
+      - targets: ["rabbitmq:15692"]
+        labels:
+          env: "prod"
+          service: "rabbitmq"
+

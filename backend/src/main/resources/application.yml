@@ -4,7 +4,7 @@ spring:
 
   threads:
     virtual:
-      enabled: true # Virtual Thread 활성화 (Java 21+, Spring Boot 3.2+)
+      enabled: ${SPRING_THREADS_VIRTUAL_ENABLED:true} # Virtual Thread 활성화 (env로 토글, 기본 true)
 
   config:
     import: "optional:env[.env]" # spring-dotenv: .env 파일 로드 (없어도 무시)
@@ -28,6 +28,10 @@ management:
         http:server.requests: 0.95,0.99
       percentiles-histogram:
         http.server.requests: true
+        jvm.gc.pause: true                  # GC Pause p95 패널용 히스토그램
+        hikaricp.connections.acquire: true  # HikariCP 획득 대기 p95 패널용 히스토그램
+        rag.vector.search: true             # RAG 벡터 검색 p95 패널용 히스토그램
+        chat.sse.ttft: true                 # SSE 첫 토큰(TTFT) p95 패널용 히스토그램
     tags:
       application: ${spring.application.name:backend}
   endpoints:
@@ -57,6 +61,9 @@ server:
     context-path: /api
   # 프록시(nginx) 뒤에서 X-Forwarded-* 헤더 신뢰
   forward-headers-strategy: framework
+  tomcat:
+    mbeanregistry:
+      enabled: true # tomcat_threads_* 메트릭 노출 (요청 스레드 풀 busy/current/max 관측)
 
 # 보안 설정
 security:
@@ -107,4 +114,13 @@ resilience4j:
         failureRateThreshold: 60
         waitDurationInOpenState: 10s
         permittedNumberOfCallsInHalfOpenState: 5
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+      test-circuit:                         # 가상 장애 주입 측정용 (llm-chat 과 동일 정책)
+        registerHealthIndicator: true
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        permittedNumberOfCallsInHalfOpenState: 3
         automaticTransitionFromOpenToHalfOpenEnabled: true

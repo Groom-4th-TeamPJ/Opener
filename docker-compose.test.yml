@@ -205,6 +205,7 @@ services:
     ports:
       - "5672:5672"   # AMQP protocol
       - "15672:15672" # Management UI
+      - "15692:15692" # Prometheus metrics (rabbitmq_prometheus)
       - "61613:61613" # STOMP port
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
@@ -218,7 +219,7 @@ services:
     restart: unless-stopped
     command: >
       sh -c "
-        rabbitmq-plugins enable rabbitmq_stomp rabbitmq_web_stomp &&
+        rabbitmq-plugins enable rabbitmq_stomp rabbitmq_web_stomp rabbitmq_prometheus &&
         rabbitmq-server
       "
 
@@ -241,6 +242,9 @@ services:
     networks:
       - test-network
     restart: unless-stopped
+    # 부하테스트/모니터링엔 불필요 → web 프로파일 지정 시에만 기동
+    profiles:
+      - web
 
   # Nginx Reverse Proxy
   nginx:
@@ -259,6 +263,9 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
+    # frontend upstream에 의존 → web 프로파일에서만 기동
+    profiles:
+      - web
 
   # ============================================
   # k6 부하 테스트 (profile: k6)
@@ -277,13 +284,18 @@ services:
       - TEST_EMAIL=test@test.com
       - TEST_PASSWORD=password123
       - HOLD_SECONDS=8
+      # k6 메트릭(VU·요청수·지연)을 Prometheus로 직접 전송 → Grafana 부하 대시보드에 표시
+      # monitoring 프로파일이 함께 떠 있어야 prometheus가 수집 가능
+      - K6_PROMETHEUS_RW_SERVER_URL=http://prometheus:9090/api/v1/write
+      - K6_PROMETHEUS_RW_TREND_STATS=p(95),p(99),avg,max
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
       - test-network
     profiles:
       - k6
-    command: run --summary-trend-stats "avg,min,med,max,p(90),p(95),p(99)" /scripts/03_thread_exhaustion.js
+    # -o experimental-prometheus-rw: k6 결과를 Prometheus remote write로 송출
+    command: run -o experimental-prometheus-rw --summary-trend-stats "avg,min,med,max,p(90),p(95),p(99)" /scripts/03_thread_exhaustion.js
 
   # ============================================
   # 모니터링 (profile: monitoring)
@@ -378,6 +390,24 @@ services:
       - prometheus
       - grafana-db
       - loki
+    networks:
+      - test-network
+    profiles:
+      - monitoring
+    restart: unless-stopped
+
+  # ============================================
+  # Redis Exporter (profile: monitoring)
+  # ============================================
+  # 멀티타깃 모드: Prometheus 가 /scrape?target=redis://<node> 로 각 노드 지표 수집
+  # 대상: Auth(redis-auth:6379) + Chat Cluster 6노드(redis-chat-1~6: 6380~6385)
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: redis-exporter-test
+    command:
+      - "--include-system-metrics"
+    ports:
+      - "9121:9121"
     networks:
       - test-network
     profiles:

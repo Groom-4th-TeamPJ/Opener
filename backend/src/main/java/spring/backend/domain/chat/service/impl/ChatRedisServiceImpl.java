@@ -27,12 +27,12 @@ import spring.backend.shared.response.exception.BusinessException;
 @Service
 public class ChatRedisServiceImpl implements ChatRedisService {
 
-    // Hash Tag를 사용한 키 패턴 (같은 슬롯에 배치)
-    // {sessionId}가 해시 태그로 작동하여 같은 노드에 저장됨
+    // {sessionId} 중괄호 = Redis Hash Tag -> 한 세션의 session/messages 키가 같은 슬롯에 모여
+    // 클러스터에서도 멀티키 연산이 CROSSSLOT 오류 없이 동작
     private static final String SESSION_KEY_FORMAT = "chat:{%d}:session";
     private static final String MESSAGE_KEY_FORMAT = "chat:{%d}:messages";
 
-    // 채팅 세션 TTL: 1시간 (SSE 타임아웃과 동일, 메시지 송수신 시 자동 갱신)
+    // TTL 1시간 -> 버려진 세션이 메모리에 영원히 남지 않게 자동 만료, SSE 타임아웃과 동일하게 맞춤
     private static final Duration SESSION_TTL = Duration.ofHours(1);
 
     private final ObjectMapper objectMapper;
@@ -40,6 +40,7 @@ public class ChatRedisServiceImpl implements ChatRedisService {
 
     public ChatRedisServiceImpl(
             ObjectMapper objectMapper,
+            // @Qualifier -> @Primary 인 Auth Redis 가 아닌 chat 클러스터 템플릿을 명시적으로 주입
             @Qualifier("chatRedisTemplate") StringRedisTemplate redisTemplate
     ) {
         this.objectMapper = objectMapper;
@@ -66,7 +67,7 @@ public class ChatRedisServiceImpl implements ChatRedisService {
     public void initializeSession(Long sessionId, UUID userId) {
         String sessionKey = getSessionKey(sessionId);
 
-        // 중복 초기화 방지
+        // 존재 확인 후 생성 -> 재연결 시 기존 세션 메타데이터/TTL 을 덮어쓰지 않도록 보호
         Boolean sessionExists = redisTemplate.hasKey(sessionKey);
 
         if (Boolean.TRUE.equals(sessionExists)) {
@@ -93,6 +94,7 @@ public class ChatRedisServiceImpl implements ChatRedisService {
         }
     }
 
+    // @CircuitBreaker -> Redis 장애가 길어지면 호출을 즉시 차단, 스레드가 타임아웃 대기에 묶여 전체 지연되는 것 방지
     @Override
     @CircuitBreaker(name = "redis-chat", fallbackMethod = "saveMessageFallback")
     public void saveMessage(Long sessionId, RedisMessageDto message) {
@@ -103,7 +105,7 @@ public class ChatRedisServiceImpl implements ChatRedisService {
             // 메시지를 JSON 문자열로 변환
             String json = objectMapper.writeValueAsString(message);
 
-            // Redis List에 메시지 추가 (순서 보장)
+            // List 자료구조 + rightPush -> 대화는 시간 순서가 핵심이라 append 로 순서 보존
             redisTemplate.opsForList().rightPush(messageKey, json);
 
             // TTL 설정 및 검증
@@ -112,7 +114,7 @@ public class ChatRedisServiceImpl implements ChatRedisService {
                 log.warn("Failed to set TTL for messages: {}", sessionId);
             }
 
-            // 세션 키의 TTL도 갱신 (메시지 저장 시 세션도 연장)
+            // 메시지마다 세션 TTL 갱신 -> 대화 중인 활성 세션이 중간에 만료되는 것 방지
             redisTemplate.expire(sessionKey, SESSION_TTL);
 
             log.debug("Message saved: sessionId={}, role={}", sessionId, message.chatRole());
@@ -194,6 +196,7 @@ public class ChatRedisServiceImpl implements ChatRedisService {
      * @param userId    사용자 ID
      * @throws BusinessException 권한이 없거나 세션이 존재하지 않는 경우
      */
+    // 소유자 검증 -> sessionId 만 알면 남의 대화 접근 가능하므로 Redis 저장 userId 와 대조해 차단
     @Override
     @CircuitBreaker(name = "redis-chat", fallbackMethod = "validateSessionOwnerFallback")
     public void validateSessionOwner(Long sessionId, UUID userId) {
@@ -224,6 +227,7 @@ public class ChatRedisServiceImpl implements ChatRedisService {
         }
     }
 
+    // fallback 2개로 분리 -> Circuit OPEN(차단 상태)과 일반 I/O 실패를 다른 에러코드로 구분 응답
     // Circuit OPEN 상태 — Redis 장애 지속 중이므로 즉시 차단
     @SuppressWarnings("unused")
     private void saveMessageFallback(Long sessionId, RedisMessageDto message, CallNotPermittedException ex) {

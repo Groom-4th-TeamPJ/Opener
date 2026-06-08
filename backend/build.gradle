@@ -81,12 +81,14 @@ dependencies {
 
     // Resilience4j Circuit Breaker
     implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
+    implementation 'io.github.resilience4j:resilience4j-micrometer:2.2.0' // 서킷 메트릭(resilience4j_circuitbreaker_*) Prometheus 노출
 
     // Observability - Structured Logging & Tracing
     // - logstash-logback-encoder: JSON 로그 포맷 (Loki ingest 호환)
     // - micrometer-tracing-bridge-otel: Micrometer → OpenTelemetry traceId/spanId MDC 자동 주입
     implementation 'net.logstash.logback:logstash-logback-encoder:7.4'
     implementation 'io.micrometer:micrometer-tracing-bridge-otel'
+    implementation 'com.github.loki4j:loki-logback-appender:1.5.2' // 호스트 실행 백엔드 로그를 Loki 로 직접 push
 
     // Monitoring
     runtimeOnly 'io.micrometer:micrometer-registry-prometheus'

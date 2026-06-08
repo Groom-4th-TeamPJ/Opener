@@ -25,12 +25,15 @@ import spring.backend.shared.response.exception.BusinessException;
 @RequiredArgsConstructor
 public class ChatMessageConsumer {
 
+    // 모든 협력 객체를 final 로 주입 -> 불변 의존성 + 외부 재할당 차단으로 안전하게 사용
     private final ChatRedisService chatRedisService;
     private final RedisMessageMapper redisMessageMapper;
     private final ChatMessageRepository chatMessageRepository;
     private final QuestionResultRepository questionResultRepository;
     private final LlmService llmService;
 
+    // @RabbitListener -> 큐 메시지를 자동 수신, 폴링 코드 없이 이벤트 도착 시 호출
+    // @Transactional -> 요약/저장/Redis 삭제를 한 트랜잭션으로 묶어 부분 저장 방지
     @RabbitListener(queues = RabbitMQConfig.CHAT_MESSAGE_SAVE_QUEUE)
     @Transactional
     public void handleSaveMessageEvent(ChatMessageSaveEvent event) {
@@ -44,10 +47,9 @@ public class ChatMessageConsumer {
             // Redis에서 세션 메시지 조회
             List<RedisMessageDto> redisMessages = chatRedisService.getSessionMessages(sessionId);
 
-            // 메시지가 없으면 이미 만료된 세션 (TTL 5분)
+            // 메시지 없음 = TTL 만료된 정상 상황 -> 예외 던지면 DLQ 로 가므로, 정상 ACK 처리해 큐에서 제거
             if (redisMessages == null || redisMessages.isEmpty()) {
                 log.warn("[RabbitMQ] Redis 세션 만료 또는 메시지 없음 - sessionId: {}. 메시지 무시", sessionId);
-                // 예외를 던지지 않고 정상 처리로 간주 (메시지 ACK하여 큐에서 제거)
                 return;
             }
 
@@ -84,16 +86,18 @@ public class ChatMessageConsumer {
             log.info("[RabbitMQ] 채팅 메시지 저장 완료 - sessionId: {}, 메시지 수: {}",
                     sessionId, messageContents.size());
 
-            // redis에서 기존 채팅 이력 삭제
+            // DB 영속화 성공 후 Redis 정리 -> 버퍼는 임시 저장소이므로 영구 저장 완료 시점에 비움
             chatRedisService.deleteMessage(sessionId);
 
         } catch (BusinessException e) {
             log.error("[RabbitMQ] 비즈니스 예외 발생 - sessionId: {}, errorCode: {}, message: {}",
                     sessionId, e.getErrorCode(), e.getMessage());
+            // 예외를 다시 던짐 -> 트랜잭션 롤백 + 메시지 DLQ 라우팅으로 유실 없이 추적
             throw e;
 
         } catch (Exception e) {
             log.error("[RabbitMQ] 예기치 않은 예외 발생 - sessionId: {}", sessionId, e);
+            // 알 수 없는 예외도 BusinessException 으로 감싸 일관된 처리 경로 유지
             throw new BusinessException(ErrorCode.MESSAGE_INPUT_FAIL);
         }
     }
