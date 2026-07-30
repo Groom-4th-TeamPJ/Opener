@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import spring.backend.domain.chat.dto.redis_dto.RedisMessageDto;
@@ -38,13 +39,18 @@ public class ChatRedisServiceImpl implements ChatRedisService {
     private final ObjectMapper objectMapper;
     private final StringRedisTemplate redisTemplate;
 
+    // LLM 컨텍스트로 넘길 최근 메시지 개수 -> 하드코딩하면 모델/비용 정책이 바뀔 때 재배포가 필요하므로 설정값으로 분리
+    private final int historyWindow;
+
     public ChatRedisServiceImpl(
             ObjectMapper objectMapper,
             // @Qualifier -> @Primary 인 Auth Redis 가 아닌 chat 클러스터 템플릿을 명시적으로 주입
-            @Qualifier("chatRedisTemplate") StringRedisTemplate redisTemplate
+            @Qualifier("chatRedisTemplate") StringRedisTemplate redisTemplate,
+            @Value("${app.chat.history-window:20}") int historyWindow
     ) {
         this.objectMapper = objectMapper;
         this.redisTemplate = redisTemplate;
+        this.historyWindow = historyWindow;
     }
 
     /**
@@ -71,6 +77,16 @@ public class ChatRedisServiceImpl implements ChatRedisService {
         Boolean sessionExists = redisTemplate.hasKey(sessionKey);
 
         if (Boolean.TRUE.equals(sessionExists)) {
+            // 기존 키 재사용 전 소유자 대조 -> 검증 없이 return 하면 TTL 이 남은 남의 세션에 그대로 올라타게 됨
+            // 호출부 분기가 아니라 여기서 막는 이유 -> 분기가 늘어도 방어선이 새지 않음
+            String storedUserId = (String) redisTemplate.opsForHash().get(sessionKey, "userId");
+
+            if (storedUserId == null || !storedUserId.equals(userId.toString())) {
+                log.warn("[Redis Cluster] 세션 재사용 거부 - 소유자 불일치 - sessionId: {}, storedUserId: {}, requestUserId: {}",
+                        sessionId, storedUserId, userId);
+                throw new BusinessException(ErrorCode.INVALID_SESSION);
+            }
+
             log.debug("Session already exists: {}", sessionId);
             return;
         }
@@ -125,15 +141,30 @@ public class ChatRedisServiceImpl implements ChatRedisService {
         }
     }
 
+    // 영속화 경로 전용 -> 대화가 잘리면 DB 에 반쪽 기록이 남으므로 전량 반환 유지
     @Override
     public List<RedisMessageDto> getSessionMessages(Long sessionId) {
+        return fetchMessages(sessionId, 0, -1);
+    }
+
+    // LLM 컨텍스트 전용 -> 턴이 쌓일수록 프롬프트가 선형 증가해 비용·TTFT 가 나빠지므로 최근 N 개로 상한
+    @Override
+    public List<RedisMessageDto> getRecentSessionMessages(Long sessionId) {
+        // 음수 인덱스 = 뒤에서부터 -> 저장 개수가 N 보다 적어도 Redis 가 있는 만큼만 반환해 별도 길이 체크 불필요
+        // 설정값이 0 이하면 윈도우 비활성으로 보고 전체 반환
+        long start = historyWindow > 0 ? -historyWindow : 0;
+        return fetchMessages(sessionId, start, -1);
+    }
+
+    // 조회 범위만 다르고 역직렬화/예외 처리는 동일 -> 중복 대신 범위를 인자로 받아 한 곳에서 처리
+    private List<RedisMessageDto> fetchMessages(Long sessionId, long start, long end) {
         String messageKey = getMessageKey(sessionId);
 
         try {
-            log.debug("[Redis Cluster] 세션 메시지 조회 시작 - sessionId: {}, key: {}", sessionId, messageKey);
+            log.debug("[Redis Cluster] 세션 메시지 조회 시작 - sessionId: {}, key: {}, range: [{}, {}]",
+                    sessionId, messageKey, start, end);
 
-            // Redis List에서 모든 메시지 조회 (0부터 -1까지 = 전체)
-            List<String> jsonMessages = redisTemplate.opsForList().range(messageKey, 0, -1);
+            List<String> jsonMessages = redisTemplate.opsForList().range(messageKey, start, end);
 
             if (jsonMessages == null || jsonMessages.isEmpty()) {
                 log.debug("[Redis Cluster] 세션 메시지 없음 - sessionId: {}", sessionId);

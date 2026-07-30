@@ -112,6 +112,24 @@ public class ChatStateMachineConfig
                 .event(ChatSessionEvent.SEND_MESSAGE)
                 .and()
 
+                // STREAM_ERROR → PROCESSING (실패 후 재시도)
+                // 에러 상태에서 나가는 길이 CLOSE→IDLE 뿐이면 SSE 는 살아있는데 재전송만 막힌다
+                // IDLE 은 SEND_MESSAGE 를 받지 않으므로 사용자가 재연결해야만 대화를 이어갈 수 있음
+                // LLM 일시 실패는 세션을 끝낼 사유가 아니므로 같은 연결에서 재시도를 허용
+                .withExternal()
+                .source(ChatSessionState.STREAM_ERROR)
+                .target(ChatSessionState.PROCESSING)
+                .event(ChatSessionEvent.SEND_MESSAGE)
+                .and()
+
+                // PROCESSING_ERROR → PROCESSING (실패 후 재시도)
+                // 첫 청크도 못 받고 끝난 경우 -> 빈 응답·서킷 OPEN 등이 여기로 오는데 역시 재시도 가능해야 함
+                .withExternal()
+                .source(ChatSessionState.PROCESSING_ERROR)
+                .target(ChatSessionState.PROCESSING)
+                .event(ChatSessionEvent.SEND_MESSAGE)
+                .and()
+
                 // CONNECTED → IDLE (세션 종료)
                 .withExternal()
                 .source(ChatSessionState.CONNECTED)

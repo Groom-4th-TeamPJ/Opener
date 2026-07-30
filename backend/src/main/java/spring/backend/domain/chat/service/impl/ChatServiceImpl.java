@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
+import reactor.core.scheduler.Schedulers;
 import spring.backend.domain.can.service.spec.CanService;
 import spring.backend.domain.chat.dto.enums.ChatRole;
 import spring.backend.domain.chat.dto.redis_dto.RedisMessageDto;
@@ -156,7 +157,10 @@ public class ChatServiceImpl implements ChatService {
 
             // State Machine: 연결 성공 상태 전이 (IDLE → CONNECTED)
             stateMachineService.getOrCreateMachine(sessionId);
-            stateMachineService.sendEvent(sessionId, ChatSessionEvent.CONNECT_SUCCESS);
+            if (!stateMachineService.sendEvent(sessionId, ChatSessionEvent.CONNECT_SUCCESS)) {
+                log.warn("[SSE] CONNECT_SUCCESS 전이 거부 - sessionId: {}, 현재 상태: {}",
+                        sessionId, stateMachineService.getCurrentState(sessionId));
+            }
 
             // multicast -> 같은 세션 다중 구독 허용, onBackpressureBuffer -> 클라이언트가 느려도 청크 버퍼링해 유실 방지
             Sinks.Many<ServerSentEvent<String>> sink = Sinks.many().multicast().onBackpressureBuffer();
@@ -181,6 +185,13 @@ public class ChatServiceImpl implements ChatService {
                                 sessionId, sinks.size());
                     });
 
+        // BusinessException 은 그대로 통과 -> 소유자 불일치(INVALID_SESSION)가 SESSION_INITIALIZE_FAIL 로 뭉개지면
+        // 클라이언트도 로그도 인증 거부인지 인프라 장애인지 구분할 수 없음
+        // 정리(remove) 도 하지 않음 -> 거부된 연결이 정상 소유자의 Sink/StateMachine 을 지우면 그 자체가 공격 수단
+        } catch (BusinessException e) {
+            log.warn("[SSE] 연결 거부 - sessionId: {}, userId: {}, errorCode: {}",
+                    sessionId, userId, e.getErrorCode().getCode());
+            throw e;
         } catch (Exception e) {
             sinks.remove(sessionId);
             stateMachineService.removeMachine(sessionId);
@@ -211,7 +222,10 @@ public class ChatServiceImpl implements ChatService {
             chatRedisService.deleteSession(sessionId);
 
             // State Machine: 세션 종료 (→ IDLE) + 제거
-            stateMachineService.sendEvent(sessionId, ChatSessionEvent.CLOSE);
+            if (!stateMachineService.sendEvent(sessionId, ChatSessionEvent.CLOSE)) {
+                log.warn("[SSE] CLOSE 전이 거부 - sessionId: {}, 현재 상태: {}",
+                        sessionId, stateMachineService.getCurrentState(sessionId));
+            }
             stateMachineService.removeMachine(sessionId);
 
             log.info("[SSE] 세션 해제 완료 - sessionId: {}, userId: {}, 남은 연결 수: {}",
@@ -262,10 +276,22 @@ public class ChatServiceImpl implements ChatService {
 
         // non-blocking subscribe -> 요청 스레드를 붙잡지 않고 청크가 올 때마다 콜백 실행, 동시성 확보
         llmService.chatStream(sessionId.toString(), userMessage)
+                // publishOn -> 이후 콜백을 boundedElastic 으로 옮김
+                // 콜백 안에 Redis 저장·blockLast 상태 전이 같은 블로킹이 있어 OpenAI 응답을 읽는 이벤트 루프에서 실행되면
+                // 그 루프가 담당하는 다른 커넥션까지 함께 멈춤
+                .publishOn(Schedulers.boundedElastic())
                 .doOnNext(chunk -> {
                     // compareAndSet -> 첫 청크에서만 STREAM_START 를 한 번 보내도록 원자적 보장
                     if (streamStarted.compareAndSet(false, true)) {
-                        stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_START);
+                        // 첫 청크에서만 스레드명 기록 -> 오프로딩이 실제로 걸렸는지 확인할 실측 근거
+                        // 매 청크마다 찍으면 로그가 토큰 수만큼 늘어남
+                        log.debug("[Chat] 스트림 콜백 스레드 - sessionId: {}, thread: {}",
+                                sessionId, Thread.currentThread().getName());
+
+                        if (!stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_START)) {
+                            log.warn("[Chat] STREAM_START 전이 거부 - sessionId: {}, 현재 상태: {}",
+                                    sessionId, stateMachineService.getCurrentState(sessionId));
+                        }
                         // 첫 토큰까지 시간(TTFT) 계측 -> 대시보드 첫 토큰 지연 패널
                         meterRegistry.timer("chat.sse.ttft")
                                 .record(System.nanoTime() - ttftStartNanos, java.util.concurrent.TimeUnit.NANOSECONDS);
@@ -278,6 +304,20 @@ public class ChatServiceImpl implements ChatService {
                     llmResponseBuilder.append(chunk);
                 })
                 .doOnComplete(() -> {
+                    // 청크가 0개면 STREAM_START 가 발화되지 않아 상태는 아직 PROCESSING
+                    // 여기서 STREAM_COMPLETE 를 보내면 거부되고 세션이 PROCESSING 에 고착 -> 다음 요청이 SESSION_EXPIRED 로 막힘
+                    if (!streamStarted.get()) {
+                        log.warn("[Chat] 빈 응답 스트림 - sessionId: {}, 상태 회수를 위해 STREAM_ERROR 전이", sessionId);
+                        emitError(sessionId,
+                                ErrorCode.LLM_RESPONSE_FAIL.getMessage(),
+                                ErrorCode.LLM_RESPONSE_FAIL.getCode());
+                        if (!stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_ERROR)) {
+                            log.warn("[Chat] STREAM_ERROR 전이 거부 - sessionId: {}, 현재 상태: {}",
+                                    sessionId, stateMachineService.getCurrentState(sessionId));
+                        }
+                        return;
+                    }
+
                     // 완전한 LLM 응답을 Redis에 저장
                     String fullLlmResponse = llmResponseBuilder.toString();
                     RedisMessageDto llmRedisMessageDto = redisMessageMapper.toDtoLlm(fullLlmResponse);
@@ -287,12 +327,18 @@ public class ChatServiceImpl implements ChatService {
                     emitComplete(sessionId);
 
                     // State Machine: STREAM_COMPLETE (STREAMING → COMPLETED)
-                    stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_COMPLETE);
+                    if (!stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_COMPLETE)) {
+                        log.warn("[Chat] STREAM_COMPLETE 전이 거부 - sessionId: {}, 현재 상태: {}",
+                                sessionId, stateMachineService.getCurrentState(sessionId));
+                    }
                 })
                 .doOnError(error -> {
                     log.error("[Chat] 메시지 처리 중 예외 발생 - sessionId: {}", sessionId, error);
                     emitError(sessionId, error.getMessage(), null);
-                    stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_ERROR);
+                    if (!stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_ERROR)) {
+                        log.warn("[Chat] STREAM_ERROR 전이 거부 - sessionId: {}, 현재 상태: {}",
+                                sessionId, stateMachineService.getCurrentState(sessionId));
+                    }
                 })
                 .subscribe();
     }
@@ -369,10 +415,20 @@ public class ChatServiceImpl implements ChatService {
 
         // RAG Flux를 non-blocking subscribe
         ragService.generateSimilarProblemStream(problemContext)
+                // publishOn -> 이후 콜백을 boundedElastic 으로 옮김
+                // 여기 doOnComplete 는 JDBC 트랜잭션까지 돌리므로 이벤트 루프에서 실행되면 영향이 가장 큼
+                .publishOn(Schedulers.boundedElastic())
                 .doOnNext(chunk -> {
                     // 첫 청크 → STREAM_START 상태 전이
                     if (ragStreamStarted.compareAndSet(false, true)) {
-                        stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_START);
+                        // 첫 청크에서만 스레드명 기록 -> 오프로딩 실측 근거
+                        log.debug("[OpenerAnalysis] 스트림 콜백 스레드 - sessionId: {}, thread: {}",
+                                sessionId, Thread.currentThread().getName());
+
+                        if (!stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_START)) {
+                            log.warn("[OpenerAnalysis] STREAM_START 전이 거부 - sessionId: {}, 현재 상태: {}",
+                                    sessionId, stateMachineService.getCurrentState(sessionId));
+                        }
                     }
 
                     // SSE 청크 전송
@@ -382,6 +438,21 @@ public class ChatServiceImpl implements ChatService {
                     ragResponseBuilder.append(chunk);
                 })
                 .doOnComplete(() -> {
+                    // 청크가 0개면 STREAM_START 미발화 -> STREAM_COMPLETE 가 거부되어 PROCESSING 고착
+                    // 결과물이 없으므로 markOpener 도 남기지 않고 선차감한 Can 을 되돌림
+                    if (!ragStreamStarted.get()) {
+                        log.warn("[OpenerAnalysis] 빈 응답 스트림 - sessionId: {}, 상태 회수 + Can 복구", sessionId);
+                        emitError(sessionId,
+                                ErrorCode.LLM_RESPONSE_FAIL.getMessage(),
+                                ErrorCode.LLM_RESPONSE_FAIL.getCode());
+                        if (!stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_ERROR)) {
+                            log.warn("[OpenerAnalysis] STREAM_ERROR 전이 거부 - sessionId: {}, 현재 상태: {}",
+                                    sessionId, stateMachineService.getCurrentState(sessionId));
+                        }
+                        canService.recoverUserCan(userId, 1);
+                        return;
+                    }
+
                     // 완전한 RAG 응답을 Redis에 저장
                     String fullRagResponse = ragResponseBuilder.toString();
                     RedisMessageDto ragRedisMessageDto = redisMessageMapper.toDtoLlm(fullRagResponse);
@@ -405,7 +476,10 @@ public class ChatServiceImpl implements ChatService {
                     });
 
                     // State Machine: STREAM_COMPLETE (STREAMING → COMPLETED)
-                    stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_COMPLETE);
+                    if (!stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_COMPLETE)) {
+                        log.warn("[OpenerAnalysis] STREAM_COMPLETE 전이 거부 - sessionId: {}, 현재 상태: {}",
+                                sessionId, stateMachineService.getCurrentState(sessionId));
+                    }
                 })
                 .doOnError(error -> {
                     if (error instanceof BusinessException be) {
@@ -419,7 +493,10 @@ public class ChatServiceImpl implements ChatService {
                                 ErrorCode.INTERNAL_SERVER_ERROR.getMessage(),
                                 ErrorCode.INTERNAL_SERVER_ERROR.getCode());
                     }
-                    stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_ERROR);
+                    if (!stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_ERROR)) {
+                        log.warn("[OpenerAnalysis] STREAM_ERROR 전이 거부 - sessionId: {}, 현재 상태: {}",
+                                sessionId, stateMachineService.getCurrentState(sessionId));
+                    }
                     // 실패 시 Can 복구 -> 응답을 못 받았는데 비용만 차감되는 불공정 방지
                     canService.recoverUserCan(userId, 1);
                 })

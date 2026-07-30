@@ -12,8 +12,11 @@ public interface ChatRedisService {
     // 메시지 저장
     void saveMessage(Long sessionId, RedisMessageDto message);
 
-    // 세션의 모든 메시지 조회
+    // 세션의 모든 메시지 조회 (영속화용 — 전량)
     List<RedisMessageDto> getSessionMessages(Long sessionId);
+
+    // 세션의 최근 메시지 조회 (LLM 컨텍스트용 — 윈도우 적용)
+    List<RedisMessageDto> getRecentSessionMessages(Long sessionId);
 
     // 세션 삭제
     void deleteSession(Long sessionId);

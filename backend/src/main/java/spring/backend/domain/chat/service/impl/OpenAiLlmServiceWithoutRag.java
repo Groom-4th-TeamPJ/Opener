@@ -5,12 +5,12 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
+import spring.backend.domain.chat.service.spec.ChatHistoryProvider;
 import spring.backend.domain.chat.service.spec.LlmService;
 import spring.backend.domain.chat.util.PromptLoader;
 import spring.backend.shared.response.codes.ErrorCode;
@@ -31,7 +31,8 @@ import spring.backend.shared.response.exception.BusinessException;
 public class OpenAiLlmServiceWithoutRag implements LlmService {
 
     private final ChatClient.Builder chatClientBuilder;
-    private final ChatMemory chatMemory; // Spring AI ChatMemory 인터페이스 사용
+    // 대화 이력 조회 -> 프롬프트용(getRecentHistory)과 요약용(getFullHistory)을 메서드로 구분
+    private final ChatHistoryProvider chatHistoryProvider;
     private final PromptLoader promptLoader;
 
     @Value("${spring.ai.openai.api-key:}")
@@ -61,7 +62,7 @@ public class OpenAiLlmServiceWithoutRag implements LlmService {
 
     @Override
     public Flux<String> chatStream(String sessionId, String userMessage) {
-        List<Message> chatHistory = chatMemory.get(sessionId);
+        List<Message> chatHistory = chatHistoryProvider.getRecentHistory(sessionId);
 
         log.debug("[LLM-NoRAG] 대화 히스토리 조회 완료 - sessionId: {}, 메시지 수: {}",
                 sessionId, chatHistory.size());
@@ -87,8 +88,8 @@ public class OpenAiLlmServiceWithoutRag implements LlmService {
     @Override
     public String summaryChat(String sessionId) {
         try {
-            // Spring AI ChatMemory를 통해 대화 히스토리 가져오기
-            List<Message> chatHistory = chatMemory.get(sessionId);
+            // 윈도우 미적용 전량 조회 -> 이 요약은 PostgreSQL 에 영구 저장되므로 최근 N 턴만 보면 기록이 영구 손실
+            List<Message> chatHistory = chatHistoryProvider.getFullHistory(sessionId);
 
             log.debug("[LLM-NoRAG] 대화 요약 시작 - sessionId: {}, 메시지 수: {}",
                     sessionId, chatHistory.size());
