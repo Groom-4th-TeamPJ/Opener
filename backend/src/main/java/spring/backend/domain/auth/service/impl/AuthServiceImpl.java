@@ -1,6 +1,8 @@
 package spring.backend.domain.auth.service.impl;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.transaction.Transactional;
@@ -126,7 +128,16 @@ public class AuthServiceImpl implements AuthService {
 
         String bearerToken = jwtUtil.extractAccessTokenFromRequest(req);
 
-        Claims claim = jwtUtil.validateToken(bearerToken);
+        Claims claim = parseForLogout(bearerToken);
+
+        // 토큰 없음/위조 -> 이미 로그아웃된 상태로 보고 쿠키만 정리 (멱등성)
+        // 로그아웃은 "세션이 없는 상태"를 만드는 요청이라, 이미 그 상태면 목적이 달성된 것이므로 오류가 아님
+        // 예외를 던지면 500 과 함께 라이브러리 내부 메시지가 응답에 노출되고, 클라이언트는 재시도할 방법도 없음
+        if (claim == null) {
+            jwtUtil.clearAllTokenCookies(res);
+            log.info("[Auth] 로그아웃 - 유효한 accessToken 없음, 쿠키만 정리");
+            return;
+        }
 
         // 남은 만료시간만큼만 TTL 부여 -> JWT 는 서버가 강제 폐기 못 하므로, 토큰 수명까지만 차단하면 충분
         long ttl = Math.max(
@@ -134,20 +145,49 @@ public class AuthServiceImpl implements AuthService {
                 0
         );
 
-        // 블랙리스트 등록 -> stateless JWT 의 약점(로그아웃 후에도 토큰 유효) 보완, 필터에서 이 키 조회로 차단
-        // TTL 자동 만료 -> 만료된 토큰 키가 Redis 에 영원히 쌓이지 않음
-        redisTemplate.opsForValue()
-                .set(
-                        "blacklist:access:" + claim.getId(), // jti(토큰 고유 id) 기준 -> 동일 사용자 다른 토큰은 영향 없음
-                        "logout",
-                        ttl,
-                        TimeUnit.SECONDS
-                );
+        // 이미 만료된 토큰은 등록 생략 -> 필터가 서명 검증 단계에서 거르므로 불필요하고, TTL 0 은 Redis 에서 에러
+        if (ttl > 0) {
+            // 블랙리스트 등록 -> stateless JWT 의 약점(로그아웃 후에도 토큰 유효) 보완, 필터에서 이 키 조회로 차단
+            // TTL 자동 만료 -> 만료된 토큰 키가 Redis 에 영원히 쌓이지 않음
+            redisTemplate.opsForValue()
+                    .set(
+                            "blacklist:access:" + claim.getId(), // jti(토큰 고유 id) 기준 -> 동일 사용자 다른 토큰은 영향 없음
+                            "logout",
+                            ttl,
+                            TimeUnit.SECONDS
+                    );
+        }
+
+        // 서버 보관 RefreshToken 삭제 -> 이게 없으면 남은 refreshToken 쿠키로 새 accessToken 을 계속 재발급받을 수 있음
+        // access 블랙리스트만으로는 재발급 경로가 열려 있어 로그아웃이 사실상 무효
+        redisTemplate.delete("refreshToken:" + claim.getSubject());
 
         // httpOnly 쿠키 삭제 (accessToken, refreshToken)
         jwtUtil.clearAllTokenCookies(res);
 
-        log.info("[Auth] 로그아웃 완료 - userId: {}, 토큰 블랙리스트 등록 및 쿠키 삭제", claim.getSubject());
+        log.info("[Auth] 로그아웃 완료 - userId: {}, 토큰 블랙리스트 등록 및 RefreshToken 폐기", claim.getSubject());
+    }
+
+    // 로그아웃 전용 토큰 파싱 -> 실패를 예외가 아닌 null 로 돌려 정상 흐름에서 처리
+    private Claims parseForLogout(String token) {
+
+        if (token == null || token.isBlank()) {
+            return null;
+        }
+
+        try {
+            return jwtUtil.validateToken(token);
+
+        } catch (ExpiredJwtException e) {
+            // 만료 토큰도 payload 는 서명이 검증된 값 -> userId 를 꺼내 RefreshToken 폐기까지 마무리
+            // 여기서 null 로 처리하면 만료 직후 로그아웃한 사용자의 refreshToken 이 최대 7일간 살아남음
+            return e.getClaims();
+
+        } catch (JwtException | IllegalArgumentException e) {
+            // 서명 불일치/형식 오류 -> 우리가 발급한 토큰이 아니므로 폐기할 대상도 없음, 원인만 남기고 진행
+            log.info("[Auth] 로그아웃 - 토큰 검증 실패({})", e.getClass().getSimpleName());
+            return null;
+        }
     }
 
     @Override
