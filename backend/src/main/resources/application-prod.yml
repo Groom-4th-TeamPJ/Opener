@@ -41,25 +41,25 @@ spring:
           max-idle: 10
           min-idle: 5
 
-  # 프로덕션 로깅
-  # pattern/rolling/file 설정은 logback-spring.xml(prod profile)에서 관리
-  # (JSON 구조화 로그 + requestId/traceId MDC + 10MB rolling)
-  logging:
-    level:
-      root: WARN
-      spring.backend: INFO
-      org.springframework.security: WARN
-      org.flywaydb: INFO
+# 프로덕션 로깅
+# pattern/rolling/file 설정은 logback-spring.xml(prod profile)에서 관리
+# (JSON 구조화 로그 + requestId/traceId MDC + 10MB rolling)
+logging:
+  level:
+    root: WARN
+    spring.backend: INFO
+    org.springframework.security: WARN
+    org.flywaydb: INFO
 
-  # Actuator 보안 설정
-  management:
-    endpoints:
-      web:
-        exposure:
-          include: health,info,metrics,prometheus
-    endpoint:
-      health:
-        show-details: never # 상세 정보 숨김
+# Actuator 보안 설정
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: never # 상세 정보 숨김
 
 app:
   cors:

@@ -20,6 +20,11 @@ spring:
         format_sql: true # SQL 포맷팅
         highlight_sql: true # SQL 하이라이트
 
+  # SSE 및 Async 설정
+  mvc:
+    async:
+      request-timeout: 1800000  # 30분 (SSE 타임아웃)
+
 # Actuator 설정
 management:
   metrics:
@@ -45,16 +50,11 @@ management:
     health:
       show-details: when-authorized
 
-  # 로깅 설정
-  logging:
-    level:
-      root: INFO
-      spring.backend: DEBUG # 프로젝트 패키지 로그 레벨
-
-  # SSE 및 Async 설정
-  mvc:
-    async:
-      request-timeout: 1800000  # 30분 (SSE 타임아웃)
+# 로깅 설정
+logging:
+  level:
+    root: INFO
+    spring.backend: DEBUG # 프로젝트 패키지 로그 레벨
 
 server:
   servlet:
