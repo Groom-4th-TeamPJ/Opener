@@ -20,6 +20,8 @@ import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
 
 // @ConditionalOnProperty -> RAG 비활성 환경에선 이 빈 자체를 안 만들어 VectorStore 미존재 시 부팅 실패 방지
+// 단 빈을 안 만드는 것만으로는 방어가 안 된다 -> ChatServiceImpl 이 RagService 를 필수 주입받으므로
+// havingValue="false" 짝인 DisabledRagService 가 함께 있어야 비로소 성립한다
 @Slf4j
 @Service
 @RequiredArgsConstructor

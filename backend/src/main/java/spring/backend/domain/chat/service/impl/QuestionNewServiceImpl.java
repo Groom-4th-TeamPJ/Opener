@@ -16,6 +16,7 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,7 +53,10 @@ public class QuestionNewServiceImpl implements QuestionNewService {
     private final JpaQuestionRepository questionRepository;
     private final QuestionResultRepository questionResultRepository;
     private final UserRepository userRepository;
-    private final VectorStore vectorStore;
+    // ObjectProvider -> app.rag.enabled=false 면 VectorStoreConfig 가 빈을 만들지 않는다
+    // 필수 주입이면 그 순간 컨텍스트 기동이 실패하는데, 이 서비스는 검색 실패 시 빈 컨텍스트로
+    // 진행하도록 이미 설계돼 있으므로(searchSimilarDocuments 의 폴백) 의존성도 선택적으로 받는다
+    private final ObjectProvider<VectorStore> vectorStoreProvider;
     private final ChatClient.Builder chatClientBuilder;
     private final PromptLoader promptLoader;
     private final ObjectMapper objectMapper;
@@ -193,6 +197,14 @@ public class QuestionNewServiceImpl implements QuestionNewService {
      * VectorStore에서 유사 문서 검색
      */
     private String searchSimilarDocuments(String problemContext) {
+        VectorStore vectorStore = vectorStoreProvider.getIfAvailable();
+
+        // RAG 비활성 -> 검색 결과가 0건인 것과 같게 취급, 빈 컨텍스트로 문제 생성은 계속 진행
+        if (vectorStore == null) {
+            log.info("[QuestionNew] RAG 비활성 상태 - 유사 문서 검색을 건너뛴다");
+            return "";
+        }
+
         try {
             // 원본 문제 텍스트를 쿼리로 임베딩 검색 -> 키워드가 아닌 의미 기반으로 유사 자료 확보
             SearchRequest searchRequest = SearchRequest.builder()
