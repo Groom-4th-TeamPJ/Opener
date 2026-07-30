@@ -31,6 +31,9 @@ logs/
 .claude
 .idea
 
+# tokensave 코드 인덱스 DB (로컬 전용, 10MB+)
+.tokensave/
+
 # Node / pnpm
 frontend/.pnpm-store/
 frontend/node_modules/
