@@ -79,13 +79,9 @@ public class ChatRedisServiceImpl implements ChatRedisService {
         if (Boolean.TRUE.equals(sessionExists)) {
             // 기존 키 재사용 전 소유자 대조 -> 검증 없이 return 하면 TTL 이 남은 남의 세션에 그대로 올라타게 됨
             // 호출부 분기가 아니라 여기서 막는 이유 -> 분기가 늘어도 방어선이 새지 않음
-            String storedUserId = (String) redisTemplate.opsForHash().get(sessionKey, "userId");
-
-            if (storedUserId == null || !storedUserId.equals(userId.toString())) {
-                log.warn("[Redis Cluster] 세션 재사용 거부 - 소유자 불일치 - sessionId: {}, storedUserId: {}, requestUserId: {}",
-                        sessionId, storedUserId, userId);
-                throw new BusinessException(ErrorCode.INVALID_SESSION);
-            }
+            // validateSessionOwner 를 직접 부르지 않고 헬퍼를 쓰는 이유 -> 같은 클래스 내부 호출은
+            // Spring AOP 프록시를 우회해 @CircuitBreaker 가 적용되지 않는다
+            assertSessionOwner(sessionId, userId, "세션 재사용");
 
             log.debug("Session already exists: {}", sessionId);
             return;
@@ -231,29 +227,32 @@ public class ChatRedisServiceImpl implements ChatRedisService {
     @Override
     @CircuitBreaker(name = "redis-chat", fallbackMethod = "validateSessionOwnerFallback")
     public void validateSessionOwner(Long sessionId, UUID userId) {
-        String sessionKey = getSessionKey(sessionId);
-
         try {
-            String storedUserId = (String) redisTemplate.opsForHash().get(sessionKey, "userId");
-
-            if (storedUserId == null) {
-                log.warn("[Redis Cluster] 세션 권한 검증 실패 - 세션이 존재하지 않음 - sessionId: {}, userId: {}",
-                        sessionId, userId);
-                throw new BusinessException(ErrorCode.INVALID_SESSION);
-            }
-
-            if (!storedUserId.equals(userId.toString())) {
-                log.warn("[Redis Cluster] 세션 권한 검증 실패 - 사용자 불일치 - sessionId: {}, expectedUserId: {}, actualUserId: {}",
-                        sessionId, storedUserId, userId);
-                throw new BusinessException(ErrorCode.INVALID_SESSION);
-            }
-
+            assertSessionOwner(sessionId, userId, "세션 권한 검증");
             log.debug("[Redis Cluster] 세션 권한 검증 성공 - sessionId: {}, userId: {}", sessionId, userId);
 
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
             log.error("[Redis Cluster] 세션 권한 검증 중 예외 발생 - sessionId: {}, userId: {}", sessionId, userId, e);
+            throw new BusinessException(ErrorCode.INVALID_SESSION);
+        }
+    }
+
+    // 소유자 대조 단일 구현 -> initializeSession(신규 연결)과 validateSessionOwner(기존 연결 재사용)가
+    // 같은 로직을 각각 들고 있으면 판정 조건을 바꿀 때 한쪽만 고쳐 규칙이 갈라진다
+    private void assertSessionOwner(Long sessionId, UUID userId, String context) {
+        String storedUserId = (String) redisTemplate.opsForHash().get(getSessionKey(sessionId), "userId");
+
+        if (storedUserId == null) {
+            log.warn("[Redis Cluster] {} 실패 - 세션이 존재하지 않음 - sessionId: {}, userId: {}",
+                    context, sessionId, userId);
+            throw new BusinessException(ErrorCode.INVALID_SESSION);
+        }
+
+        if (!storedUserId.equals(userId.toString())) {
+            log.warn("[Redis Cluster] {} 실패 - 소유자 불일치 - sessionId: {}, storedUserId: {}, requestUserId: {}",
+                    context, sessionId, storedUserId, userId);
             throw new BusinessException(ErrorCode.INVALID_SESSION);
         }
     }

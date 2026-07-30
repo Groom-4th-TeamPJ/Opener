@@ -105,4 +105,44 @@ class ChatRedisServiceImplTest {
         verify(hashOperations).put(SESSION_KEY, "userId", owner.toString());
         verify(redisTemplate).expire(SESSION_KEY, Duration.ofHours(1));
     }
+
+    // 방어선이 두 곳이라 각각 테스트한다 -> initializeSession(신규 연결 경로)과
+    // validateSessionOwner(메시지 전송·저장·오프너 분석 등 6개 지점)가 같은 규칙을 지켜야 한다
+    @Test
+    @DisplayName("남의 세션에 접근하면 소유자 검증이 INVALID_SESSION 으로 거부한다")
+    void validateSessionOwner_ownerMismatch_throw() {
+        UUID owner = UUID.randomUUID();
+        UUID attacker = UUID.randomUUID();
+
+        doReturn(hashOperations).when(redisTemplate).opsForHash();
+        when(hashOperations.get(SESSION_KEY, "userId")).thenReturn(owner.toString());
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.validateSessionOwner(SESSION_ID, attacker));
+
+        assertEquals(ErrorCode.INVALID_SESSION, ex.getErrorCode());
+    }
+
+    @Test
+    @DisplayName("세션이 존재하지 않으면 소유자를 확인할 수 없으므로 거부한다")
+    void validateSessionOwner_sessionAbsent_throw() {
+        doReturn(hashOperations).when(redisTemplate).opsForHash();
+        when(hashOperations.get(SESSION_KEY, "userId")).thenReturn(null);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.validateSessionOwner(SESSION_ID, UUID.randomUUID()));
+
+        assertEquals(ErrorCode.INVALID_SESSION, ex.getErrorCode());
+    }
+
+    @Test
+    @DisplayName("소유자 본인이면 검증을 통과한다")
+    void validateSessionOwner_sameOwner_pass() {
+        UUID owner = UUID.randomUUID();
+
+        doReturn(hashOperations).when(redisTemplate).opsForHash();
+        when(hashOperations.get(SESSION_KEY, "userId")).thenReturn(owner.toString());
+
+        assertDoesNotThrow(() -> service.validateSessionOwner(SESSION_ID, owner));
+    }
 }
