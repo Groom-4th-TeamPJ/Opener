@@ -108,6 +108,18 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+
+    doFirst {
+        loadDotEnv(it)
+
+        // .env 가 없는 환경(CI 등)을 위한 placeholder 기본값
+        // 값이 유효할 필요는 없다 -> 미해결 placeholder 로 컨텍스트 로딩이 깨지는 것만 막는다
+        ['OPENAI_API_KEY', 'REST_API_KEY', 'CLIENT_SECRET_KEY'].each { key ->
+            if (!System.getenv(key) && !environment.containsKey(key)) {
+                environment(key, 'test-dummy')
+            }
+        }
+    }
 }
 
 // Spring Boot JAR configuration
@@ -116,21 +128,25 @@ tasks.named('bootJar') {
 }
 
 // .env 파일 로드 (로컬 개발용)
-tasks.named('bootRun') {
-    doFirst {
-        def envFile = file('.env')
-        if (envFile.exists()) {
-            envFile.readLines()
-                    .findAll { it && !it.startsWith('#') && it.contains('=') }
-                    .each { line ->
-                        def idx = line.indexOf('=')
-                        def key = line.substring(0, idx).trim()
-                        def value = line.substring(idx + 1).trim()
-                        environment(key, value)
-                    }
-            logger.lifecycle(".env loaded from ${envFile.absolutePath}")
-        } else {
-            logger.warn(".env file not found at ${envFile.absolutePath}")
-        }
+// bootRun 과 test 가 공유 -> test 에만 주입 경로가 없으면 @SpringBootTest 가
+// ${OPENAI_API_KEY} 같은 placeholder 를 해결하지 못해 컨텍스트 로딩이 깨진다
+ext.loadDotEnv = { task ->
+    def envFile = file('.env')
+    if (envFile.exists()) {
+        envFile.readLines()
+                .findAll { it && !it.startsWith('#') && it.contains('=') }
+                .each { line ->
+                    def idx = line.indexOf('=')
+                    def key = line.substring(0, idx).trim()
+                    def value = line.substring(idx + 1).trim()
+                    task.environment(key, value)
+                }
+        logger.lifecycle(".env loaded from ${envFile.absolutePath}")
+    } else {
+        logger.warn(".env file not found at ${envFile.absolutePath}")
     }
+}
+
+tasks.named('bootRun') {
+    doFirst { loadDotEnv(it) }
 }
