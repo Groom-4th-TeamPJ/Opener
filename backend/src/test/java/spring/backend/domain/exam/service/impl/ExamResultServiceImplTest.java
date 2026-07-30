@@ -1,5 +1,16 @@
 package spring.backend.domain.exam.service.impl;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -7,17 +18,18 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import spring.backend.domain.exam.model.entity.Exam;
 import spring.backend.domain.exam.model.entity.ExamResult;
+import spring.backend.domain.exam.model.enums.Category;
 import spring.backend.domain.exam.repository.spec.ExamRepository;
 import spring.backend.domain.exam.repository.spec.ExamResultRepository;
-
-import java.util.UUID;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import spring.backend.shared.response.codes.ErrorCode;
+import spring.backend.shared.response.exception.BusinessException;
 
 @ExtendWith(MockitoExtension.class)
 class ExamResultServiceImplTest {
+
+    private static final Category CATEGORY = Category.ALG;
 
     @Mock
     private ExamRepository examRepository;
@@ -26,51 +38,49 @@ class ExamResultServiceImplTest {
     private ExamResultRepository examResultRepository;
 
     @InjectMocks
-    private ExamResultServiceImpl examResultService; // 네 구현 클래스 이름에 맞춰 수정
+    private ExamResultServiceImpl examResultService;
 
     @Test
-    @DisplayName("startExam: userId가 null이면 IllegalArgumentException")
+    @DisplayName("startExam: userId 가 null 이면 USER_NOT_FOUND")
     void startExam_userIdNull_throw() {
-        Long examId = 1L;
-
-        IllegalArgumentException ex = assertThrows(
-                IllegalArgumentException.class,
-                () -> examResultService.startExam(null, examId)
+        BusinessException ex = assertThrows(
+                BusinessException.class,
+                () -> examResultService.startExam(null, 1L, CATEGORY)
         );
 
-        assertTrue(ex.getMessage().contains("must not be null"));
+        assertEquals(ErrorCode.USER_NOT_FOUND, ex.getErrorCode());
+        // 조회 전에 끊는지 확인 -> 인자 검증이 뒤로 밀리면 불필요한 DB 왕복이 생김
         verifyNoInteractions(examRepository, examResultRepository);
     }
 
     @Test
-    @DisplayName("startExam: examId가 null이면 IllegalArgumentException")
+    @DisplayName("startExam: examId 가 null 이면 USER_NOT_FOUND")
     void startExam_examIdNull_throw() {
-        UUID userId = UUID.randomUUID();
-
-        IllegalArgumentException ex = assertThrows(
-                IllegalArgumentException.class,
-                () -> examResultService.startExam(userId, null)
+        BusinessException ex = assertThrows(
+                BusinessException.class,
+                () -> examResultService.startExam(UUID.randomUUID(), null, CATEGORY)
         );
 
-        assertTrue(ex.getMessage().contains("must not be null"));
+        assertEquals(ErrorCode.USER_NOT_FOUND, ex.getErrorCode());
         verifyNoInteractions(examRepository, examResultRepository);
     }
 
     @Test
-    @DisplayName("startExam: 존재하지 않는 examId이면 IllegalArgumentException")
+    @DisplayName("startExam: 존재하지 않는 examId 이면 EXAM_NOT_FOUND")
     void startExam_invalidExamId_throw() {
         UUID userId = UUID.randomUUID();
         Long examId = 999L;
 
-        when(examRepository.existsById(examId)).thenReturn(false);
+        when(examRepository.findById(examId)).thenReturn(Optional.empty());
 
-        IllegalArgumentException ex = assertThrows(
-                IllegalArgumentException.class,
-                () -> examResultService.startExam(userId, examId)
+        BusinessException ex = assertThrows(
+                BusinessException.class,
+                () -> examResultService.startExam(userId, examId, CATEGORY)
         );
 
-        assertTrue(ex.getMessage().contains("Invalid examId"));
-        verify(examRepository).existsById(examId);
+        assertEquals(ErrorCode.EXAM_NOT_FOUND, ex.getErrorCode());
+        verify(examRepository).findById(examId);
+        // 조회 실패 시 저장까지 가지 않는지 확인 -> 반쪽 응시 기록이 남으면 통계가 오염됨
         verifyNoInteractions(examResultRepository);
     }
 
@@ -79,29 +89,27 @@ class ExamResultServiceImplTest {
     void startExam_success_returnSavedId() {
         UUID userId = UUID.randomUUID();
         Long examId = 1L;
+        Exam exam = mock(Exam.class);
 
-        when(examRepository.existsById(examId)).thenReturn(true);
+        when(examRepository.findById(examId)).thenReturn(Optional.of(exam));
 
-        // save()가 반환할 엔티티 준비 (id가 있어야 함)
-        ExamResult saved = ExamResult.of(userId, examId);
-        // id는 private + setter 없음일 가능성이 높으니 Mock으로 처리하는 게 안전
-        ExamResult savedSpy = spy(saved);
+        // id 는 JPA 가 채우는 값이라 테스트에서 직접 못 넣음 -> spy 로 반환값만 지정
+        ExamResult savedSpy = spy(ExamResult.of(userId, exam));
         when(savedSpy.getId()).thenReturn(123L);
-
-        // save 인자로 들어오는 객체는 어떤 것이든 받아서 savedSpy 반환
         when(examResultRepository.save(any(ExamResult.class))).thenReturn(savedSpy);
 
-        Long resultId = examResultService.startExam(userId, examId);
+        Long resultId = examResultService.startExam(userId, examId, CATEGORY);
 
         assertEquals(123L, resultId);
 
-        // save에 들어간 객체가 userId/examId를 갖고 있는지 확인(캡처)
+        // 저장 직전 객체를 캡처 -> 반환값만 보면 엉뚱한 값으로 만들어 저장해도 통과함
         ArgumentCaptor<ExamResult> captor = ArgumentCaptor.forClass(ExamResult.class);
         verify(examResultRepository).save(captor.capture());
         ExamResult toSave = captor.getValue();
-        assertEquals(userId, toSave.getUserId());
-        assertEquals(examId, toSave.getExamId());
 
-        verify(examRepository).existsById(examId);
+        assertEquals(userId, toSave.getUserId());
+        assertEquals(exam, toSave.getExam());
+
+        verify(examRepository).findById(examId);
     }
 }

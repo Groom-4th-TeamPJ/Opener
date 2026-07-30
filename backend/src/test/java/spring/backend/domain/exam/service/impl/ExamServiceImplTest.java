@@ -101,7 +101,7 @@ class ExamServiceImplTest {
                 List.of(Category.ALG, category)
         )).thenReturn(questions);
 
-        when(examResultService.startExam(userId, exam.getId())).thenReturn(examResultId);
+        when(examResultService.startExam(userId, exam.getId(), category)).thenReturn(examResultId);
 
         when(examMapper.toDto(exam, questions, examResultId)).thenReturn(expectedResponse);
 
@@ -111,7 +111,7 @@ class ExamServiceImplTest {
 
         verify(examRepository).findByExamYearAndExamType(examYear, examType);
         verify(examRepository).findByExamIdAndCategoryInOrderByQuestionNoAsc(exam.getId(), List.of(Category.ALG, category));
-        verify(examResultService).startExam(userId, exam.getId());
+        verify(examResultService).startExam(userId, exam.getId(), category);
         verify(examMapper).toDto(exam, questions, examResultId);
         verifyNoMoreInteractions(examRepository, examResultService, examMapper);
     }
