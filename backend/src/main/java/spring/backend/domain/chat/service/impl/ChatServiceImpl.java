@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 import reactor.core.scheduler.Schedulers;
@@ -81,6 +82,12 @@ public class ChatServiceImpl implements ChatService {
     // 활성 SSE 연결을 메모리에 보관 -> 메시지 도착 시 해당 세션 Sink 로 즉시 푸시 가능
     // ConcurrentHashMap -> 동시 연결/해제가 같은 Map 을 건드려도 락 없이 스레드 안전
     private final ConcurrentHashMap<Long, Sinks.Many<ServerSentEvent<String>>> sinks = new ConcurrentHashMap<>();
+
+    // 구독을 보관하지 않으면 클라이언트가 끊어도 OpenAI 스트림은 끝까지 돌며 토큰을 소비한다
+    private final ConcurrentHashMap<Long, Disposable> subscriptions = new ConcurrentHashMap<>();
+
+    // 버퍼 크기를 명시 -> 기본값에 의존하면 문서에 크기를 적을 근거가 없다
+    private static final int SSE_BUFFER_SIZE = 256;
 
     public ChatServiceImpl(
             ChatRedisService chatRedisService,
@@ -166,7 +173,7 @@ public class ChatServiceImpl implements ChatService {
             }
 
             // multicast -> 같은 세션 다중 구독 허용, onBackpressureBuffer -> 클라이언트가 느려도 청크 버퍼링해 유실 방지
-            Sinks.Many<ServerSentEvent<String>> sink = Sinks.many().multicast().onBackpressureBuffer();
+            Sinks.Many<ServerSentEvent<String>> sink = Sinks.many().multicast().onBackpressureBuffer(SSE_BUFFER_SIZE);
 
             // 인프라(Redis·StateMachine) 준비 완료 후 마지막에 등록 -> 절반만 준비된 세션에 메시지 유입 방지
             sinks.put(sessionId, sink);
@@ -183,6 +190,8 @@ public class ChatServiceImpl implements ChatService {
             return sink.asFlux()
                     .doOnCancel(() -> {
                         sinks.remove(sessionId);
+            disposeSubscription(sessionId);
+                        disposeSubscription(sessionId);
                         stateMachineService.removeMachine(sessionId);
                         log.info("[SSE] 클라이언트 연결 해제 (cancel) - sessionId: {}, 남은 연결 수: {}",
                                 sessionId, sinks.size());
@@ -197,6 +206,7 @@ public class ChatServiceImpl implements ChatService {
             throw e;
         } catch (Exception e) {
             sinks.remove(sessionId);
+            disposeSubscription(sessionId);
             stateMachineService.removeMachine(sessionId);
             log.error("[SSE] 연결 생성 실패 - sessionId: {}, userId: {}, 오류: {}",
                     sessionId, userId, e.getMessage(), e);
@@ -277,7 +287,7 @@ public class ChatServiceImpl implements ChatService {
         long ttftStartNanos = System.nanoTime();   // 첫 토큰 지연(TTFT) 측정 시작점
 
         // non-blocking subscribe -> 요청 스레드를 붙잡지 않고 청크가 올 때마다 콜백 실행, 동시성 확보
-        llmService.chatStream(sessionId.toString(), userMessage)
+        Disposable subscription = llmService.chatStream(sessionId.toString(), userMessage)
                 // publishOn -> 이후 콜백을 boundedElastic 으로 옮김
                 // 콜백 안에 Redis 저장·blockLast 상태 전이 같은 블로킹이 있어 OpenAI 응답을 읽는 이벤트 루프에서 실행되면
                 // 그 루프가 담당하는 다른 커넥션까지 함께 멈춤
@@ -336,6 +346,14 @@ public class ChatServiceImpl implements ChatService {
                 })
                 .doOnError(error -> {
                     log.error("[Chat] 메시지 처리 중 예외 발생 - sessionId: {}", sessionId, error);
+
+                    // 화면에는 절반 쓰인 답변이 남는데 히스토리에 없으면 다음 턴에 모델과 사용자가
+                    // 서로 다른 대화를 보게 된다 -> 받은 만큼은 저장한다
+                    String partial = llmResponseBuilder.toString();
+                    if (!partial.isEmpty()) {
+                        chatRedisService.saveMessage(sessionId, redisMessageMapper.toDtoLlm(partial));
+                        meterRegistry.counter("chat.stream.partial.saved").increment();
+                    }
                     // 서킷 OPEN 과 LLM 실패를 클라이언트가 구분할 수 있어야 재시도 안내가 성립한다
                     // error.getMessage() 는 내부 예외 문구라 사용자에게 의미가 없고 코드도 실리지 않는다
                     if (error instanceof BusinessException be) {
@@ -351,6 +369,10 @@ public class ChatServiceImpl implements ChatService {
                     }
                 })
                 .subscribe();
+
+        rememberSubscription(sessionId, subscription);
+
+
     }
 
     @Override
@@ -422,7 +444,7 @@ public class ChatServiceImpl implements ChatService {
         AtomicBoolean ragStreamStarted = new AtomicBoolean(false);
 
         // RAG Flux를 non-blocking subscribe
-        ragService.generateSimilarProblemStream(problemContext)
+        Disposable ragSubscription = ragService.generateSimilarProblemStream(problemContext)
                 // publishOn -> 이후 콜백을 boundedElastic 으로 옮김
                 // 여기 doOnComplete 는 JDBC 트랜잭션까지 돌리므로 이벤트 루프에서 실행되면 영향이 가장 큼
                 .publishOn(Schedulers.boundedElastic())
@@ -490,6 +512,13 @@ public class ChatServiceImpl implements ChatService {
                     }
                 })
                 .doOnError(error -> {
+                    // 부분 응답 저장 - 화면에 보인 것과 저장된 것이 어긋나지 않게 한다
+                    String ragPartial = ragResponseBuilder.toString();
+                    if (!ragPartial.isEmpty()) {
+                        chatRedisService.saveMessage(sessionId, redisMessageMapper.toDtoLlm(ragPartial));
+                        meterRegistry.counter("chat.stream.partial.saved").increment();
+                    }
+
                     if (error instanceof BusinessException be) {
                         ErrorCode errorCode = be.getErrorCode();
                         log.error("[OpenerAnalysis] 비즈니스 예외 - userId: {}, errorCode: {}",
@@ -509,6 +538,8 @@ public class ChatServiceImpl implements ChatService {
                     canService.recoverUserCan(userId, 1);
                 })
                 .subscribe();
+
+        rememberSubscription(sessionId, ragSubscription);
     }
 
     // ── SSE 이벤트 emit 헬퍼 ─────────────────────────────
@@ -549,6 +580,22 @@ public class ChatServiceImpl implements ChatService {
     }
 
     // Sink에 ServerSentEvent 발행
+    // 구독 보관 -> 이전 구독이 남아 있으면 함께 정리해 같은 세션에 스트림이 겹치지 않게 한다
+    private void rememberSubscription(Long sessionId, Disposable subscription) {
+        Disposable previous = subscriptions.put(sessionId, subscription);
+        if (previous != null && !previous.isDisposed()) {
+            previous.dispose();
+        }
+    }
+
+    // 구독 정리 -> Sink 제거만으로는 상류 LLM 호출이 계속 돌며 토큰을 소비한다
+    private void disposeSubscription(Long sessionId) {
+        Disposable subscription = subscriptions.remove(sessionId);
+        if (subscription != null && !subscription.isDisposed()) {
+            subscription.dispose();
+        }
+    }
+
     private void emitEvent(Long sessionId, String eventName, SseMessageResponse message) {
         Sinks.Many<ServerSentEvent<String>> sink = sinks.get(sessionId);
         if (sink == null) {
@@ -564,7 +611,15 @@ public class ChatServiceImpl implements ChatService {
                     .build();
 
             Sinks.EmitResult result = sink.tryEmitNext(sse);
-            if (result.isFailure()) {
+            if (result == Sinks.EmitResult.FAIL_OVERFLOW) {
+                // 청크를 조용히 버리면 사용자가 본 화면과 Redis 에 저장된 전문이 어긋난다
+                // 유실보다 끊는 쪽이 낫다 -> 브라우저가 재연결하면 히스토리부터 다시 받는다
+                log.warn("[SSE] 버퍼 초과로 연결 종료 - sessionId: {}, event: {}", sessionId, eventName);
+                meterRegistry.counter("chat.sse.overflow").increment();
+                sink.tryEmitError(new BusinessException(ErrorCode.SSE_BUFFER_OVERFLOW));
+                disposeSubscription(sessionId);
+                sinks.remove(sessionId, sink);
+            } else if (result.isFailure()) {
                 log.warn("[SSE] emit 실패 - sessionId: {}, event: {}, result: {}",
                         sessionId, eventName, result);
             }

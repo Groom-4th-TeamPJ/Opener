@@ -59,6 +59,8 @@ public enum ErrorCode {
     SESSION_NOT_FOUND(404, "C_014", "세션을 찾을 수 없습니다."),
     // TTL 이 남았는데 버퍼가 비었다 = 복제 유실·LRU 축출. 조용히 넘기면 유실을 유실로 알 수 없다
     CHAT_BUFFER_LOST(500, "C_015", "채팅 버퍼가 예기치 않게 비어 있습니다."),
+    // 청크를 조용히 버리면 화면과 저장본이 어긋난다. 유실보다 끊는 쪽이 낫다
+    SSE_BUFFER_OVERFLOW(500, "C_016", "전송 버퍼가 초과되어 연결을 종료합니다."),
 
     // Can 관련 에러 (N_xxx)
     INSUFFICIENT_CANS(400, "N_001", "CAN이 부족합니다"),

@@ -33,11 +33,16 @@ import spring.backend.domain.user.model.entity.User;
 import spring.backend.domain.user.repository.spec.UserRepository;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import java.util.concurrent.atomic.AtomicBoolean;
+import org.mockito.ArgumentCaptor;
+import spring.backend.domain.chat.dto.redis_dto.RedisMessageDto;
 import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
 
@@ -200,5 +205,49 @@ class ChatServiceImplTest {
         } catch (Exception e) {
             throw new IllegalStateException("SSE 페이로드 파싱 실패: " + sse.data(), e);
         }
+    }
+
+    @Test
+    @DisplayName("스트리밍 도중 끊기면 이미 받은 부분 응답을 저장한다")
+    void processMessage_스트리밍중단_부분응답이저장된다() {
+        when(llmService.chatStream(SESSION_ID.toString(), "질문"))
+                .thenReturn(Flux.concat(
+                        Flux.just("앞부분"),
+                        Flux.error(new IllegalStateException("stream broke"))));
+
+        StepVerifier.create(service.connectSession(SESSION_ID, USER_ID))
+                .assertNext(sse -> assertEquals("connected", sse.event()))
+                .then(() -> service.processMessage(request(), USER_ID))
+                .assertNext(sse -> assertEquals("message", sse.event()))
+                .assertNext(sse -> assertEquals("error", sse.event()))
+                .thenCancel()
+                .verify(TIMEOUT);
+
+        // 화면에는 절반 쓰인 답변이 남는데 히스토리에 없으면 다음 턴에 모델과 사용자가 다른 대화를 본다
+        ArgumentCaptor<RedisMessageDto> captor = ArgumentCaptor.forClass(RedisMessageDto.class);
+        verify(chatRedisService, timeout(2000).atLeastOnce())
+                .saveMessage(eq(SESSION_ID), captor.capture());
+
+        boolean partialSaved = captor.getAllValues().stream()
+                .anyMatch(dto -> "앞부분".equals(dto.message()));
+        assertTrue(partialSaved);
+    }
+
+    @Test
+    @DisplayName("연결이 해제되면 상류 LLM 구독도 취소한다")
+    void disconnectSession_연결해제_상류구독이취소된다() {
+        AtomicBoolean cancelled = new AtomicBoolean(false);
+        when(llmService.chatStream(SESSION_ID.toString(), "질문"))
+                .thenReturn(Flux.<String>never().doOnCancel(() -> cancelled.set(true)));
+
+        StepVerifier.create(service.connectSession(SESSION_ID, USER_ID))
+                .assertNext(sse -> assertEquals("connected", sse.event()))
+                .then(() -> service.processMessage(request(), USER_ID))
+                .then(() -> service.disconnectSession(SESSION_ID, USER_ID))
+                .thenCancel()
+                .verify(TIMEOUT);
+
+        // 구독을 정리하지 않으면 클라이언트가 끊어도 OpenAI 스트림은 끝까지 돌며 토큰을 소비한다
+        assertTrue(cancelled.get());
     }
 }
