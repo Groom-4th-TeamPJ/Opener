@@ -23,6 +23,7 @@ import spring.backend.domain.chat.service.spec.ChatHistoryProvider;
 import spring.backend.domain.chat.service.spec.LlmService;
 import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
+import spring.backend.domain.chat.util.ChatPromptAssembler;
 
 // @ConditionalOnProperty -> RAG 켜질 때만 이 구현 활성, 꺼지면 OpenAiLlmServiceWithoutRag 가 대신 주입
 // 같은 LlmService 인터페이스를 RAG 유무로 갈아끼움 -> 호출부(ChatServiceImpl) 코드는 변경 불필요
@@ -133,7 +134,9 @@ public class OpenAiLlmService implements LlmService {
             log.warn("[LLM+RAG] 유사 문서를 찾지 못했습니다. 규칙 프롬프트만 적용하여 진행합니다.");
         }
 
-        messagesWithRag.addAll(chatHistory);
+        // 히스토리는 replica 에서 읽으므로 방금 저장한 질문이 빠질 수 있다
+        // 호출자가 넘긴 원문을 여기서 보장해야 프롬프트에서 질문이 통째로 사라지는 경로가 닫힌다
+        messagesWithRag.addAll(ChatPromptAssembler.withCurrentQuestion(chatHistory, userMessage));
 
         ChatClient chatClient = chatClientBuilder.build();
         log.debug("[LLM+RAG] 최종 메시지 수: {} (RAG 포함)", messagesWithRag.size());

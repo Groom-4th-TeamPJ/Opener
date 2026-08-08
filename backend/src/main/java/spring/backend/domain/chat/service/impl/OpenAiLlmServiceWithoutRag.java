@@ -15,6 +15,7 @@ import spring.backend.domain.chat.service.spec.LlmService;
 import spring.backend.domain.chat.util.PromptLoader;
 import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
+import spring.backend.domain.chat.util.ChatPromptAssembler;
 
 /**
  * RAG가 비활성화되었을 때 사용하는 LLM 서비스 멀티턴 대화는 지원하지만 RAG는 사용하지 않음
@@ -75,7 +76,9 @@ public class OpenAiLlmServiceWithoutRag implements LlmService {
         return chatClient
                 .prompt()
                 .system(systemRulePrompt)
-                .messages(chatHistory)
+                // 히스토리는 replica 에서 읽으므로 방금 저장한 질문이 빠질 수 있다
+                // 호출자가 넘긴 원문을 여기서 보장해야 프롬프트에서 질문이 통째로 사라지는 경로가 닫힌다
+                .messages(ChatPromptAssembler.withCurrentQuestion(chatHistory, userMessage))
                 .stream()
                 .content()
                 .filter(chunk -> chunk != null && !chunk.isEmpty())
