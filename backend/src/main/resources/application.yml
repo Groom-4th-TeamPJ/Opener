@@ -77,6 +77,9 @@ app:
     signup-redirect-uri: ${OAUTH2_REDIRECT_URI:https://opener.ai.kr/register}
     login-success-uri: ${OAUTH2_LOGIN_SUCCESS_URI:https://opener.ai.kr}
     failure-redirect-uri: ${OAUTH2_FAILURE_REDIRECT_URI:https://opener.ai.kr/login}
+  llm:
+    connect-timeout: 5s      # OpenAI 연결 수립 상한
+    response-timeout: 20s    # 토큰 도착 사이의 최대 간격 - 총 응답 시간 상한이 아님
 
 # Virtual Thread 활성화 시 task.execution.pool 설정 무시
 # (Spring Boot가 VT 기반 SimpleAsyncTaskExecutor를 자동 제공)
