@@ -298,8 +298,18 @@ public class ChatServiceImpl implements ChatService {
         AtomicBoolean streamStarted = new AtomicBoolean(false);
         long ttftStartNanos = System.nanoTime();   // 첫 토큰 지연(TTFT) 측정 시작점
 
+        // 조립 단계에서 던지면 아래 doOnError 가 돌지 않아 상태가 PROCESSING 에 남는다
+        // 그 세션은 재연결 전까지 모든 메시지가 SESSION_EXPIRED 로 거부된다 - 실측으로 확인한 증상이다
+        Flux<String> stream;
+        try {
+            stream = llmService.chatStream(sessionId.toString(), userMessage);
+        } catch (RuntimeException e) {
+            recoverFromStreamFailure(sessionId, e);
+            throw e;
+        }
+
         // non-blocking subscribe -> 요청 스레드를 붙잡지 않고 청크가 올 때마다 콜백 실행, 동시성 확보
-        Disposable subscription = llmService.chatStream(sessionId.toString(), userMessage)
+        Disposable subscription = stream
                 // publishOn -> 이후 콜백을 boundedElastic 으로 옮김
                 // 콜백 안에 Redis 저장·blockLast 상태 전이 같은 블로킹이 있어 OpenAI 응답을 읽는 이벤트 루프에서 실행되면
                 // 그 루프가 담당하는 다른 커넥션까지 함께 멈춤
@@ -385,6 +395,25 @@ public class ChatServiceImpl implements ChatService {
         rememberSubscription(sessionId, subscription);
 
 
+    }
+
+    // 조립 단계 실패도 스트리밍 실패와 같은 회수 절차를 밟는다
+    // 상태를 되돌리지 않으면 그 세션은 재연결 전까지 영구히 막힌다
+    private void recoverFromStreamFailure(Long sessionId, RuntimeException e) {
+        log.error("[Chat] 스트림 조립 실패 - sessionId: {}", sessionId, e);
+
+        if (e instanceof BusinessException be) {
+            emitError(sessionId, be.getErrorCode().getMessage(), be.getErrorCode().getCode());
+        } else {
+            emitError(sessionId,
+                    ErrorCode.LLM_RESPONSE_FAIL.getMessage(),
+                    ErrorCode.LLM_RESPONSE_FAIL.getCode());
+        }
+
+        if (!stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_ERROR)) {
+            log.warn("[Chat] STREAM_ERROR 전이 거부 - sessionId: {}, 현재 상태: {}",
+                    sessionId, stateMachineService.getCurrentState(sessionId));
+        }
     }
 
     @Override

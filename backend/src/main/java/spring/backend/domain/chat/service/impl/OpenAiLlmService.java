@@ -80,6 +80,13 @@ public class OpenAiLlmService implements LlmService {
     @Override
     @CircuitBreaker(name = "llm-chat", fallbackMethod = "chatStreamFallback")
     public Flux<String> chatStream(String sessionId, String userMessage) {
+        // defer -> 히스토리 조회와 벡터 검색을 구독 시점으로 미룬다
+        // 조립 시점에 던지면 (1) 리액터 서킷은 구독 시점만 세므로 집계되지 않고
+        // (2) 호출자의 doOnError 가 돌지 않아 세션이 PROCESSING 에 갇혀 다음 요청이 전부 거부된다
+        return Flux.defer(() -> buildStream(sessionId, userMessage));
+    }
+
+    private Flux<String> buildStream(String sessionId, String userMessage) {
         // 히스토리 주입 -> 멀티턴 맥락 유지, 이전 대화 모르면 답변 일관성 깨짐
         List<Message> chatHistory = chatHistoryProvider.getRecentHistory(sessionId);
  

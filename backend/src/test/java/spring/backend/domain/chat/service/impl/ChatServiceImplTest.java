@@ -35,6 +35,7 @@ import spring.backend.domain.user.repository.spec.UserRepository;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -193,6 +194,28 @@ class ChatServiceImplTest {
                 })
                 .thenCancel()
                 .verify(TIMEOUT);
+    }
+
+    @Test
+    @DisplayName("조립 단계에서 동기로 던져도 error 이벤트와 STREAM_ERROR 로 상태를 회수한다")
+    void processMessage_조립단계예외_상태를회수한다() {
+        // 조립 시점 예외는 doOnError 를 타지 않는다
+        // 상태를 되돌리지 않으면 그 세션은 재연결 전까지 모든 메시지가 SESSION_EXPIRED 로 거부된다
+        when(llmService.chatStream(SESSION_ID.toString(), "질문"))
+                .thenThrow(new IllegalStateException("벡터 검색 실패"));
+
+        StepVerifier.create(service.connectSession(SESSION_ID, USER_ID))
+                .assertNext(sse -> assertEquals("connected", sse.event()))
+                .then(() -> assertThrows(IllegalStateException.class,
+                        () -> service.processMessage(request(), USER_ID)))
+                .assertNext(sse -> {
+                    assertEquals("error", sse.event());
+                    assertEquals(ErrorCode.LLM_RESPONSE_FAIL.getCode(), field(sse, "errorCode"));
+                })
+                .thenCancel()
+                .verify(TIMEOUT);
+
+        verify(stateMachineService).sendEvent(SESSION_ID, ChatSessionEvent.STREAM_ERROR);
     }
 
     private ChatSendRequest request() {

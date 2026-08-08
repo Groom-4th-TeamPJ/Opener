@@ -64,6 +64,12 @@ public class OpenAiLlmServiceWithoutRag implements LlmService {
 
     @Override
     public Flux<String> chatStream(String sessionId, String userMessage) {
+        // defer -> 히스토리 조회를 구독 시점으로 미룬다
+        // 조립 시점에 Redis 가 던지면 호출자의 doOnError 가 돌지 않아 세션이 PROCESSING 에 갇힌다
+        return Flux.defer(() -> buildStream(sessionId, userMessage));
+    }
+
+    private Flux<String> buildStream(String sessionId, String userMessage) {
         List<Message> chatHistory = chatHistoryProvider.getRecentHistory(sessionId);
 
         log.debug("[LLM-NoRAG] 대화 히스토리 조회 완료 - sessionId: {}, 메시지 수: {}",
