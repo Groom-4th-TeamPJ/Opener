@@ -52,130 +52,16 @@ public class ChatStateMachineConfig
     @Override
     public void configure(StateMachineTransitionConfigurer<ChatSessionState, ChatSessionEvent> transitions)
             throws Exception {
-        // 허용된 (상태, 이벤트) 쌍만 전이로 선언 -> 명시 안 한 조합은 자동 거부되어 잘못된 흐름 차단
-        transitions
-                // IDLE → CONNECTED (연결 성공)
-                .withExternal()
-                .source(ChatSessionState.IDLE)
-                .target(ChatSessionState.CONNECTED)
-                .event(ChatSessionEvent.CONNECT_SUCCESS)
-                .and()
-
-                // IDLE → CONNECTION_ERROR (연결 실패 — 관찰 가능한 실패 상태 진입)
-                .withExternal()
-                .source(ChatSessionState.IDLE)
-                .target(ChatSessionState.CONNECTION_ERROR)
-                .event(ChatSessionEvent.CONNECT_FAIL)
-                .action(context ->
-                        log.warn("[StateMachine] CONNECT_FAIL - 연결 실패 상태로 전이"))
-                .and()
-
-                // CONNECTED → PROCESSING (메시지 전송)
-                .withExternal()
-                .source(ChatSessionState.CONNECTED)
-                .target(ChatSessionState.PROCESSING)
-                .event(ChatSessionEvent.SEND_MESSAGE)
-                .and()
-
-                // PROCESSING → STREAMING (첫 청크 수신)
-                .withExternal()
-                .source(ChatSessionState.PROCESSING)
-                .target(ChatSessionState.STREAMING)
-                .event(ChatSessionEvent.STREAM_START)
-                .and()
-
-                // PROCESSING → PROCESSING_ERROR (스트리밍 시작 전 LLM/RAG 호출 오류)
-                .withExternal()
-                .source(ChatSessionState.PROCESSING)
-                .target(ChatSessionState.PROCESSING_ERROR)
-                .event(ChatSessionEvent.STREAM_ERROR)
-                .and()
-
-                // STREAMING → COMPLETED (스트리밍 완료)
-                .withExternal()
-                .source(ChatSessionState.STREAMING)
-                .target(ChatSessionState.COMPLETED)
-                .event(ChatSessionEvent.STREAM_COMPLETE)
-                .and()
-
-                // STREAMING → STREAM_ERROR (청크 수신 중 오류)
-                .withExternal()
-                .source(ChatSessionState.STREAMING)
-                .target(ChatSessionState.STREAM_ERROR)
-                .event(ChatSessionEvent.STREAM_ERROR)
-                .and()
-
-                // COMPLETED → PROCESSING (연속 대화 — 새 메시지 전송)
-                .withExternal()
-                .source(ChatSessionState.COMPLETED)
-                .target(ChatSessionState.PROCESSING)
-                .event(ChatSessionEvent.SEND_MESSAGE)
-                .and()
-
-                // STREAM_ERROR → PROCESSING (실패 후 재시도)
-                // 에러 상태에서 나가는 길이 CLOSE→IDLE 뿐이면 SSE 는 살아있는데 재전송만 막힌다
-                // IDLE 은 SEND_MESSAGE 를 받지 않으므로 사용자가 재연결해야만 대화를 이어갈 수 있음
-                // LLM 일시 실패는 세션을 끝낼 사유가 아니므로 같은 연결에서 재시도를 허용
-                .withExternal()
-                .source(ChatSessionState.STREAM_ERROR)
-                .target(ChatSessionState.PROCESSING)
-                .event(ChatSessionEvent.SEND_MESSAGE)
-                .and()
-
-                // PROCESSING_ERROR → PROCESSING (실패 후 재시도)
-                // 첫 청크도 못 받고 끝난 경우 -> 빈 응답·서킷 OPEN 등이 여기로 오는데 역시 재시도 가능해야 함
-                .withExternal()
-                .source(ChatSessionState.PROCESSING_ERROR)
-                .target(ChatSessionState.PROCESSING)
-                .event(ChatSessionEvent.SEND_MESSAGE)
-                .and()
-
-                // CONNECTED → IDLE (세션 종료)
-                .withExternal()
-                .source(ChatSessionState.CONNECTED)
-                .target(ChatSessionState.IDLE)
-                .event(ChatSessionEvent.CLOSE)
-                .and()
-
-                // COMPLETED → IDLE (세션 종료)
-                .withExternal()
-                .source(ChatSessionState.COMPLETED)
-                .target(ChatSessionState.IDLE)
-                .event(ChatSessionEvent.CLOSE)
-                .and()
-
-                // PROCESSING → IDLE (처리 중 세션 종료)
-                .withExternal()
-                .source(ChatSessionState.PROCESSING)
-                .target(ChatSessionState.IDLE)
-                .event(ChatSessionEvent.CLOSE)
-                .and()
-
-                // STREAMING → IDLE (스트리밍 중 세션 종료)
-                .withExternal()
-                .source(ChatSessionState.STREAMING)
-                .target(ChatSessionState.IDLE)
-                .event(ChatSessionEvent.CLOSE)
-                .and()
-
-                // STREAM_ERROR → IDLE (스트리밍 오류 후 종료)
-                .withExternal()
-                .source(ChatSessionState.STREAM_ERROR)
-                .target(ChatSessionState.IDLE)
-                .event(ChatSessionEvent.CLOSE)
-                .and()
-
-                // PROCESSING_ERROR → IDLE (처리 오류 후 종료)
-                .withExternal()
-                .source(ChatSessionState.PROCESSING_ERROR)
-                .target(ChatSessionState.IDLE)
-                .event(ChatSessionEvent.CLOSE)
-                .and()
-
-                // CONNECTION_ERROR → IDLE (연결 오류 후 종료)
-                .withExternal()
-                .source(ChatSessionState.CONNECTION_ERROR)
-                .target(ChatSessionState.IDLE)
-                .event(ChatSessionEvent.CLOSE);
+        // 전이 선언은 ChatStateTransitions.ALL 하나에서만 온다
+        // 여기에 직접 적으면 테스트가 보는 값과 갈라져, 테이블을 고쳐도 설정은 그대로인 사고가 난다
+        // 명시 안 한 (상태, 이벤트) 조합은 자동 거부되어 잘못된 흐름이 차단된다
+        StateMachineTransitionConfigurer<ChatSessionState, ChatSessionEvent> config = transitions;
+        for (ChatStateTransition transition : ChatStateTransitions.ALL) {
+            config = config.withExternal()
+                    .source(transition.source())
+                    .target(transition.target())
+                    .event(transition.event())
+                    .and();
+        }
     }
 }
