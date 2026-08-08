@@ -11,6 +11,6 @@ public record ChatSendRequest(
 
         @NotBlank(message = "내용을 필수로 입력해주세요")
         String message
-) {
+) implements SessionScoped {
 
 }

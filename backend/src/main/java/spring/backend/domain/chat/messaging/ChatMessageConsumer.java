@@ -54,6 +54,8 @@ public class ChatMessageConsumer {
             }
 
             // 권한 검증 (Redis에 데이터가 있는 경우에만 검증)
+            // 어드바이스(@RequireSessionOwner) 대상에서 제외 -> 이벤트는 userId 를 인자가 아니라 페이로드로 갖고
+            // 검증 실패 시 처리도 HTTP 거부가 아니라 ACK/DLQ 결정이라 진입 규약이 다르다
             try {
                 chatRedisService.validateSessionOwner(sessionId, event.userId());
             } catch (BusinessException e) {

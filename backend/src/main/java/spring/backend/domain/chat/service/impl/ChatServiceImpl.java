@@ -53,6 +53,7 @@ import spring.backend.domain.user.model.entity.User;
 import spring.backend.domain.user.repository.spec.UserRepository;
 import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
+import spring.backend.domain.chat.security.RequireSessionOwner;
 
 // 인터페이스 구현체에만 @Service -> spec 은 추상, 구현 교체/테스트 대역 주입이 쉬워짐
 @Slf4j
@@ -125,6 +126,8 @@ public class ChatServiceImpl implements ChatService {
                 .register(meterRegistry);
     }
 
+    // 신규 연결은 세션을 지금 만드는 요청이라 @RequireSessionOwner 의 전제(세션 존재)를 만족하지 못한다
+    // 신규 분기는 initializeSession 안쪽 assertSessionOwner 가, 재사용 분기는 아래 호출이 대조한다
     @Override
     public Flux<ServerSentEvent<String>> connectSession(Long sessionId, UUID userId) {
 
@@ -204,6 +207,7 @@ public class ChatServiceImpl implements ChatService {
     // @Transactional -> 세션 종료에 동반되는 DB 변경을 원자적으로 묶음
     @Override
     @Transactional
+    @RequireSessionOwner
     public void disconnectSession(Long sessionId, UUID userId) {
 
         log.info("[SSE] 세션 해제 요청 - sessionId: {}, userId: {}", sessionId, userId);
@@ -211,7 +215,6 @@ public class ChatServiceImpl implements ChatService {
         Sinks.Many<ServerSentEvent<String>> sink = sinks.get(sessionId);
 
         if (sink != null) {
-            chatRedisService.validateSessionOwner(sessionId, userId);
 
             log.debug("[SSE] 세션 권한 검증 완료 - sessionId: {}", sessionId);
 
@@ -238,6 +241,7 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
+    @RequireSessionOwner
     public void processMessage(ChatSendRequest req, UUID userId) {
 
         Long sessionId = req.sessionId();
@@ -255,8 +259,6 @@ public class ChatServiceImpl implements ChatService {
 
         log.debug("[Chat] SSE 연결 확인 완료 - sessionId: {}", sessionId);
 
-        // 권한 검증
-        chatRedisService.validateSessionOwner(sessionId, userId);
 
         // State Machine: SEND_MESSAGE (CONNECTED/COMPLETED → PROCESSING)
         if (!stateMachineService.sendEvent(sessionId, ChatSessionEvent.SEND_MESSAGE)) {
@@ -352,6 +354,7 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
+    @RequireSessionOwner
     public void saveMessages(ChatSaveRequest req, UUID userId) {
 
         Long sessionId = req.sessionId();
@@ -362,8 +365,6 @@ public class ChatServiceImpl implements ChatService {
             throw new BusinessException(ErrorCode.SESSION_EXPIRED);
         }
 
-        // 권한 검증
-        chatRedisService.validateSessionOwner(sessionId, userId);
 
         // 직접 저장 대신 이벤트 발행 -> DB 저장을 비동기로 넘겨 사용자 응답을 지연 없이 반환
         chatMessageProducer.publishSaveMessageEvent(sessionId, userId, questionResultId);
@@ -372,6 +373,7 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
+    @RequireSessionOwner
     public void openerAnalysis(OpenerAnalysisRequest req, UUID userId) {
 
         Long sessionId = req.sessionId();
@@ -383,8 +385,6 @@ public class ChatServiceImpl implements ChatService {
             throw new BusinessException(ErrorCode.SESSION_EXPIRED);
         }
 
-        // 세션 검증
-        chatRedisService.validateSessionOwner(sessionId, userId);
 
         // State Machine: SEND_MESSAGE (CONNECTED/COMPLETED → PROCESSING)
         if (!stateMachineService.sendEvent(sessionId, ChatSessionEvent.SEND_MESSAGE)) {

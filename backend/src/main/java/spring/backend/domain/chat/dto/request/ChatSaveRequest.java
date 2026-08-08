@@ -10,5 +10,5 @@ public record ChatSaveRequest(
         @NotBlank(message = "questionResultId 가 필요합니다.")
         Long questionResultId
 
-) {
+) implements SessionScoped {
 }
