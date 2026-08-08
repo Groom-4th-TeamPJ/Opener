@@ -5,9 +5,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.transaction.Transactional;
 import java.io.IOException;
-import java.util.concurrent.TimeUnit;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -17,30 +14,28 @@ import org.springframework.stereotype.Component;
 import spring.backend.domain.auth.model.entity.Credentials;
 import spring.backend.domain.auth.respository.spec.CredentialRepository;
 import spring.backend.domain.user.model.entity.User;
-import spring.backend.shared.infrastructure.security.util.JwtUtil;
 import spring.backend.shared.response.codes.SuccessCode;
 import spring.backend.shared.response.format.ApiResponseFormat;
+import spring.backend.shared.infrastructure.security.service.TokenIssuer;
 
 
 @Component
 public class FormAuthenticationSuccessHandler implements AuthenticationSuccessHandler {
 
-  private final JwtUtil jwtUtil;
+  // 발급의 유일한 진입점 -> 경로마다 복제하면 저장 누락이 조용히 생긴다
+  private final TokenIssuer tokenIssuer;
+
   private final CredentialRepository credentialRepository;
   private final ObjectMapper objectMapper;
-  private final StringRedisTemplate redisTemplate;
 
   public FormAuthenticationSuccessHandler(
-          JwtUtil jwtUtil,
+          TokenIssuer tokenIssuer,
           CredentialRepository credentialRepository,
-          ObjectMapper objectMapper,
-          // @Qualifier -> @Primary 인증 Redis 를 명시 주입, RefreshToken 캐시 전용 격리
-          @Qualifier("authRedisTemplate") StringRedisTemplate redisTemplate
+          ObjectMapper objectMapper
   ) {
-    this.jwtUtil = jwtUtil;
+    this.tokenIssuer = tokenIssuer;
     this.credentialRepository = credentialRepository;
     this.objectMapper = objectMapper;
-    this.redisTemplate = redisTemplate;
   }
 
   // @Transactional -> 로그인 성공 부수효과(lastLoginAt 갱신·실패 카운트 리셋)를 한 단위로 커밋
@@ -67,11 +62,8 @@ public class FormAuthenticationSuccessHandler implements AuthenticationSuccessHa
     // 조회한 credentials로 user 조회
     User user = credentials.getUser();
 
-    // JWT 토큰 생성
-    String accessToken = jwtUtil.generateAccessToken(user.getId(), user.getRole(), user.getName());
-    String refreshToken = jwtUtil.generateRefreshToken(user.getId());
-
-    jwtUtil.setHttpOnlyAllToken(response, accessToken, refreshToken);
+    // 발급·쿠키·Redis 저장을 한 진입점으로 -> 경로마다 복제되면 한 곳만 저장을 빠뜨려도 조용히 다르다
+    tokenIssuer.issue(response, user.getId(), user.getRole(), user.getName());
 
     // 공통 응답 포맷으로 래핑 (data는 null)
     ApiResponseFormat<Void> apiResponse = ApiResponseFormat.success(
@@ -85,9 +77,5 @@ public class FormAuthenticationSuccessHandler implements AuthenticationSuccessHa
     response.setCharacterEncoding("UTF-8");
     objectMapper.writeValue(response.getWriter(), apiResponse);
 
-    // 발급과 동시에 Redis 저장 -> 이후 재발급 때 이 값과 대조해 탈취/구버전 RefreshToken 차단
-    // TTL 7일 = RefreshToken 수명 -> 만료 토큰이 메모리에 남지 않고 자동 정리
-    String redisKey = "refreshToken:" + user.getId();
-    redisTemplate.opsForValue().set(redisKey, refreshToken, 7, TimeUnit.DAYS);
   }
 }

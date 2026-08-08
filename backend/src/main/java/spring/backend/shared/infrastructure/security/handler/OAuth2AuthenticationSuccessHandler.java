@@ -14,6 +14,7 @@ import org.springframework.security.web.authentication.SimpleUrlAuthenticationSu
 import org.springframework.stereotype.Component;
 import spring.backend.shared.infrastructure.security.oauth2.CustomOAuth2User;
 import spring.backend.shared.infrastructure.security.util.JwtUtil;
+import spring.backend.shared.infrastructure.security.service.TokenIssuer;
 
 /**
  * OAuth2 인증 성공 핸들러
@@ -24,6 +25,9 @@ import spring.backend.shared.infrastructure.security.util.JwtUtil;
 @Component
 @RequiredArgsConstructor
 public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
+
+  // 발급의 유일한 진입점 -> 경로마다 복제하면 저장 누락이 조용히 생긴다
+  private final TokenIssuer tokenIssuer;
 
   private final JwtUtil jwtUtil;
 
@@ -81,16 +85,7 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
     log.info("기존 OAuth2 사용자 로그인 성공: userId={}, name={}",
         oAuth2User.getUserId(), oAuth2User.getName());
 
-    // JWT 토큰 생성
-    String accessToken = jwtUtil.generateAccessToken(
-        oAuth2User.getUserId(),
-        oAuth2User.getRole(),
-        oAuth2User.getName()
-    );
-    String refreshToken = jwtUtil.generateRefreshToken(oAuth2User.getUserId());
-
-    // HttpOnly 쿠키에 토큰 설정
-    jwtUtil.setHttpOnlyAllToken(response, accessToken, refreshToken);
+        tokenIssuer.issue(response, oAuth2User.getUserId(), oAuth2User.getRole(), oAuth2User.getName());
 
     log.info("OAuth2 JWT 토큰 발급 완료: userId={}", oAuth2User.getUserId());
 

@@ -172,7 +172,9 @@ public class JwtUtil {
                 .secure(cookieSecure)
                 .path("/api/auth/refresh")
                 .sameSite(cookieSameSite)
-                .maxAge(Duration.ofDays(7)) // 수명 : 7일
+                // 쿠키 maxAge 를 JWT exp 와 같은 설정에서 계산 -> 세 수명(exp·Redis TTL·쿠키)이 어긋나
+                // 저장본이나 쿠키가 먼저 사라져 재발급이 실패하던 창을 구조로 막는다
+                .maxAge(Duration.ofMillis(refreshTokenExpiration))
                 .build();
 
         response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());

@@ -27,6 +27,7 @@ import spring.backend.shared.infrastructure.security.dto.OAuthSignupInfo;
 import spring.backend.shared.infrastructure.security.util.JwtUtil;
 import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
+import spring.backend.shared.infrastructure.security.service.TokenIssuer;
 
 // 클래스 레벨 @Transactional -> 회원가입/토큰발급 등 다단계 쓰기를 한 단위로 묶어 부분 저장 방지
 @Slf4j
@@ -34,6 +35,9 @@ import spring.backend.shared.response.exception.BusinessException;
 @RequiredArgsConstructor
 @Transactional
 public class AuthServiceImpl implements AuthService {
+
+  // 발급의 유일한 진입점 -> 경로마다 복제하면 저장 누락이 조용히 생긴다
+  private final TokenIssuer tokenIssuer;
 
     private final CredentialRepository credentialRepository;
     private final PasswordEncoder passwordEncoder;
@@ -74,14 +78,11 @@ public class AuthServiceImpl implements AuthService {
         // 초기 캔설정
         canService.createUserCan(user.getId());
 
-        // 토큰 생성
-        String accessToken = jwtUtil.generateAccessToken(
+        tokenIssuer.issue(
+                response,
                 newCredential.getUser().getId(),
                 newCredential.getUser().getRole(),
                 newCredential.getUser().getName());
-        String refreshToken = jwtUtil.generateRefreshToken(newCredential.getUser().getId());
-
-        jwtUtil.setHttpOnlyAllToken(response, accessToken, refreshToken);
     }
 
     @Override
@@ -111,16 +112,11 @@ public class AuthServiceImpl implements AuthService {
         // 6. 초기 캔 설정
         canService.createUserCan(user.getId());
 
-        // 7. JWT 토큰 생성
-        String accessToken = jwtUtil.generateAccessToken(
+        tokenIssuer.issue(
+                response,
                 savedCredential.getUser().getId(),
                 savedCredential.getUser().getRole(),
-                savedCredential.getUser().getName()
-        );
-        String refreshToken = jwtUtil.generateRefreshToken(savedCredential.getUser().getId());
-
-        // 8. HttpOnly 쿠키에 토큰 설정
-        jwtUtil.setHttpOnlyAllToken(response, accessToken, refreshToken);
+                savedCredential.getUser().getName());
     }
 
     @Override
