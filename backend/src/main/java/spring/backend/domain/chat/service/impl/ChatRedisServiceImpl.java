@@ -35,7 +35,8 @@ public class ChatRedisServiceImpl implements ChatRedisService {
     private static final String SESSION_KEY_FORMAT = "chat:{%d}:session";
     private static final String MESSAGE_KEY_FORMAT = "chat:{%d}:messages";
 
-    // TTL 1시간 -> 버려진 세션이 메모리에 영원히 남지 않게 자동 만료, SSE 타임아웃과 동일하게 맞춤
+    // TTL 1시간 -> 버려진 세션이 메모리에 영원히 남지 않게 자동 만료
+    // SSE/async 타임아웃(30분)과는 다른 값이다
     private static final Duration SESSION_TTL = Duration.ofHours(1);
 
     private final ObjectMapper objectMapper;

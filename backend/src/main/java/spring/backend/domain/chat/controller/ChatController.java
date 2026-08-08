@@ -100,7 +100,7 @@ public class ChatController {
             @AuthenticationPrincipal AuthUser authUser) {
         chatService.disconnectSession(sessionId, authUser.id());
 
-        return null;
+        return ResponseEntity.ok().build();
     }
 
     @Operation (
@@ -115,7 +115,7 @@ public class ChatController {
     ) {
         chatService.openerAnalysis(req, authUser.id());
 
-        return null;
+        return ResponseEntity.ok().build();
     }
 
     /**

@@ -147,7 +147,15 @@ public class ChatServiceImpl implements ChatService {
                     sessionId, userId, sinks.size());
 
             chatRedisService.validateSessionOwner(sessionId, userId);
-            return existingSink.asFlux();
+
+            // 재사용 경로도 정리 훅을 갖게 한다 -> 이 경로로 붙은 구독만 훅이 없으면 누수가 남는다
+            return existingSink.asFlux()
+                    .doOnCancel(() -> {
+                        if (sinks.remove(sessionId, existingSink)) {
+                            disposeSubscription(sessionId);
+                            stateMachineService.removeMachine(sessionId);
+                        }
+                    });
         }
 
         // 새 SSE 연결 생성
@@ -189,15 +197,18 @@ public class ChatServiceImpl implements ChatService {
             // doOnCancel 로 정리 -> 클라이언트가 끊으면 Sink/StateMachine 을 비워 메모리 누수 방지
             return sink.asFlux()
                     .doOnCancel(() -> {
-                        sinks.remove(sessionId);
-            disposeSubscription(sessionId);
-                        disposeSubscription(sessionId);
-                        stateMachineService.removeMachine(sessionId);
-                        log.info("[SSE] 클라이언트 연결 해제 (cancel) - sessionId: {}, 남은 연결 수: {}",
-                                sessionId, sinks.size());
+                        // 값 비교 -> 빠른 재연결에서 옛 구독이 방금 등록된 새 Sink 를 지우면
+                        // 이어지는 POST /chat/message 가 SESSION_EXPIRED 로 거부된다
+                        boolean removed = sinks.remove(sessionId, sink);
+                        if (removed) {
+                            disposeSubscription(sessionId);
+                            stateMachineService.removeMachine(sessionId);
+                        }
+                        log.info("[SSE] 클라이언트 연결 해제 (cancel) - sessionId: {}, 제거 여부: {}, 남은 연결 수: {}",
+                                sessionId, removed, sinks.size());
                     });
 
-        // BusinessException 은 그대로 통과 -> 소유자 불일치(INVALID_SESSION)가 SESSION_INITIALIZE_FAIL 로 뭉개지면
+        // BusinessException 은 그대로 통과 -> 소유자 불일치(SESSION_ACCESS_DENIED)가 SESSION_INITIALIZE_FAIL 로 뭉개지면
         // 클라이언트도 로그도 인증 거부인지 인프라 장애인지 구분할 수 없음
         // 정리(remove) 도 하지 않음 -> 거부된 연결이 정상 소유자의 Sink/StateMachine 을 지우면 그 자체가 공격 수단
         } catch (BusinessException e) {
@@ -230,7 +241,7 @@ public class ChatServiceImpl implements ChatService {
 
             // Sink 완료 → 구독 중인 Flux가 onComplete 수신 → SSE 연결 종료
             sink.tryEmitComplete();
-            sinks.remove(sessionId);
+            sinks.remove(sessionId, sink);
 
             chatRedisService.deleteSession(sessionId);
 
@@ -246,7 +257,8 @@ public class ChatServiceImpl implements ChatService {
         } else {
             log.warn("[SSE] 세션 해제 실패 - 존재하지 않는 세션 - sessionId: {}, userId: {}, 활성 세션 목록: {}",
                     sessionId, userId, sinks.keySet());
-            throw new BusinessException(ErrorCode.INVALID_SESSION);
+            // 활성 SSE 연결이 없다 = 해제할 대상이 없다. 인가 실패가 아니라 대상 부재다
+            throw new BusinessException(ErrorCode.SESSION_NOT_FOUND);
         }
     }
 

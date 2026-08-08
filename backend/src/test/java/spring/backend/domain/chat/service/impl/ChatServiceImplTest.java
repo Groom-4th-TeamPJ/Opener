@@ -14,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.transaction.PlatformTransactionManager;
+import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 import spring.backend.domain.can.service.spec.CanService;
@@ -32,6 +33,7 @@ import spring.backend.domain.exam.repository.spec.QuestionResultRepository;
 import spring.backend.domain.user.model.entity.User;
 import spring.backend.domain.user.repository.spec.UserRepository;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -250,4 +252,5 @@ class ChatServiceImplTest {
         // 구독을 정리하지 않으면 클라이언트가 끊어도 OpenAI 스트림은 끝까지 돌며 토큰을 소비한다
         assertTrue(cancelled.get());
     }
+
 }

@@ -83,11 +83,10 @@ public class ChatMessageConsumer {
             try {
                 chatRedisService.validateSessionOwner(sessionId, event.userId());
             } catch (BusinessException e) {
-                // INVALID_SESSION 이 SESSION_NOT_FOUND(404)·SESSION_ACCESS_DENIED(403) 로 갈렸으므로 둘 다 받는다
-                // 코드만 비교하면 분기가 조용히 빠져 DLQ 로 새므로 분리 시 여기를 같이 고쳐야 한다
+                // 세션 부재·소유자 불일치는 정상 ACK 대상이다
+                // 코드를 값으로 비교하므로 ErrorCode 를 나눌 때 여기를 같이 고쳐야 분기가 조용히 빠지지 않는다
                 if (e.getErrorCode() == ErrorCode.SESSION_NOT_FOUND
-                        || e.getErrorCode() == ErrorCode.SESSION_ACCESS_DENIED
-                        || e.getErrorCode() == ErrorCode.INVALID_SESSION) {
+                        || e.getErrorCode() == ErrorCode.SESSION_ACCESS_DENIED) {
                     log.warn("[RabbitMQ] 세션 권한 검증 실패 - sessionId: {}, userId: {}. 메시지 무시",
                             sessionId, event.userId());
                     meterRegistry.counter("chat.persist.dropped", "reason", "unauthorized").increment();

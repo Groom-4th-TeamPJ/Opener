@@ -55,7 +55,7 @@ class ChatRedisServiceImplTest {
     }
 
     @Test
-    @DisplayName("기존 세션 키의 소유자가 다르면 INVALID_SESSION 으로 재사용을 거부한다")
+    @DisplayName("기존 세션 키의 소유자가 다르면 SESSION_ACCESS_DENIED 로 재사용을 거부한다")
     void initializeSession_ownerMismatch_throw() {
         UUID owner = UUID.randomUUID();
         UUID attacker = UUID.randomUUID();

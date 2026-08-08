@@ -80,6 +80,6 @@ class SessionOwnerAspectTest {
 
         BusinessException thrown = assertThrows(BusinessException.class, () -> aspect.enforce(joinPoint));
 
-        assertEquals(ErrorCode.INVALID_SESSION, thrown.getErrorCode());
+        assertEquals(ErrorCode.INTERNAL_SERVER_ERROR, thrown.getErrorCode());
     }
 }

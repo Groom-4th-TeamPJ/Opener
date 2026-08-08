@@ -1,5 +1,6 @@
 package spring.backend.domain.chat.messaging;
 
+import java.time.Instant;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -18,22 +19,17 @@ public class ChatMessageProducer {
 
     // 페이로드에 id 만 담음 -> 큐에 대용량 대화 본문 싣지 않고, 실제 데이터는 컨슈머가 Redis 에서 조회
     public void publishSaveMessageEvent(Long sessionId, UUID userId, Long questionResultId) {
-        try {
-            ChatMessageSaveEvent event = ChatMessageSaveEvent.builder()
-                    .sessionId(sessionId)
-                    .userId(userId)
-                    .questionResultId(questionResultId)
-                .publishedAt(java.time.Instant.now())
-                    .build();
+        ChatMessageSaveEvent event = ChatMessageSaveEvent.builder()
+                .sessionId(sessionId)
+                .userId(userId)
+                .questionResultId(questionResultId)
+                .publishedAt(Instant.now())
+                .build();
 
-            rabbitTemplate.convertAndSend(
-                    RabbitMQConfig.CHAT_MESSAGE_EXCHANGE,
-                    RabbitMQConfig.CHAT_MESSAGE_SAVE_ROUTING_KEY,
-                    event
-            );
-
-        } catch (Exception e) {
-            throw e;
-        }
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.CHAT_MESSAGE_EXCHANGE,
+                RabbitMQConfig.CHAT_MESSAGE_SAVE_ROUTING_KEY,
+                event
+        );
     }
 }

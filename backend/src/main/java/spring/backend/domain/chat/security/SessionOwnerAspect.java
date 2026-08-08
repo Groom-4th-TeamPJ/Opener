@@ -33,7 +33,8 @@ public class SessionOwnerAspect {
         if (sessionId == null || userId == null) {
             log.error("[SessionOwner] sessionId/userId 추출 실패 - method: {}",
                     joinPoint.getSignature().toShortString());
-            throw new BusinessException(ErrorCode.INVALID_SESSION);
+            // 설정 실수는 사용자 오류가 아니라 서버 오류다
+            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR);
         }
 
         chatRedisService.validateSessionOwner(sessionId, userId);
