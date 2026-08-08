@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import spring.backend.shared.response.codes.ErrorCode;
@@ -36,10 +38,12 @@ class ChatRedisServiceImplTest {
     @Mock private HashOperations<String, Object, Object> hashOperations;
 
     private ChatRedisServiceImpl service;
+    private SimpleMeterRegistry meterRegistry;
 
     @BeforeEach
     void setUp() {
-        service = new ChatRedisServiceImpl(new ObjectMapper(), redisTemplate, 20);
+        meterRegistry = new SimpleMeterRegistry();
+        service = new ChatRedisServiceImpl(new ObjectMapper(), redisTemplate, 20, meterRegistry);
     }
 
     @Test
@@ -55,7 +59,7 @@ class ChatRedisServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.initializeSession(SESSION_ID, attacker));
 
-        assertEquals(ErrorCode.INVALID_SESSION, ex.getErrorCode());
+        assertEquals(ErrorCode.SESSION_ACCESS_DENIED, ex.getErrorCode());
 
         // 거부된 요청이 기존 세션 메타데이터/TTL 을 건드리면 안 됨
         verify(hashOperations, never()).put(anyString(), any(), any());
@@ -72,7 +76,7 @@ class ChatRedisServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.initializeSession(SESSION_ID, UUID.randomUUID()));
 
-        assertEquals(ErrorCode.INVALID_SESSION, ex.getErrorCode());
+        assertEquals(ErrorCode.SESSION_NOT_FOUND, ex.getErrorCode());
     }
 
     @Test
@@ -109,7 +113,7 @@ class ChatRedisServiceImplTest {
     // 방어선이 두 곳이라 각각 테스트한다 -> initializeSession(신규 연결 경로)과
     // validateSessionOwner(메시지 전송·저장·오프너 분석 등 6개 지점)가 같은 규칙을 지켜야 한다
     @Test
-    @DisplayName("남의 세션에 접근하면 소유자 검증이 INVALID_SESSION 으로 거부한다")
+    @DisplayName("남의 세션에 접근하면 소유자 검증이 SESSION_ACCESS_DENIED 로 거부한다")
     void validateSessionOwner_ownerMismatch_throw() {
         UUID owner = UUID.randomUUID();
         UUID attacker = UUID.randomUUID();
@@ -120,7 +124,7 @@ class ChatRedisServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.validateSessionOwner(SESSION_ID, attacker));
 
-        assertEquals(ErrorCode.INVALID_SESSION, ex.getErrorCode());
+        assertEquals(ErrorCode.SESSION_ACCESS_DENIED, ex.getErrorCode());
     }
 
     @Test
@@ -132,7 +136,7 @@ class ChatRedisServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.validateSessionOwner(SESSION_ID, UUID.randomUUID()));
 
-        assertEquals(ErrorCode.INVALID_SESSION, ex.getErrorCode());
+        assertEquals(ErrorCode.SESSION_NOT_FOUND, ex.getErrorCode());
     }
 
     @Test
@@ -144,5 +148,37 @@ class ChatRedisServiceImplTest {
         when(hashOperations.get(SESSION_KEY, "userId")).thenReturn(owner.toString());
 
         assertDoesNotThrow(() -> service.validateSessionOwner(SESSION_ID, owner));
+    }
+
+    @Test
+    @DisplayName("Redis I/O 실패는 도메인 예외로 감싸지 않고 그대로 전파한다")
+    void validateSessionOwner_레디스장애_DataAccessException을전파한다() {
+        doReturn(hashOperations).when(redisTemplate).opsForHash();
+        when(hashOperations.get(SESSION_KEY, "userId"))
+                .thenThrow(new RedisConnectionFailureException("node down"));
+
+        assertThrows(RedisConnectionFailureException.class,
+                () -> service.validateSessionOwner(SESSION_ID, UUID.randomUUID()));
+    }
+
+    @Test
+    @DisplayName("메시지 저장이 실패해도 예외 대신 드롭 메트릭만 올린다")
+    void saveMessageFallback_레디스장애_예외없이드롭된다() {
+        assertDoesNotThrow(() -> service.saveMessageFallbackForTest(
+                SESSION_ID, null, new RedisConnectionFailureException("io")));
+
+        assertEquals(1.0,
+                meterRegistry.counter("chat.redis.save.dropped", "reason", "io_error").count());
+    }
+
+    @Test
+    @DisplayName("저장 fallback 도 도메인 예외는 그대로 던진다")
+    void saveMessageFallback_도메인예외_그대로던진다() {
+        BusinessException domain = new BusinessException(ErrorCode.MESSAGE_INPUT_FAIL);
+
+        BusinessException thrown = assertThrows(BusinessException.class,
+                () -> service.saveMessageFallbackForTest(SESSION_ID, null, domain));
+
+        assertEquals(ErrorCode.MESSAGE_INPUT_FAIL, thrown.getErrorCode());
     }
 }

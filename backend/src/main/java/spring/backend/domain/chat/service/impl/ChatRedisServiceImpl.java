@@ -1,6 +1,8 @@
 package spring.backend.domain.chat.service.impl;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.MeterRegistry;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import java.time.Duration;
@@ -42,15 +44,19 @@ public class ChatRedisServiceImpl implements ChatRedisService {
     // LLM 컨텍스트로 넘길 최근 메시지 개수 -> 하드코딩하면 모델/비용 정책이 바뀔 때 재배포가 필요하므로 설정값으로 분리
     private final int historyWindow;
 
+    private final MeterRegistry meterRegistry;
+
     public ChatRedisServiceImpl(
             ObjectMapper objectMapper,
             // @Qualifier -> @Primary 인 Auth Redis 가 아닌 chat 클러스터 템플릿을 명시적으로 주입
             @Qualifier("chatRedisTemplate") StringRedisTemplate redisTemplate,
-            @Value("${app.chat.history-window:20}") int historyWindow
+            @Value("${app.chat.history-window:20}") int historyWindow,
+            MeterRegistry meterRegistry
     ) {
         this.objectMapper = objectMapper;
         this.redisTemplate = redisTemplate;
         this.historyWindow = historyWindow;
+        this.meterRegistry = meterRegistry;
     }
 
     /**
@@ -131,8 +137,9 @@ public class ChatRedisServiceImpl implements ChatRedisService {
 
             log.debug("Message saved: sessionId={}, role={}", sessionId, message.chatRole());
 
-        } catch (Exception e) {
-            log.error("Failed to save message for session: {}", sessionId, e);
+        // 직렬화 실패만 도메인 오류 -> Redis I/O 실패는 그대로 던져 서킷이 세게 한다
+        } catch (JsonProcessingException e) {
+            log.error("Failed to serialize message for session: {}", sessionId, e);
             throw new BusinessException(ErrorCode.MESSAGE_INPUT_FAIL);
         }
     }
@@ -227,16 +234,10 @@ public class ChatRedisServiceImpl implements ChatRedisService {
     @Override
     @CircuitBreaker(name = "redis-chat", fallbackMethod = "validateSessionOwnerFallback")
     public void validateSessionOwner(Long sessionId, UUID userId) {
-        try {
-            assertSessionOwner(sessionId, userId, "세션 권한 검증");
-            log.debug("[Redis Cluster] 세션 권한 검증 성공 - sessionId: {}, userId: {}", sessionId, userId);
-
-        } catch (BusinessException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("[Redis Cluster] 세션 권한 검증 중 예외 발생 - sessionId: {}, userId: {}", sessionId, userId, e);
-            throw new BusinessException(ErrorCode.INVALID_SESSION);
-        }
+        // DataAccessException 은 감싸지 않고 전파 -> 서킷이 인프라 장애만 실패로 세게 한다
+        // 여기서 BusinessException 으로 감싸면 만료 세션과 노드 다운이 같은 타입이 되어 분류가 불가능해진다
+        assertSessionOwner(sessionId, userId, "세션 권한 검증");
+        log.debug("[Redis Cluster] 세션 권한 검증 성공 - sessionId: {}, userId: {}", sessionId, userId);
     }
 
     // 소유자 대조 단일 구현 -> initializeSession(신규 연결)과 validateSessionOwner(기존 연결 재사용)가
@@ -247,25 +248,24 @@ public class ChatRedisServiceImpl implements ChatRedisService {
         if (storedUserId == null) {
             log.warn("[Redis Cluster] {} 실패 - 세션이 존재하지 않음 - sessionId: {}, userId: {}",
                     context, sessionId, userId);
-            throw new BusinessException(ErrorCode.INVALID_SESSION);
+            throw new BusinessException(ErrorCode.SESSION_NOT_FOUND);
         }
 
         if (!storedUserId.equals(userId.toString())) {
             log.warn("[Redis Cluster] {} 실패 - 소유자 불일치 - sessionId: {}, storedUserId: {}, requestUserId: {}",
                     context, sessionId, storedUserId, userId);
-            throw new BusinessException(ErrorCode.INVALID_SESSION);
+            throw new BusinessException(ErrorCode.SESSION_ACCESS_DENIED);
         }
     }
 
-    // fallback 2개로 분리 -> Circuit OPEN(차단 상태)과 일반 I/O 실패를 다른 에러코드로 구분 응답
-    // Circuit OPEN 상태 — Redis 장애 지속 중이므로 즉시 차단
+    // 저장 실패는 스트리밍을 끊을 사유가 아니다 -> 이번 턴 프롬프트는 ChatPromptAssembler 가 질문을 보장한다
+    // 버려진 사실을 메트릭으로 남겨 조용한 유실이 되지 않게 한다
     @SuppressWarnings("unused")
     private void saveMessageFallback(Long sessionId, RedisMessageDto message, CallNotPermittedException ex) {
-        log.warn("[Redis Cluster] Circuit OPEN - 메시지 저장 차단 - sessionId: {}", sessionId);
-        throw new BusinessException(ErrorCode.REDIS_CIRCUIT_OPEN);
+        log.warn("[Redis Cluster] Circuit OPEN - 메시지 저장 생략 - sessionId: {}", sessionId);
+        meterRegistry.counter("chat.redis.save.dropped", "reason", "circuit_open").increment();
     }
 
-    // 일반 Redis I/O 예외 — CB 실패 카운트에 반영됨
     @SuppressWarnings("unused")
     private void saveMessageFallback(Long sessionId, RedisMessageDto message, Throwable t) {
         if (t instanceof BusinessException be) {
@@ -273,9 +273,10 @@ public class ChatRedisServiceImpl implements ChatRedisService {
         }
         log.error("[Redis Cluster] 메시지 저장 실패(CB 카운트됨) - sessionId: {}, cause: {}",
                 sessionId, t.getMessage());
-        throw new BusinessException(ErrorCode.MESSAGE_INPUT_FAIL);
+        meterRegistry.counter("chat.redis.save.dropped", "reason", "io_error").increment();
     }
 
+    // 소유자 검증은 인가 게이트라 fail-close 유지 -> 못 읽는 상태에서 통과시키면 그 자체가 인가 우회
     @SuppressWarnings("unused")
     private void validateSessionOwnerFallback(Long sessionId, UUID userId, CallNotPermittedException ex) {
         log.warn("[Redis Cluster] Circuit OPEN - 세션 권한 검증 차단 - sessionId: {}", sessionId);
@@ -289,6 +290,11 @@ public class ChatRedisServiceImpl implements ChatRedisService {
         }
         log.error("[Redis Cluster] 세션 권한 검증 실패(CB 카운트됨) - sessionId: {}, cause: {}",
                 sessionId, t.getMessage());
-        throw new BusinessException(ErrorCode.INVALID_SESSION);
+        throw new BusinessException(ErrorCode.REDIS_CIRCUIT_OPEN);
+    }
+
+    // private fallback 을 단위 테스트에서 직접 부르기 위한 위임
+    void saveMessageFallbackForTest(Long sessionId, RedisMessageDto message, Throwable t) {
+        saveMessageFallback(sessionId, message, t);
     }
 }

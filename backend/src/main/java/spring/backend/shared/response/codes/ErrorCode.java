@@ -53,6 +53,10 @@ public enum ErrorCode {
     LLM_CIRCUIT_OPEN(503, "C_010", "LLM 서비스가 일시적으로 이용 불가능합니다. 잠시 후 다시 시도해주세요."),
     REDIS_CIRCUIT_OPEN(503, "C_011", "채팅 저장소가 일시적으로 이용 불가능합니다."),
     RAG_DISABLED(503, "C_012", "변형문제 생성 기능이 비활성화되어 있습니다."),
+    // INVALID_SESSION(400) 에 뭉쳐 있던 두 사유를 분리한다
+    // 400 은 요청 형식 오류를 뜻하는데 실제로는 인가 실패(403)와 대상 부재(404)였다
+    SESSION_ACCESS_DENIED(403, "C_013", "세션 접근 권한이 없습니다."),
+    SESSION_NOT_FOUND(404, "C_014", "세션을 찾을 수 없습니다."),
 
     // Can 관련 에러 (N_xxx)
     INSUFFICIENT_CANS(400, "N_001", "CAN이 부족합니다"),

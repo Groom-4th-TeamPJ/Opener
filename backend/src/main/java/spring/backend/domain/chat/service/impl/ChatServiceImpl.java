@@ -334,7 +334,15 @@ public class ChatServiceImpl implements ChatService {
                 })
                 .doOnError(error -> {
                     log.error("[Chat] 메시지 처리 중 예외 발생 - sessionId: {}", sessionId, error);
-                    emitError(sessionId, error.getMessage(), null);
+                    // 서킷 OPEN 과 LLM 실패를 클라이언트가 구분할 수 있어야 재시도 안내가 성립한다
+                    // error.getMessage() 는 내부 예외 문구라 사용자에게 의미가 없고 코드도 실리지 않는다
+                    if (error instanceof BusinessException be) {
+                        emitError(sessionId, be.getErrorCode().getMessage(), be.getErrorCode().getCode());
+                    } else {
+                        emitError(sessionId,
+                                ErrorCode.LLM_RESPONSE_FAIL.getMessage(),
+                                ErrorCode.LLM_RESPONSE_FAIL.getCode());
+                    }
                     if (!stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_ERROR)) {
                         log.warn("[Chat] STREAM_ERROR 전이 거부 - sessionId: {}, 현재 상태: {}",
                                 sessionId, stateMachineService.getCurrentState(sessionId));

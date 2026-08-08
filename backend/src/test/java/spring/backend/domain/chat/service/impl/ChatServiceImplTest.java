@@ -38,6 +38,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import spring.backend.shared.response.codes.ErrorCode;
+import spring.backend.shared.response.exception.BusinessException;
 
 // LLM 은 전부 mock -> OpenAI 실호출 없이 스트리밍 계약(청크 순서·상태 전이·에러 회수)만 검증
 @ExtendWith(MockitoExtension.class)
@@ -157,15 +159,33 @@ class ChatServiceImplTest {
                 .then(() -> service.processMessage(request(), USER_ID))
                 .assertNext(sse -> {
                     assertEquals("error", sse.event());
-                    assertEquals("LLM 다운", field(sse, "error"));
-                    // 일반 예외는 ErrorCode 가 없어 errorCode 가 비어 있음
-                    assertNull(field(sse, "errorCode"));
+                    // 내부 예외 문구("LLM 다운")를 그대로 노출하지 않는다 - 사용자에게 의미가 없고 내부 구조가 샌다
+                    assertEquals(ErrorCode.LLM_RESPONSE_FAIL.getMessage(), field(sse, "error"));
+                    assertEquals(ErrorCode.LLM_RESPONSE_FAIL.getCode(), field(sse, "errorCode"));
                 })
                 .thenCancel()
                 .verify(TIMEOUT);
 
         verify(stateMachineService, timeout(2000)).sendEvent(SESSION_ID, ChatSessionEvent.STREAM_ERROR);
         verify(stateMachineService, never()).sendEvent(SESSION_ID, ChatSessionEvent.STREAM_COMPLETE);
+    }
+
+    @Test
+    @DisplayName("서킷 OPEN 으로 실패하면 SSE error 이벤트에 C_010 이 실린다")
+    void processMessage_서킷오픈_에러코드가전달된다() {
+        when(llmService.chatStream(SESSION_ID.toString(), "질문"))
+                .thenReturn(Flux.error(new BusinessException(ErrorCode.LLM_CIRCUIT_OPEN)));
+
+        StepVerifier.create(service.connectSession(SESSION_ID, USER_ID))
+                .assertNext(sse -> assertEquals("connected", sse.event()))
+                .then(() -> service.processMessage(request(), USER_ID))
+                .assertNext(sse -> {
+                    assertEquals("error", sse.event());
+                    // 서킷 OPEN 과 일반 LLM 실패를 클라이언트가 구분해야 재시도 안내가 성립한다
+                    assertEquals("C_010", field(sse, "errorCode"));
+                })
+                .thenCancel()
+                .verify(TIMEOUT);
     }
 
     private ChatSendRequest request() {

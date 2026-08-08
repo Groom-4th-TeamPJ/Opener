@@ -100,6 +100,9 @@ resilience4j:
         waitDurationInOpenState: 30s        # 30초 후 HALF-OPEN 전이
         permittedNumberOfCallsInHalfOpenState: 3
         automaticTransitionFromOpenToHalfOpenEnabled: true
+        # LLM 경로의 BusinessException 은 전부 도메인 판정(RAG_DISABLED 등)이라 인프라 실패가 아님
+        ignoreExceptions:
+          - spring.backend.shared.response.exception.BusinessException
       llm-rag:
         registerHealthIndicator: true
         slidingWindowType: COUNT_BASED
@@ -109,6 +112,9 @@ resilience4j:
         waitDurationInOpenState: 30s
         permittedNumberOfCallsInHalfOpenState: 3
         automaticTransitionFromOpenToHalfOpenEnabled: true
+        # LLM 경로의 BusinessException 은 전부 도메인 판정(RAG_DISABLED 등)이라 인프라 실패가 아님
+        ignoreExceptions:
+          - spring.backend.shared.response.exception.BusinessException
       redis-chat:
         registerHealthIndicator: true
         slidingWindowType: COUNT_BASED
@@ -118,6 +124,10 @@ resilience4j:
         waitDurationInOpenState: 10s
         permittedNumberOfCallsInHalfOpenState: 5
         automaticTransitionFromOpenToHalfOpenEnabled: true
+        # 화이트리스트 방식 -> 만료 세션·소유자 불일치 같은 사용자 오류가 서킷을 열지 못하게 한다
+        recordExceptions:
+          - org.springframework.dao.DataAccessException
+          - io.lettuce.core.RedisException
       test-circuit:                         # 가상 장애 주입 측정용 (llm-chat 과 동일 정책)
         registerHealthIndicator: true
         slidingWindowType: COUNT_BASED
