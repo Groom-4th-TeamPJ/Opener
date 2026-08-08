@@ -94,6 +94,12 @@ public class Credentials extends BaseEntity {
 
   // 로그인 실패 처리 - 실패 카운트 증가 - lastFailedLoginAt 업데이트 - 최대 실패 횟수 도달 시 계정 잠금
   public void recordLoginFailure(int maxAttempts, int lockDurationMinutes) {
+    // 잠금 중 시도는 집계하지 않는다 -> 카운터와 해제 시각을 갱신하면 잠금이 슬라이딩해 영구히 안 풀린다
+    // isAccountLocked() 는 만료된 잠금을 스스로 해제하고 카운터를 초기화하므로 고정 창(fixed window) 이 된다
+    if (this.isAccountLocked()) {
+      return;
+    }
+
     this.failedLoginAttempts++;
     this.lastFailedLoginAt = LocalDateTime.now();
 
