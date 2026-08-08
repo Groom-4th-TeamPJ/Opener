@@ -46,17 +46,22 @@ public class ChatRedisServiceImpl implements ChatRedisService {
 
     private final MeterRegistry meterRegistry;
 
+    // 쓰기 직후 읽기가 같은 요청 안에서 일어나는 경로 전용 (ReadFrom.MASTER)
+    private final StringRedisTemplate masterRedisTemplate;
+
     public ChatRedisServiceImpl(
             ObjectMapper objectMapper,
             // @Qualifier -> @Primary 인 Auth Redis 가 아닌 chat 클러스터 템플릿을 명시적으로 주입
             @Qualifier("chatRedisTemplate") StringRedisTemplate redisTemplate,
             @Value("${app.chat.history-window:20}") int historyWindow,
-            MeterRegistry meterRegistry
+            MeterRegistry meterRegistry,
+            @Qualifier("chatRedisMasterTemplate") StringRedisTemplate masterRedisTemplate
     ) {
         this.objectMapper = objectMapper;
         this.redisTemplate = redisTemplate;
         this.historyWindow = historyWindow;
         this.meterRegistry = meterRegistry;
+        this.masterRedisTemplate = masterRedisTemplate;
     }
 
     /**
@@ -147,7 +152,9 @@ public class ChatRedisServiceImpl implements ChatRedisService {
     // 영속화 경로 전용 -> 대화가 잘리면 DB 에 반쪽 기록이 남으므로 전량 반환 유지
     @Override
     public List<RedisMessageDto> getSessionMessages(Long sessionId) {
-        return fetchMessages(sessionId, 0, -1);
+        // 영속화는 스트리밍 종료 후 별도 요청이라 복제 지연 창이 닫혀 있다 -> replica 유지
+        return meterRegistry.timer("chat.redis.read", "route", "replica")
+                .record(() -> fetchMessages(redisTemplate, sessionId, 0, -1));
     }
 
     // LLM 컨텍스트 전용 -> 턴이 쌓일수록 프롬프트가 선형 증가해 비용·TTFT 가 나빠지므로 최근 N 개로 상한
@@ -156,18 +163,21 @@ public class ChatRedisServiceImpl implements ChatRedisService {
         // 음수 인덱스 = 뒤에서부터 -> 저장 개수가 N 보다 적어도 Redis 가 있는 만큼만 반환해 별도 길이 체크 불필요
         // 설정값이 0 이하면 윈도우 비활성으로 보고 전체 반환
         long start = historyWindow > 0 ? -historyWindow : 0;
-        return fetchMessages(sessionId, start, -1);
+        // 같은 요청 안에서 saveMessage 직후에 읽는다 -> 복제 지연 창이 항상 열려 있어 master 고정
+        return meterRegistry.timer("chat.redis.read", "route", "master")
+                .record(() -> fetchMessages(masterRedisTemplate, sessionId, start, -1));
     }
 
     // 조회 범위만 다르고 역직렬화/예외 처리는 동일 -> 중복 대신 범위를 인자로 받아 한 곳에서 처리
-    private List<RedisMessageDto> fetchMessages(Long sessionId, long start, long end) {
+    private List<RedisMessageDto> fetchMessages(
+            StringRedisTemplate template, Long sessionId, long start, long end) {
         String messageKey = getMessageKey(sessionId);
 
         try {
             log.debug("[Redis Cluster] 세션 메시지 조회 시작 - sessionId: {}, key: {}, range: [{}, {}]",
                     sessionId, messageKey, start, end);
 
-            List<String> jsonMessages = redisTemplate.opsForList().range(messageKey, start, end);
+            List<String> jsonMessages = template.opsForList().range(messageKey, start, end);
 
             if (jsonMessages == null || jsonMessages.isEmpty()) {
                 log.debug("[Redis Cluster] 세션 메시지 없음 - sessionId: {}", sessionId);
@@ -243,7 +253,17 @@ public class ChatRedisServiceImpl implements ChatRedisService {
     // 소유자 대조 단일 구현 -> initializeSession(신규 연결)과 validateSessionOwner(기존 연결 재사용)가
     // 같은 로직을 각각 들고 있으면 판정 조건을 바꿀 때 한쪽만 고쳐 규칙이 갈라진다
     private void assertSessionOwner(Long sessionId, UUID userId, String context) {
-        String storedUserId = (String) redisTemplate.opsForHash().get(getSessionKey(sessionId), "userId");
+        String sessionKey = getSessionKey(sessionId);
+
+        String storedUserId = (String) meterRegistry.timer("chat.redis.read", "route", "replica")
+                .record(() -> redisTemplate.opsForHash().get(sessionKey, "userId"));
+
+        // replica 가 비었을 때만 master 재확인 -> 정상 경로는 그대로 분산되고 복제 지연 의심 순간만 선형화
+        // 무조건 master 로 읽으면 분산이 사라지고, 재확인이 없으면 방금 만든 세션이 없는 것으로 보인다
+        if (storedUserId == null) {
+            storedUserId = (String) meterRegistry.timer("chat.redis.read", "route", "master")
+                    .record(() -> masterRedisTemplate.opsForHash().get(sessionKey, "userId"));
+        }
 
         if (storedUserId == null) {
             log.warn("[Redis Cluster] {} 실패 - 세션이 존재하지 않음 - sessionId: {}, userId: {}",

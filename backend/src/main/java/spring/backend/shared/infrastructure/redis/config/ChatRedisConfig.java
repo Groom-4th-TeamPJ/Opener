@@ -47,6 +47,35 @@ public class ChatRedisConfig {
     @Bean(name = "chatRedisConnectionFactory")
     public LettuceConnectionFactory chatRedisConnectionFactory() {
         log.info("Initializing Redis Cluster with nodes: {}", cluster.getNodes());
+        // 읽기는 Replica 우선 -> Master 부하 분산
+        return buildClusterFactory(ReadFrom.REPLICA_PREFERRED, 20, 10, 5);
+    }
+
+    // read-after-write 창이 항상 열려 있는 읽기 전용 -> ReadFrom 은 팩토리 단위 설정이라 별도 빈이 필요
+    // 호출량이 적으므로 풀을 작게 잡아 커넥션 비용을 억제한다
+    @Bean(name = "chatRedisMasterConnectionFactory")
+    public LettuceConnectionFactory chatRedisMasterConnectionFactory() {
+        return buildClusterFactory(ReadFrom.MASTER, 5, 3, 1);
+    }
+
+    @Bean(name = "chatRedisMasterTemplate")
+    public StringRedisTemplate chatRedisMasterTemplate(
+            @Qualifier("chatRedisMasterConnectionFactory") RedisConnectionFactory connectionFactory) {
+        StringRedisTemplate template = new StringRedisTemplate();
+        template.setConnectionFactory(connectionFactory);
+        StringRedisSerializer serializer = new StringRedisSerializer();
+        template.setKeySerializer(serializer);
+        template.setValueSerializer(serializer);
+        template.setHashKeySerializer(serializer);
+        template.setHashValueSerializer(serializer);
+        template.afterPropertiesSet();
+        return template;
+    }
+
+    // 토폴로지·리졸버·타임아웃은 두 팩토리가 공유한다 -> 복제하면 한쪽만 고치는 사고가 난다
+    // 갈리는 것은 readFrom 과 풀 크기뿐이라 그것만 인자로 받는다
+    private LettuceConnectionFactory buildClusterFactory(
+            ReadFrom readFrom, int maxTotal, int maxIdle, int minIdle) {
 
         // Cluster 설정
         RedisClusterConfiguration clusterConfig = new RedisClusterConfiguration(cluster.getNodes());
@@ -86,15 +115,15 @@ public class ChatRedisConfig {
         // 커넥션 풀 -> 매 요청 연결 생성 비용 제거, 동시 채팅 부하에서도 일정한 성능 유지
         @SuppressWarnings("rawtypes")
         GenericObjectPoolConfig poolConfig = new GenericObjectPoolConfig();
-        poolConfig.setMaxTotal(20);
-        poolConfig.setMaxIdle(10);
-        poolConfig.setMinIdle(5);
+        poolConfig.setMaxTotal(maxTotal);
+        poolConfig.setMaxIdle(maxIdle);
+        poolConfig.setMinIdle(minIdle);
         poolConfig.setTestOnBorrow(true);                           // 빌려올 때 연결 검증 -> 죽은 커넥션 사용 방지
 
         // Lettuce 클라이언트 설정 (Connection Pool 포함)
         LettucePoolingClientConfiguration clientConfig = LettucePoolingClientConfiguration.builder()
                 .poolConfig(poolConfig)
-                .readFrom(ReadFrom.REPLICA_PREFERRED)               // 읽기는 Replica 우선 -> Master 부하 분산
+                .readFrom(readFrom)
                 .commandTimeout(this.timeout)
                 .clientOptions(clusterClientOptions)
                 .clientResources(clientResources)

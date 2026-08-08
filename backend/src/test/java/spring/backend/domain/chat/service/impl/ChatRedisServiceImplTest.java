@@ -11,7 +11,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.springframework.data.redis.RedisConnectionFailureException;
+import java.util.List;
 import org.springframework.data.redis.core.HashOperations;
+import org.springframework.data.redis.core.ListOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
@@ -33,9 +35,15 @@ class ChatRedisServiceImplTest {
 
     private static final Long SESSION_ID = 42L;
     private static final String SESSION_KEY = "chat:{42}:session";
+    private static final String MESSAGE_KEY = "chat:{42}:messages";
+    private static final UUID USER_ID = UUID.randomUUID();
 
     @Mock private StringRedisTemplate redisTemplate;
     @Mock private HashOperations<String, Object, Object> hashOperations;
+    @Mock private StringRedisTemplate masterRedisTemplate;
+    @Mock private HashOperations<String, Object, Object> masterHashOperations;
+    @Mock private ListOperations<String, String> masterListOperations;
+    @Mock private ListOperations<String, String> listOperations;
 
     private ChatRedisServiceImpl service;
     private SimpleMeterRegistry meterRegistry;
@@ -43,7 +51,7 @@ class ChatRedisServiceImplTest {
     @BeforeEach
     void setUp() {
         meterRegistry = new SimpleMeterRegistry();
-        service = new ChatRedisServiceImpl(new ObjectMapper(), redisTemplate, 20, meterRegistry);
+        service = new ChatRedisServiceImpl(new ObjectMapper(), redisTemplate, 20, meterRegistry, masterRedisTemplate);
     }
 
     @Test
@@ -72,6 +80,8 @@ class ChatRedisServiceImplTest {
         when(redisTemplate.hasKey(SESSION_KEY)).thenReturn(true);
         doReturn(hashOperations).when(redisTemplate).opsForHash();
         when(hashOperations.get(SESSION_KEY, "userId")).thenReturn(null);
+        doReturn(masterHashOperations).when(masterRedisTemplate).opsForHash();
+        when(masterHashOperations.get(SESSION_KEY, "userId")).thenReturn(null);
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.initializeSession(SESSION_ID, UUID.randomUUID()));
@@ -132,6 +142,8 @@ class ChatRedisServiceImplTest {
     void validateSessionOwner_sessionAbsent_throw() {
         doReturn(hashOperations).when(redisTemplate).opsForHash();
         when(hashOperations.get(SESSION_KEY, "userId")).thenReturn(null);
+        doReturn(masterHashOperations).when(masterRedisTemplate).opsForHash();
+        when(masterHashOperations.get(SESSION_KEY, "userId")).thenReturn(null);
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.validateSessionOwner(SESSION_ID, UUID.randomUUID()));
@@ -180,5 +192,55 @@ class ChatRedisServiceImplTest {
                 () -> service.saveMessageFallbackForTest(SESSION_ID, null, domain));
 
         assertEquals(ErrorCode.MESSAGE_INPUT_FAIL, thrown.getErrorCode());
+    }
+
+    @Test
+    @DisplayName("프롬프트용 최근 히스토리는 master 에서 읽는다")
+    void getRecentSessionMessages_항상_master로읽는다() {
+        doReturn(masterListOperations).when(masterRedisTemplate).opsForList();
+        when(masterListOperations.range(MESSAGE_KEY, -20L, -1L)).thenReturn(List.of());
+
+        service.getRecentSessionMessages(SESSION_ID);
+
+        // 같은 요청 안에서 saveMessage 직후에 읽으므로 replica 를 타면 방금 쓴 질문이 빠진다
+        verify(masterListOperations).range(MESSAGE_KEY, -20L, -1L);
+        verify(redisTemplate, never()).opsForList();
+    }
+
+    @Test
+    @DisplayName("영속화용 전량 조회는 replica 로 읽어 분산을 유지한다")
+    void getSessionMessages_replica로읽는다() {
+        doReturn(listOperations).when(redisTemplate).opsForList();
+        when(listOperations.range(MESSAGE_KEY, 0L, -1L)).thenReturn(List.of());
+
+        service.getSessionMessages(SESSION_ID);
+
+        verify(listOperations).range(MESSAGE_KEY, 0L, -1L);
+        verify(masterRedisTemplate, never()).opsForList();
+    }
+
+    @Test
+    @DisplayName("소유자 검증은 replica 로 읽고 결과가 있으면 master 를 치지 않는다")
+    void validateSessionOwner_replica에서찾음_master조회없다() {
+        doReturn(hashOperations).when(redisTemplate).opsForHash();
+        when(hashOperations.get(SESSION_KEY, "userId")).thenReturn(USER_ID.toString());
+
+        service.validateSessionOwner(SESSION_ID, USER_ID);
+
+        verify(masterRedisTemplate, never()).opsForHash();
+    }
+
+    @Test
+    @DisplayName("소유자 검증이 replica 에서 비면 master 로 한 번 더 확인한다")
+    void validateSessionOwner_replica가비었음_master로재확인한다() {
+        doReturn(hashOperations).when(redisTemplate).opsForHash();
+        when(hashOperations.get(SESSION_KEY, "userId")).thenReturn(null);
+        doReturn(masterHashOperations).when(masterRedisTemplate).opsForHash();
+        when(masterHashOperations.get(SESSION_KEY, "userId")).thenReturn(USER_ID.toString());
+
+        // 복제 지연으로 replica 가 아직 못 본 세션을 없는 것으로 단정하면 방금 만든 세션이 거부된다
+        assertDoesNotThrow(() -> service.validateSessionOwner(SESSION_ID, USER_ID));
+
+        verify(masterHashOperations).get(SESSION_KEY, "userId");
     }
 }
