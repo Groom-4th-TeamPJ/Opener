@@ -198,7 +198,9 @@ public class OpenAiLlmService implements LlmService {
         return Flux.error(new BusinessException(ErrorCode.LLM_RESPONSE_FAIL));
     }
 
+    // 요약도 무보호 외부 호출이었다 -> 실패가 컨슈머 재시도로 증폭돼 LLM 부하를 키운다
     @Override
+    @CircuitBreaker(name = "llm-summary", fallbackMethod = "summaryChatFallback")
     public String summaryChat(String sessionId) {
         try {
             // 윈도우 미적용 전량 조회 -> 이 요약은 PostgreSQL 에 영구 저장되므로 최근 N 턴만 보면 기록이 영구 손실
@@ -248,5 +250,13 @@ public class OpenAiLlmService implements LlmService {
 
             throw new BusinessException(ErrorCode.LLM_RESPONSE_FAIL);
         }
+    }
+
+    // 요약 없이 대화만 저장하는 것이 저장 자체를 실패시키는 것보다 낫다
+    @SuppressWarnings("unused")
+    private String summaryChatFallback(String sessionId, Throwable t) {
+        log.warn("[LLM+RAG] 요약 실패 - 요약 없이 대화만 저장 - sessionId: {}, cause: {}",
+                sessionId, t.getMessage());
+        return null;
     }
 }

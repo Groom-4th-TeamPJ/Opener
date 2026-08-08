@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import spring.backend.domain.chat.dto.message_dto.ChatMessageSaveEvent;
 import spring.backend.domain.chat.dto.redis_dto.RedisMessageDto;
 import spring.backend.domain.chat.mapper.RedisMessageMapper;
@@ -35,14 +35,16 @@ public class ChatMessageConsumer {
     private final QuestionResultRepository questionResultRepository;
     private final LlmService llmService;
     private final MeterRegistry meterRegistry;
+    private final TransactionTemplate transactionTemplate;
 
     // 세션 TTL 과 같은 값 -> 이 시간을 넘긴 이벤트의 빈 버퍼는 정상 만료로 본다
     private static final Duration SESSION_TTL = Duration.ofHours(1);
 
     // @RabbitListener -> 큐 메시지를 자동 수신, 폴링 코드 없이 이벤트 도착 시 호출
-    // @Transactional -> 요약/저장/Redis 삭제를 한 트랜잭션으로 묶어 부분 저장 방지
+    // @Transactional 제거 -> LLM 요약은 십수 초가 걸리는 외부 호출이라 커넥션을 붙잡은 채 기다리면
+    // HikariCP(max 20)가 고갈되고, 그것이 곧 이 도메인이 막겠다고 한 연쇄 지연이다
+    // DB 쓰기만 TransactionTemplate 으로 감싸 경계를 최소화한다
     @RabbitListener(queues = RabbitMQConfig.CHAT_MESSAGE_SAVE_QUEUE)
-    @Transactional
     public void handleSaveMessageEvent(ChatMessageSaveEvent event) {
         Long sessionId = event.sessionId();
         Long questionResultId = event.questionResultId();
@@ -98,19 +100,21 @@ public class ChatMessageConsumer {
             // MessageDto 리스트를 ChatMessageContent 리스트로 변환 -> 현재 구성은 동일하지만 추후 확장성 고려
             List<ChatMessageContent> messageContents = redisMessageMapper.toEntityList(redisMessages);
 
-            // questionResult 조회
-            QuestionResult questionResult = questionResultRepository.findById(questionResultId)
-                    .orElseThrow(() -> {
-                        log.error("[RabbitMQ] QuestionResult 조회 실패 - questionResultId: {}", questionResultId);
-                        return new BusinessException(ErrorCode.RESULT_NOT_FOUND);
-                    });
-
-            // 요약 진행
+            // 트랜잭션 밖에서 먼저 요약 -> 외부 호출 지연이 DB 커넥션 점유 시간에 더해지지 않게 한다
             String summary = llmService.summaryChat(sessionId.toString());
 
-            // ChatMessage 엔티티 생성 및 저장
-            ChatMessage chatMessage = ChatMessage.createFromSession(questionResult, messageContents, summary);
-            chatMessageRepository.save(chatMessage);
+            transactionTemplate.execute(status -> {
+                QuestionResult questionResult = questionResultRepository.findById(questionResultId)
+                        .orElseThrow(() -> {
+                            log.error("[RabbitMQ] QuestionResult 조회 실패 - questionResultId: {}", questionResultId);
+                            return new BusinessException(ErrorCode.RESULT_NOT_FOUND);
+                        });
+
+                ChatMessage chatMessage = ChatMessage.createFromSession(
+                        questionResult, messageContents, summary);
+                chatMessageRepository.save(chatMessage);
+                return null;
+            });
 
             log.info("[RabbitMQ] 채팅 메시지 저장 완료 - sessionId: {}, 메시지 수: {}",
                     sessionId, messageContents.size());

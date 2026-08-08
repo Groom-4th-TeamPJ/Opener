@@ -115,6 +115,18 @@ resilience4j:
         # LLM 경로의 BusinessException 은 전부 도메인 판정(RAG_DISABLED 등)이라 인프라 실패가 아님
         ignoreExceptions:
           - spring.backend.shared.response.exception.BusinessException
+      llm-summary:                          # 대화 요약 - 동기 호출이라 컨슈머 재시도와 곱해지는 것을 막는다
+        registerHealthIndicator: true
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        # LLM 경로의 BusinessException 은 전부 도메인 판정이라 인프라 실패가 아님
+        ignoreExceptions:
+          - spring.backend.shared.response.exception.BusinessException
       redis-chat:
         registerHealthIndicator: true
         slidingWindowType: COUNT_BASED
