@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -25,6 +26,8 @@ public class TokenIssuer {
     // TTL 은 JWT exp 와 같은 설정에서 온다 -> 저장본이 먼저 사라져 재발급이 실패하는 창을 없앤다
     private final Duration refreshTtl;
 
+    // @Autowired 필수 -> 생성자가 둘이면 Spring 이 후보를 못 정하고 무인자 생성자를 찾다 컨텍스트가 깨진다
+    @Autowired
     public TokenIssuer(
             JwtUtil jwtUtil,
             @Qualifier("authRedisTemplate") StringRedisTemplate redisTemplate,

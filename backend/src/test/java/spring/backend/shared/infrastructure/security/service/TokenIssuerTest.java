@@ -1,6 +1,7 @@
 package spring.backend.shared.infrastructure.security.service;
 
 import jakarta.servlet.http.HttpServletResponse;
+import java.lang.reflect.Constructor;
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -9,11 +10,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import spring.backend.domain.user.model.enums.Role;
 import spring.backend.shared.infrastructure.security.util.JwtUtil;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -49,5 +53,19 @@ class TokenIssuerTest {
                 eq("refresh"),
                 eq(REFRESH_TTL.toSeconds()),
                 eq(TimeUnit.SECONDS));
+    }
+
+    // 생성자가 둘인데 @Autowired 가 없으면 Spring 이 무인자 생성자를 찾다 컨텍스트가 통째로 깨진다
+    // 위 테스트는 패키지 전용 생성자를 직접 부르므로 이 결함을 통과시킨다 - 선택 규칙 자체를 고정한다
+    @Test
+    @DisplayName("Spring 이 주입용 생성자를 하나로 결정할 수 있다")
+    void 생성자_두개여도_주입대상이_유일하게_결정된다() {
+        // 컨테이너가 실제로 쓰는 후처리기로 판정한다 - BeanUtils 는 @Autowired 를 보지 않아 이 결함을 못 잡는다
+        Constructor<?>[] candidates = new AutowiredAnnotationBeanPostProcessor()
+                .determineCandidateConstructors(TokenIssuer.class, "tokenIssuer");
+
+        assertNotNull(candidates, "주입 후보를 못 찾으면 무인자 생성자를 찾다 컨텍스트가 깨진다");
+        assertEquals(1, candidates.length);
+        assertEquals(long.class, candidates[0].getParameterTypes()[2]);
     }
 }
