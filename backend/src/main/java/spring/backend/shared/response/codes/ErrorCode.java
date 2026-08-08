@@ -29,6 +29,7 @@ public enum ErrorCode {
     // Client/Validation 에러 (V_xxx)
     INVALID_INPUT(400, "V_001", "입력값이 올바르지 않습니다"),
     MISSING_PARAMETER(400, "V_002", "필수 파라미터가 누락되었습니다"),
+    METHOD_NOT_ALLOWED(405, "V_003", "지원하지 않는 HTTP 메서드입니다"),
 
     // Business Logic 에러 (B_xxx)
     RESOURCE_NOT_FOUND(404, "B_001", "요청한 리소스를 찾을 수 없습니다"),

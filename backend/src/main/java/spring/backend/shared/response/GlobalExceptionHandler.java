@@ -2,9 +2,11 @@ package spring.backend.shared.response;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
 import spring.backend.shared.response.format.ApiResponseFormat;
@@ -77,6 +79,48 @@ public class GlobalExceptionHandler {
     return ResponseEntity
             .status(400)
             .body(response);
+  }
+
+  /**
+   * 미매핑 경로 처리 (404)
+   * 포괄 Exception 핸들러로 떨어지면 클라이언트 오류가 5xx 로 집계돼 모니터링 신호를 오염시킨다
+   */
+  @ExceptionHandler(NoResourceFoundException.class)
+  public ResponseEntity<ApiResponseFormat<Void>> handleNoResourceFound(NoResourceFoundException e) {
+    // 오탈자 URL 은 장애가 아니므로 warn 까지만 남긴다
+    log.warn("No handler found for {} {}", e.getHttpMethod(), e.getResourcePath());
+
+    return toErrorResponse(ErrorCode.RESOURCE_NOT_FOUND, ErrorCode.RESOURCE_NOT_FOUND.getMessage());
+  }
+
+  /**
+   * 허용되지 않은 HTTP 메서드 처리 (405)
+   */
+  @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+  public ResponseEntity<ApiResponseFormat<Void>> handleMethodNotSupported(HttpRequestMethodNotSupportedException e) {
+    log.warn("Method not supported: {}", e.getMessage());
+
+    return toErrorResponse(ErrorCode.METHOD_NOT_ALLOWED, e.getMessage());
+  }
+
+  /**
+   * ErrorCode 기반 에러 응답 조립
+   */
+  private ResponseEntity<ApiResponseFormat<Void>> toErrorResponse(ErrorCode errorCode, String detailMessage) {
+    ErrorDetailFormat error = new ErrorDetailFormat(
+            null,
+            null,
+            detailMessage,
+            errorCode.getCode()
+    );
+
+    return ResponseEntity
+            .status(errorCode.getStatus())
+            .body(ApiResponseFormat.error(
+                    errorCode.getStatus(),
+                    errorCode.getMessage(),
+                    error
+            ));
   }
 
   /**
