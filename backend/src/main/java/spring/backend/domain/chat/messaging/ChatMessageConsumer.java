@@ -1,5 +1,8 @@
 package spring.backend.domain.chat.messaging;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +34,10 @@ public class ChatMessageConsumer {
     private final ChatMessageRepository chatMessageRepository;
     private final QuestionResultRepository questionResultRepository;
     private final LlmService llmService;
+    private final MeterRegistry meterRegistry;
+
+    // 세션 TTL 과 같은 값 -> 이 시간을 넘긴 이벤트의 빈 버퍼는 정상 만료로 본다
+    private static final Duration SESSION_TTL = Duration.ofHours(1);
 
     // @RabbitListener -> 큐 메시지를 자동 수신, 폴링 코드 없이 이벤트 도착 시 호출
     // @Transactional -> 요약/저장/Redis 삭제를 한 트랜잭션으로 묶어 부분 저장 방지
@@ -47,10 +54,25 @@ public class ChatMessageConsumer {
             // Redis에서 세션 메시지 조회
             List<RedisMessageDto> redisMessages = chatRedisService.getSessionMessages(sessionId);
 
-            // 메시지 없음 = TTL 만료된 정상 상황 -> 예외 던지면 DLQ 로 가므로, 정상 ACK 처리해 큐에서 제거
+            // 버퍼가 비었을 때 정상 만료와 비정상 소실을 가른다
+            // publishedAt 이 없으면(구 메시지) 판정 근거가 없으므로 안전한 쪽인 정상 만료로 본다
             if (redisMessages == null || redisMessages.isEmpty()) {
-                log.warn("[RabbitMQ] Redis 세션 만료 또는 메시지 없음 - sessionId: {}. 메시지 무시", sessionId);
-                return;
+                Instant publishedAt = event.publishedAt();
+                boolean expired = publishedAt == null
+                        || Duration.between(publishedAt, Instant.now()).compareTo(SESSION_TTL) >= 0;
+
+                if (expired) {
+                    // TTL 을 넘겼으면 사라진 것이 정상 -> ACK 하되 사실은 남긴다
+                    log.warn("[RabbitMQ] 세션 TTL 만료로 버퍼 비어 있음 - sessionId: {}", sessionId);
+                    meterRegistry.counter("chat.persist.dropped", "reason", "expired").increment();
+                    return;
+                }
+
+                // TTL 안인데 비어 있다 = 복제 유실·LRU 축출 -> 조용히 ACK 하면 유실을 유실로 알 수 없다
+                log.error("[RabbitMQ] TTL 이내인데 버퍼가 비어 있음 - sessionId: {}, publishedAt: {}",
+                        sessionId, publishedAt);
+                meterRegistry.counter("chat.persist.dropped", "reason", "lost").increment();
+                throw new BusinessException(ErrorCode.CHAT_BUFFER_LOST);
             }
 
             // 권한 검증 (Redis에 데이터가 있는 경우에만 검증)
@@ -66,6 +88,7 @@ public class ChatMessageConsumer {
                         || e.getErrorCode() == ErrorCode.INVALID_SESSION) {
                     log.warn("[RabbitMQ] 세션 권한 검증 실패 - sessionId: {}, userId: {}. 메시지 무시",
                             sessionId, event.userId());
+                    meterRegistry.counter("chat.persist.dropped", "reason", "unauthorized").increment();
                     // 권한 없는 경우도 정상 처리로 간주
                     return;
                 }

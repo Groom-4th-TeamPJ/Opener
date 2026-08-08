@@ -57,6 +57,8 @@ public enum ErrorCode {
     // 400 은 요청 형식 오류를 뜻하는데 실제로는 인가 실패(403)와 대상 부재(404)였다
     SESSION_ACCESS_DENIED(403, "C_013", "세션 접근 권한이 없습니다."),
     SESSION_NOT_FOUND(404, "C_014", "세션을 찾을 수 없습니다."),
+    // TTL 이 남았는데 버퍼가 비었다 = 복제 유실·LRU 축출. 조용히 넘기면 유실을 유실로 알 수 없다
+    CHAT_BUFFER_LOST(500, "C_015", "채팅 버퍼가 예기치 않게 비어 있습니다."),
 
     // Can 관련 에러 (N_xxx)
     INSUFFICIENT_CANS(400, "N_001", "CAN이 부족합니다"),

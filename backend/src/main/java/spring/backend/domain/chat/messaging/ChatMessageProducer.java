@@ -23,6 +23,7 @@ public class ChatMessageProducer {
                     .sessionId(sessionId)
                     .userId(userId)
                     .questionResultId(questionResultId)
+                .publishedAt(java.time.Instant.now())
                     .build();
 
             rabbitTemplate.convertAndSend(
