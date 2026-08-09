@@ -87,7 +87,7 @@ pre[class*="language-"]{margin:0 !important; font-size:13px !important}
 .token.function,.token.class-name{color:#7dd3fc !important}
 .token.comment{color:#9ca3af !important; font-style:italic}
 .token.annotation,.token.atrule,.token.property{color:#f472b6 !important}
-/* 문서 도입부 — 읽는 법·작업 방식·기술 스택 */
+/* 문서 도입부 — 작업 방식·기술 스택 */
 .doc-intro{background:var(--bg-card); border:1px solid var(--border); border-left:5px solid var(--blue); border-radius:10px; padding:22px 26px; margin:0 0 40px; max-width:980px; box-shadow:0 4px 24px rgba(0,0,0,0.04)}
 .doc-intro h4{font-size:14px; font-weight:800; color:var(--text-dark); margin:18px 0 8px; letter-spacing:-0.2px}
 .doc-intro h4:first-child{margin-top:0}
@@ -111,16 +111,10 @@ pre[class*="language-"]{margin:0 !important; font-size:13px !important}
 <div class="layout">
 <main>
 <h1 id="top">포트폴리오 — 김민성</h1>
-<p class="subtitle">측정으로 원인을 확정하고, 파라미터가 아니라 구조로 처리하며, 남은 한계는 범위로 한정해 기재</p>
+<p class="subtitle">측정으로 원인을 확정하고, 파라미터가 아니라 구조로 처리</p>
 <p class="contact"><a href="mailto:msung98@naver.com">msung98@naver.com</a></p>
 
 <div class="doc-intro">
-  <h4>읽는 법</h4>
-  <ul>
-    <li>3개 프로젝트 · 11개 사례를 <b>최신순</b>으로 배치함. 모든 사례가 <b>전체 아키텍처 → 문제 원인 → 해결 과정 → 결과 → 남은 한계</b> 동일 순서</li>
-    <li>수치는 출처를 구분해 기재 — <span class="src src-m">실측</span> 직접 측정한 값 · <span class="src src-d">도출</span> 설정값에서 계산한 값 · <span class="src src-p">대리 부하</span> 실제 트래픽 대신 특성만 재현한 부하 · <span class="src src-p">통제 실험</span> 장애를 인위로 주입해 확인한 값 · <span class="src src-s">설정</span> 내가 정한 파라미터 · <span class="src src-e">추정</span> 근거를 남기지 않은 값 · <span class="src src-x">가정</span> <b>아직 미측정인 값</b>으로, 설계 판단을 설명하기 위해 <b>기대 규모만</b> 적은 것(측정하면 달라질 수 있으며, 성과의 근거로 미사용)</li>
-    <li><b>휠 파인더는 부하 측정 환경을 미구성.</b> 수치 대신 구조 검증만 적었고, 그 범위를 넘는 주장은 제외</li>
-  </ul>
 
   <h4>세 프로젝트에 반복해서 나타나는 작업 방식</h4>
   <ul>
@@ -260,14 +254,6 @@ if (result == Sinks.EmitResult.FAIL_OVERFLOW) {
   <li>유실 경로 3종을 계측 가능하게 만듦 — 버퍼 오버플로(<span class="mono">chat.sse.overflow</span>), 스트림 중단 시 부분 응답(<span class="mono">chat.stream.partial.saved</span>), 영속화 시 메시지 공백(<span class="mono">reason=expired|lost</span>). <b>유실을 없앤 것이 아니라 유실을 유실로 알 수 있게 만든 것</b>이 정확한 범위</li>
 </ul>
 
-<p class="sec-label limit">남은 한계</p>
-<ul class="bul-sub">
-  <li>부하는 실제 LLM 스트리밍이 아니라 <b>같은 스레드 점유 특성을 재현한 대리 부하</b> — 실제 스트리밍은 토큰이 간헐적으로 도착하는 긴 연결이라 메모리·GC·소켓 수가 먼저 병목이 될 가능성. <b>Flux 전환 자체의 효과를 분리해 잰 측정은 아직 부재</b></li>
-  <li><b>요청 스레드의 블로킹이 완전히 사라진 것은 아님</b> — <span class="mono">publishOn</span>으로 옮긴 것은 <b>구독 이후의 콜백</b>이고, <span class="mono">subscribe()</span>에 닿기 전 조립 구간(소유자 검증·메시지 저장·히스토리 조회, RAG일 때는 임베딩 HTTP 왕복과 pgvector 검색)은 여전히 동기. <span class="mono">POST /chat/message</span>가 200을 주기 전에 그것들을 기다림</li>
-  <li>SSE 전달 경로가 <b>인스턴스 로컬</b> — <span class="mono">sinks</span> 맵이 인메모리라 백엔드를 2대로 늘리면 <span class="mono">/connect</span>와 <span class="mono">/message</span>가 다른 노드에 붙는 순간 전달이 끊김. 세션 데이터는 Redis 클러스터에 있으나 <b>전달 경로는 아직 미분산</b></li>
-  <li>Sink 제거를 값 비교(<span class="mono">remove(key, value)</span>)로 바꾼 것은 <b>결정적으로 재현하는 단위 테스트가 없어 방어적 변경으로만 잔존</b> — 재사용 분기가 기존 Sink를 그대로 돌려주는 구조라 경합을 테스트로 만들지 못함</li>
-</ul>
-
 <h3 class="star-title" id="ai-2">2. 채팅 Redis 단일 노드 의존을 샤드 분할 + 복제본 자동 승격으로 완화</h3>
 
 <p class="sec-label">전체적인 아키텍처</p>
@@ -335,16 +321,6 @@ if (result == Sinks.EmitResult.FAIL_OVERFLOW) {
   <li>Master 강제 종료 통제 실험에서 복제본 자동 승격으로 <span class="metric">약 7초</span> 자동 복구 <span class="src src-p">통제 실험</span> — 기존 수동 재시작 <span class="metric">5~10분</span> <span class="src src-e">추정</span> 대비 대폭 단축. 분모가 사람이 개입하는 시간이라 정밀도를 미주장. <b>이 7초는 우연이 아니라 설정값의 결과</b> — <span class="mono">cluster-node-timeout 5000</span>(장애 판정 5초) + 선출·승격이고, 더 줄이려면 오탐 위험을 대가로 이 값을 낮춰야 함</li>
   <li>인증·채팅 저장소 분리로 한쪽 장애가 다른 도메인으로 전파되는 경로 차단</li>
   <li>커넥션 풀은 <span class="mono">maxTotal=20 / maxIdle=10 / minIdle=5</span>로 <b>상한이 명확히 존재</b> — 확인된 것은 "제한 부재"이 아니라 <b>20개 풀로 100 VU를 p95 133ms에 수용</b> <span class="src src-m">실측</span>이라는 사실</li>
-</ul>
-
-<p class="sec-label limit">남은 한계</p>
-<ul class="bul-sub">
-  <li><b>6노드가 모두 한 호스트 위의 컨테이너</b> — <span class="mono">docker-compose.dev.yml</span>에 배치 제약이 없어 마스터 3과 복제본 3이 같은 머신에 뜸. 따라서 이 구성이 견디는 것은 <b>노드(프로세스·컨테이너) 장애</b>이고, <b>호스트가 죽으면 마스터와 복제본이 함께 죽어 클러스터 전체가 내려감</b>. 아래 7초도 그 전제 위의 값. 복제본을 다른 호스트에 두어야 완성되는 구조이고, <b>그 전까지 "SPOF 제거"는 노드 단위 한정으로 읽어야 함</b> — 이 STAR에서 가장 큰 미공개 한계라 먼저 기재</li>
-  <li>이 <b>7초는 인프라 회복 시간</b>이고, 그 구간에 유입된 쓰기는 실패로 반환되므로 클라이언트 재시도로 보완하는 것이 전제 — <b>가용성을 올린 것이지 내구성을 올린 것이 아님</b>. 읽기 쪽은 <span class="mono">cluster-allow-reads-when-down yes</span>라 장애 구간에도 성공하되 stale할 가능성</li>
-  <li><b>승격 정책이 유실 창을 최대화하는 쪽으로 설정돼 존재</b> — <span class="mono">cluster-replica-validity-factor 0</span>은 얼마나 뒤처진 복제본이든 승격을 허용함. 가용성을 최대로 얻는 대신 유실 가능성 구간을 스스로 넓힌 선택이고, 이 값을 올리면 승격이 안 되어 클러스터가 멈추는 쪽으로 트레이드오프가 이동함</li>
-  <li><b>TTL만이 세션 수명 요인이 아님</b> — 노드 설정이 <span class="mono">maxmemory 256mb</span> + <span class="mono">allkeys-lru</span>라 메모리 압박이 오면 TTL이 남은 키도 축출됨. 세션 해시가 축출되면 대화 중인 정상 세션이 소유자 검증에서 즉시 거부됨. 데모 규모에서는 도달하지 않지만 <b>SPOF를 없앴다고 말하는 STAR에 남아 있는 단일 실패 요인</b>이라 명시함</li>
-  <li>내구성의 소스 오브 트루스가 여전히 Redis임 — 큐 이벤트가 본문을 싣지 않으므로, <b>본문을 이벤트 페이로드에 실어 Redis 의존을 끊는 것</b>이 이 STAR의 결론 문장을 실제로 참으로 만드는 다음 작업</li>
-  <li>failover 실험의 raw 로그를 저장소에 남기지 않아 <b>재현 절차(대상 노드·kill 명령·판정 쿼리)가 문서에 부재</b> — 7.18s라는 값 자체는 <span class="mono">cluster-node-timeout</span>과 정합적이나, 절차를 남겨야 통제 실험 배지가 완전해짐</li>
 </ul>
 
 <h3 class="star-title" id="ai-3">3. LLM 장애 전파와 세션 비정상 전이를 Circuit Breaker · State Machine으로 차단</h3>
@@ -426,13 +402,6 @@ if (result == Sinks.EmitResult.FAIL_OVERFLOW) {
   <li>빈 응답·LLM 일시 실패로 <span class="mono">PROCESSING</span>에 남은 상태를 회수하고 같은 세션에서 재전송할 수 있도록 전이를 보강해 복구 경로 확보</li>
 </ul>
 
-<p class="sec-label limit">남은 한계</p>
-<ul class="bul-sub">
-  <li><b>RAG를 끄면 채팅 스트리밍에 서킷이 부재.</b> <span class="mono">llm-chat</span>은 RAG 활성 구현에만 붙어 있고, 비활성 구현의 <span class="mono">chatStream</span>은 무보호. 이 절의 측정과 주장은 <b>RAG 켜짐 구성에 한정</b>됨</li>
-  <li><b>"의존성이 없었다면 0건이었다"는 대조군은 측정하지 못함.</b> 리액터 모듈을 뺀 빌드로 같은 주입을 돌리려 했으나 호스트 자원 부족으로 완주하지 못했으므로, <b>추가 전 수치는 미주장</b> — 근거는 단위 테스트와 위 구독 시점 메커니즘까지. 참고로 <b>"기동 로그에 경고가 없으면 정상"이라는 판정은 사용 불가</b>을 확인함: 그 문구는 DEBUG 레벨이라 의존성을 뺀 빌드에서도 미출력</li>
-  <li>CB 임계값(최소 호출 5건·10건, 실패율 50%·60%)은 <b>운영 트래픽 분포가 없는 상태에서 정한 값</b> — 표본이 적을 때의 오판을 막는다는 기준으로 잡았고, 실제 호출 분포가 쌓이면 그 분포를 근거로 재조정하는 것이 타당. <b>지금 근거는 통계가 아니라 실패 모드에 대한 판단</b></li>
-</ul>
-
 <h3 class="star-title" id="ai-4">4. 다국어 RAG의 재현율 저하를 임계값으로 우회하고, 플래그를 껐을 때만 드러나는 조건부 빈 결합을 정리</h3>
 
 <p class="sec-label">전체적인 아키텍처</p>
@@ -508,11 +477,6 @@ if (result == Sinks.EmitResult.FAIL_OVERFLOW) {
   <li>RAG On/Off 양방향으로 동일 질문셋을 던졌을 때 <b>근거 없는 응답이 눈에 띄게 줄어드는 것을 확인</b> <span class="src src-e">정성 관찰</span> — 규모로는 발생률 <span class="metric">30%대 → 10% 안팎</span> <span class="src src-x">가정</span>. <b>이 값은 채점 결과가 아니라 관찰의 인상을 수치로 옮긴 것</b>: 이전 판본이 32% → 8%를 <span class="src src-m">실측</span>으로 적었으나 <b>질문셋·기준표·채점 결과 중 어느 것도 저장소에 없어</b> 실측 배지를 제거(측정 로그도 이 행만 산출물을 "별도 / —"로 적고 존재). <b>두 자리 정밀도를 되살리지 않고 구간으로 적은 이유</b>가 이것이고, 재현 가능한 원자료가 없는 값에 실측 배지를 다는 것은 이 문서에서 배지가 뜻하는 바 자체를 무너뜨린다고 검토</li>
   <li>근사 최근접 벡터 검색으로 풀스캔 없이 <b>오프너 분석 경로</b>의 벡터 검색 <span class="metric">80ms 이내</span> <span class="src src-m">실측</span> — <b>모집단을 명시함</b>: Timer(<span class="mono">rag.vector.search</span>)가 걸린 곳은 오프너 경로뿐이고, 호출량이 더 많은 일반 채팅 검색에는 계측이 부재. 대시보드는 이 지표를 p95로 그리고 있으므로 평균이 아니라 <b>p95 기준</b>으로 읽어야 함</li>
   <li>검색 결과가 0건일 때 RAG 컨텍스트를 비우고 일반 프롬프트로 폴백해, 문서를 못 찾은 상황이 응답 실패로 번지지 않도록 처리 — <b>RAG On/Off 양방향</b>을 실제로 기동해 두 경로 모두 정상 동작함을 검증(위 참조)</li>
-</ul>
-
-<p class="sec-label limit">남은 한계</p>
-<ul class="bul-sub">
-  <li>임계값 하향(0.7 → 0.2)을 "정밀도와 재현율의 교환"이라 부르려면 <b>양쪽을 다 재야 하는데 어느 쪽도 미측정</b> — 정확히는 <b>재현율 회복만 확인하고 정밀도 영향은 미측정</b>. 값의 근거를 만들려면 정답 근거 문단의 앵커 문자열로 hit을 판정하는 골든셋을 만들고 임계값을 스윕해 recall@5를 비교해야 하는데, <b>이 하네스는 아직 미구축</b>(임베딩 호출 비용이 들어 실행 조건을 확보한 뒤로 보류). 스윕이 그릴 것으로 <b>기대하는 모양</b>은 아래와 동일 <span class="src src-x">가정</span> — <b>0.7에서 검색 0건이 실제로 관측된 것</b> 외에는 전부 미측정이고, <b>이 표의 값이 아니라 곡선의 방향(임계값↓ → 재현율↑·정밀도↓)이 설계 판단의 근거</b></li>
 </ul>
 
 <div class="viz-frame">
@@ -633,15 +597,6 @@ if (result == Sinks.EmitResult.FAIL_OVERFLOW) {
   <li><b>대조 절차가 실제로 결함을 잡아냈고 그 결함이 이 STAR의 결론을 참으로 전환</b> — 발급 4경로 중 3경로의 서버 보관본 누락(= 카카오·회원가입 사용자의 재발급 영구 실패)과 수명 3중 불일치를 발견해, 발급·쿠키·저장을 단일 진입점으로 묶고 수명을 설정값 하나로 통일함. 이전 판본은 이 결함이 남은 채 "양쪽으로 정의된 계약"을 주장하는 상태</li>
   <li>SSE 소유자 검증을 <b>판정(헬퍼)과 진입 통제(어드바이스)로 분리</b>해, 새 엔드포인트가 늘어도 애너테이션 하나로 검증이 걸리는 구조 확보 — 검증 호출 지점 6곳 → <b>어드바이스 1 + 근거 있는 예외 2곳</b>. 거부 신호도 입력 검증 실패와 뭉개지지 않게 <span class="metric">403</span>/<span class="metric">404</span>로 분리했고 <b>실제 요청으로 재확인</b>함 <span class="src src-m">실측</span> — 타인 세션 접근 <span class="metric">403</span> <span class="mono">C_013</span>, 없는 세션 <span class="metric">404</span> <span class="mono">C_014</span>, <b>대조군</b>인 정당한 소유자는 <span class="metric">200</span> + <span class="mono">text/event-stream</span>으로 통과. <b>거부가 소유자 불일치에 한정된다는 것까지 확인</b>한 것이라, 모두를 막아 놓고 "방어했다"고 말하는 경우와 구분됨</li>
   <li>설정은 <b>"값을 적었다"와 "그 값이 실제로 바인딩됐다"를 분리 검증</b>하는 단계를 표준에 넣어, 조용히 무시되는 설정을 구조적으로 걸러냄</li>
-</ul>
-
-<p class="sec-label limit">남은 한계</p>
-<ul class="bul-sub">
-  <li>검증은 <b>정상·공격 두 경로의 대조군까지</b> 확인했으나, 자동화된 회귀 테스트가 아니라 <b>수동 E2E 절차</b> — 방어가 깨져도 CI가 잡아주지 못하므로 테스트 코드로 승격하는 것이 후속 과제</li>
-  <li><b>refresh 토큰 회전과 재사용 탐지가 부재</b> — 재발급 시 access만 새로 내주고 refresh는 그대로 두며, refresh에 <span class="mono">jti</span>가 없어 개별 폐기도 못 함. <b>탈취된 refresh와 정상 사용자의 refresh를 구분할 방법이 부재</b>. 사용자 단위 무효화 키를 access 클레임에 실으면 아래 항목과 함께 해결되는 구조라 다음 작업으로 잡아 둠</li>
-  <li><b>사용자 단위 폐기가 refresh에서만 성립함</b> — access 블랙리스트는 <span class="mono">jti</span> 단위라, 여러 기기에 로그인한 사용자를 로그아웃시켜도 다른 기기의 access는 <b>최대 1시간 생존</b>함. "휠 파인더의 실수를 반복하지 않았다"는 절반만 참</li>
-  <li><b>로그아웃 멱등성 5변형 검증이 HTTP 200만 확인</b> — access 쿠키가 이미 만료돼 사라진 상태로 로그아웃하면 쿠키만 정리하고 반환해 <b>서버의 <span class="mono">refreshToken:{userId}</span>가 잔존</b>. "정상 종료"와 "무효화 완료"는 다른 명제인데 앞의 것만 검증함. refresh 쿠키에서도 subject를 복구해 키를 지우고, 각 변형마다 키 잔존까지 확인하는 절차로 넓혀야 함</li>
-  <li>신규 연결 경로의 세션 초기화에는 <b>서킷브레이커 미적용</b> — Redis 장애 시 재사용 분기는 fast-fail하는데 신규 연결 분기는 타임아웃까지 대기해, <b>같은 엔드포인트의 두 분기가 장애 시 다르게 동작</b>함</li>
 </ul>
 
 <!-- ================= 이커머스 백엔드 ================= -->
@@ -799,7 +754,7 @@ if (result == Sinks.EmitResult.FAIL_OVERFLOW) {
     <text class="ch-tt" x="785" y="308">재고 대조·보정</text><text class="ch-mu" x="785" y="325">조기 마감 · 만료</text>
 
     <path class="ch-line" d="M145,76 L175,76 L175,100 L205,100" marker-end="url(#ch-arr)"/>
-    <path class="ch-line" d="M145,128 L205,105" marker-end="url(#ch-arr)"/>
+    <path class="ch-line" d="M145,128 L175,128 L175,105 L205,105" marker-end="url(#ch-arr)"/>
     <path class="ch-line" d="M145,180 L175,180 L175,110 L205,110" marker-end="url(#ch-arr)"/>
     <path class="ch-line" d="M390,100 L450,105" marker-end="url(#ch-arr)"/>
     <path class="ch-line" d="M645,110 L700,110" marker-end="url(#ch-arr)"/>
@@ -871,14 +826,6 @@ return 1</code></pre>
   <li><b>발급 경로에서 락과 DB를 동시에 제거</b> — API 응답까지 걸리는 일은 Lua 왕복 1회와 Kafka 발행뿐이고, 대기 구간이 없으므로 <b>락 대기 초과로 생기던 거짓 품절이 원인 단계에서 소멸</b>함. 쿠폰 경로가 DB 커넥션을 점유하지 않아 주문·결제와 자원 경합 부재</li>
   <li><b>네 도구가 각각 다른 보호 범위를 맡아 중복 부재</b> — Lua는 접수의 원자성(부하 필터), Kafka 오프셋은 순서의 진실, 컨슈머는 정합성의 근거, 분산 락은 배치의 배타 실행. <b>이전 구조에서 락과 Lua가 같은 임계 구역을 이중으로 지키던 것이 정리됨</b></li>
   <li><b>기존 구조에서 얻은 실측 중 근거 자격이 있는 것만 존치</b> — 락 있는 구성에서 수량 100개 쿠폰에 VU 200 · 5,000 요청을 걸어 <span class="metric">100건</span> 발급, 즉 총량 상한이 지켜짐을 확인했고 <span class="src src-p">대리 부하</span>, 같은 구성 2회차에서 상호배제가 깨지는 것도 관측함. <b>반면 함께 적었던 "중복 시도 N건 거부"는 제외</b> — 그 분류가 <b>응답 본문 부분일치</b>로 세어진 값이라, 거짓 품절·저장소 불일치·진짜 품절이 한 칸에 섞여 존재. 지금은 사유별 에러코드(<span class="mono">COUPON_ISSUE_CONTENTION</span> · <span class="mono">COUPON_STORE_MISMATCH</span> · <span class="mono">COUPON_OUT_OF_STOCK</span>)로 갈라 두어 다시 재면 분리된 값이 나오지만, <b>재측정 전까지는 수치 미사용</b></li>
-</ul>
-
-<p class="sec-label limit">남은 한계</p>
-<ul class="bul-sub">
-  <li><b>이 구성은 설계까지이고 다중 인스턴스로 실기동·미측정.</b> 위 실측은 전부 <b>단일 인스턴스 + 락 기반 구조</b>에서 얻은 값이므로, 재설계의 성능 근거로 미사용 — 이 절이 주장하는 것은 측정된 개선이 아니라 <b>확장 시 무엇이 깨지고 무엇으로 막는지의 구조</b></li>
-  <li><b>결과의 즉시성을 내주고 접수 무거절을 확보.</b> 사용자는 "당첨/품절" 대신 "접수됨"을 먼저 받고 확정은 뒤이어 통보되므로, 즉시 결과가 필수인 요구에는 이 구조는 부적합. 확정 통보는 폴링 또는 SSE로 붙일 수 있으나 이번 범위에서 제외</li>
-  <li><b>핫 단일 쿠폰은 노드를 늘려도 처리량 정체.</b> 해시태그로 한 쿠폰의 키를 한 슬롯에 몰았으므로 Redis는 그 노드가, <span class="mono">couponId</span> 파티션 키 때문에 Kafka는 그 파티션이 상한 — <b>수평 확장이 쿠폰 단위로만 되고 단일 쿠폰 내부로는 불가</b>. <b>게다가 현재는 토픽이 자동 생성돼 파티션이 1개라, "파티션당 컨슈머 1명"이 사실상 "컨슈머 1명"임</b> — 쿠폰 단위 확장조차 <span class="mono">NewTopic</span> 빈으로 파티션 수를 올려야 열림. 재고를 버킷으로 쪼개면(<span class="mono">stock:0~9</span>) 병렬화되지만 <b>순서 보장을 포기해야 하고 버킷 간 잔량 불균형이 생겨</b>, 선착순이 요구인 이 기능에서는 미도입</li>
-  <li><b>보정 배치는 만들었으나 한쪽으로만 수정 가능.</b> Lua 게이트는 DB 확정이 실패할 때만 되돌리므로 확정에 닿기 전에 유실된 통과분은 회수되지 않고, 그것이 쌓이면 게이트가 실제 재고보다 먼저 닫히는데, 이를 되돌리는 대조 배치를 <b>이 구조의 필수 구성요소로 보고 구현함</b>(위 분산 락이 지키는 대상이 바로 이것). 대조식은 <b><span class="mono">기대 재고 = DB 잔여수량 + DB 확정발급수 − 발급자 SET 크기</span></b>인데, 초기 수량을 따로 저장하지 않으므로 두 저장소의 회계를 빼서 획득. <b>실제가 기대보다 작으면 올리지만, 크면 내리지 않고 경고만 냄</b> — 내리면 이미 게이트를 통과한 요청의 자리를 빼앗아 확정 단계에서 <span class="mono">COUPON_STORE_MISMATCH</span>를 만들기 때문. <b>느슨한 쪽으로만 틀려도 초과발급이 안 되는 근거는 위 조건부 UPDATE와 유니크 제약</b>. 부팅 시 워밍업도 <span class="mono">SETNX</span>로만 심는데, 덮어쓰면 <b>Lua 차감은 끝났으나 DB 커밋 전이던 요청 수만큼 재고가 되살아나기 때문</b></li>
 </ul>
 
 <h3 class="star-title" id="eco-2">2. 동시 결제 재고 차감 Lost Update를 막고, 세 가지 차감 전략을 실측해 낙관적 락의 한계를 확인</h3>
@@ -957,14 +904,6 @@ return 1</code></pre>
   <li><b>Redis 선점 수와 DB 재고가 어긋나는지를 배치로 대조</b>하고 Micrometer 게이지로 노출함 — 어려운 부분은 "실행 중에는 선점 때문에 Redis가 항상 작다"라 <b>정상 인플라이트와 진짜 드리프트를 구분</b>하는 것이었고, <b>방향과 지속성 2축</b>으로 분리. <span class="mono">redis &gt; db</span>는 선점이 Redis를 줄이기만 하므로 <b>정상 경로로 만들 수 없는 방향</b>이라 1회로 확정하고, <span class="mono">redis &lt; db</span>는 선점의 수명 상한(외부 결제 타임아웃 × 재시도 + 보상)이 수십 초라 <b>스캔 2회 연속</b> 유지될 때만 승격함. <b>자동 보정은 미실시</b> — 보정 자체가 새 드리프트 원인이 될 수 있어 목표를 "근거 있게 탐지한다"까지로 한정함</li>
 </ul>
 
-<p class="sec-label limit">남은 한계</p>
-<ul class="bul-sub">
-  <li>이번 측정 조건(재고 1만 / 요청 1만)은 <b>전량이 게이트를 통과하는 구간</b>이라 Redis 선점 게이트의 PG 차단 효과의 수치 미노출 — 게이트의 이득을 증명하려면 재고보다 요청이 많은 조건으로 다시 재야 함</li>
-  <li><b>측정 결과대로 기본 전략을 비관적 락으로 이관</b> — <span class="mono">stock.decrease-strategy</span> 기본값과 <span class="mono">matchIfMissing</span>을 함께 바꿔 <b>실측 꼴찌가 기본값으로 남아 있던 상태를 해소</b>함. 비관적 락은 전환에 선행 조건이 부재. <b>반면 조건부 UPDATE는 아직 못 옮김</b> — 재고가 상품 엔티티의 한 필드라 가격·판매 상태와 <span class="mono">@Version</span> 하나를 공유해, 재고만 빼면 나머지 필드의 동시 수정 보호가 사라지므로 <b>재고 테이블 분리가 선행</b>돼야 함. 세 전략 모두 코드에 남겨 뒀고 <b>설정 한 줄로 되돌아감</b></li>
-  <li>측정 조건이 <b>단일 상품 행에 전량이 몰리는 극단</b>이라, 상품이 분산된 실제 트래픽에서는 세 전략의 격차가 훨씬 작을 것 — <b>이 실험이 확정하는 것은 "고경합 구간에서의 순위"</b>까지</li>
-  <li><b>크래시로 보상 코드가 실행되지 않는 경로</b>는 여전히 잔존 — 대조 배치가 어긋남을 <b>탐지</b>하게 됐지만 <b>복구</b>는 사람이 판단해야 함. 쿠폰 발급(§1)과 같은 성질의 문제라 두 도메인이 같은 후속 과제를 공유함</li>
-</ul>
-
 <h3 class="star-title" id="eco-3">3. PG 결제 부분 실패를 Saga 보상 트랜잭션 + 상태 머신으로 복구</h3>
 
 <p class="sec-label">전체적인 아키텍처</p>
@@ -1032,15 +971,6 @@ return 1</code></pre>
   <li>외부 PG 장애(<span class="metric">5s</span> 지연 <span class="src src-s">설정</span> + 500 주입) 시 서킷브레이커 fast-fail 응답 평균 <span class="metric">632.9ms</span> <span class="src src-p">통제 실험</span>, 장애 구간 호출의 <span class="metric">97.8%</span>(667/682)를 PG 미도달로 차단 — 이 비율은 <b>서킷이 OPEN인 시간 비율에 전적으로 의존</b>하므로 실패율 50%를 넘기는 주입 조건에서의 값. <b>이전 판본의 "5.6s → 0.6s(약 9배)"는 삭제</b>함: 서킷 off 런의 산출물이 저장소에 없어 before 값을 뒷받침할 수 없고, 5.6s는 <b>같은 런의 최댓값</b>과 소수점까지 일치해 대조군으로 사용 불가</li>
   <li>서킷브레이커와 보상 재시도의 <b>값이 서로를 고려해 확정</b> — 취소 전용 회로가 OPEN인 구간에는 취소도 fast-fail되지만, <b>첫 백오프 2분이 OPEN 30초를 충분히 넘기므로 2회차부터 정상 복구 경로에 진입</b>함. 즉 즉시 시도 1회는 서킷이 닫혀 있는 일반 실패용이고, PG 전면 장애에서는 2회차가 실질 첫 시도. <b>이 계산은 취소에 회로를 붙인 뒤에야 성립함</b> — 이전에는 존재하지 않는 메커니즘에 대한 계산</li>
   <li>fast-fail 응답이 0.6초 걸리는 원인을 재고 선점 해제·실패 기록 비용으로 메트릭 분리해 확인, 이후 결제 이벤트 Outbox와 재시도 포기(GIVEN_UP) 건 전용 DLQ 이관을 추가 도입</li>
-</ul>
-
-<p class="sec-label limit">남은 한계</p>
-<ul class="bul-sub">
-  <li>이 구조의 비용은 <b>승인 후 취소가 실제로 발생한다는 것</b>이고, 부하에서 로그 파일당 <span class="metric">80~111건</span> 관측됨 <span class="src src-p">대리 부하</span>. 차감을 승인 이전으로 옮기면 이 왕복이 사라지지만 <b>PG 실패 시 재고를 되돌리는 반대 방향 보상이 생기므로</b>, 어느 쪽 보상을 감당할지의 선택 문제로 정리함</li>
-  <li>백오프 총합 30분이 PG 멱등성 윈도우 안에 든다는 것은 확인했으나, <b>윈도우 상한값 자체를 문서에 못 박지 못함</b> — PG 정책 변경 시 재시도 한도를 다시 계산해야 하는 의존이 잔존</li>
-  <li><b>PG 승인 성공 직후 프로세스가 죽는 창은 여전히 열려 존재</b> — 승인은 됐는데 보상 코드가 실행되지 않으면 <b>레코드도 없고 결제도 실패로 기록되지 않아</b> 배치가 주울 대상이 아무것도 부재. 성공 경로 Outbox는 이 상태를 구제하지 못하고, 진짜 해법은 <b>승인 호출 이전에 의도를 커밋하는 것</b>(pre-write log)인데 아직 부재</li>
-  <li><b>보상 배치에 배타 실행 장치가 부재</b> — 두 인스턴스에서 동시에 돌면 같은 건을 두 번 집어 재시도 횟수가 어긋나고 GIVEN_UP이 앞당겨짐. 취소 자체는 멱등키로 PG 쪽에서 흡수되지만 <b>카운트 정합은 미보장</b>. <b>쿠폰 대조 배치(eco-1)에는 분산 락을 걸고 여기엔 안 건 기준은 연산이 멱등인가</b> — 쿠폰 쪽은 재고를 읽어 기대값을 계산해 다시 쓰는 read-modify-write라 동시 실행이 서로를 덮지만, 이쪽은 보상 레코드 ID로 만든 <b>재시도 간 불변 멱등키</b>를 PG에 넘겨 중복 호출이 이중 환불 미발생. <b>락은 멱등성을 살 수 없을 때 쓰는 수단</b>이라는 게 두 배치를 가른 판단이고, 그래도 남는 <span class="mono">retryCount</span> 정합은 락이 아니라 조건부 UPDATE로 풀 문제</li>
-  <li>자동 복구율(카오스 테스트 <span class="metric">98.7%</span>) 수치는 <b>산출물이 저장소에 없어 이번 정산에서 제외</b>함 — 재현 절차와 raw 파일을 남기는 조건으로 다시 측정해야 복원할 가능성</li>
 </ul>
 
 <h3 class="star-title" id="eco-4">4. 쿠폰 자동 비활성화의 폴링 지연을 Kafka Streams StateStore + Punctuator로 제거</h3>
@@ -1137,15 +1067,6 @@ public class CouponDelayProcessor implements Processor&lt;String, CouponDelayEve
   <li>처리 지연 <b>최악값 기준</b> <span class="metric">12s → 1.1s (약 91% 감소)</span> — <b>두 값의 성격이 다르므로 나란히 읽을 때 주의가 필요함</b>. <b>12s는 채택하지 않은 폴링 대안의 설정에서 도출한 값</b> <span class="src src-d">도출</span>(주기 10s + 스캔 2s)으로 <b>실제로 돌려 본 구현이 아니고</b>, <b>1.1s는 실측 최악값</b> <span class="src src-m">실측</span>(이벤트 발행~비활성 전환 시각 차 직접 측정)으로 punctuate 주기 1s + 처리시간이라는 이론 최악값에 수렴함. 즉 이 비교는 <b>측정 대 측정이 아니라 설계 계산 대 측정</b></li>
   <li>이벤트 상태를 changelog 기반 영구 StateStore에 저장해 <b>서버 재시작 후에도 대기 작업이 잔존</b> — 기존 인메모리 스케줄러에서 재시작마다 사라지던 등록분이 유지됨</li>
   <li>실패 이벤트를 DLQ로 격리해 정상 파이프라인 영향 없이 처리</li>
-</ul>
-
-<p class="sec-label limit">남은 한계</p>
-<ul class="bul-sub">
-  <li>영구 StateStore의 대가는 <b>재시작·리밸런싱 시 changelog 복원 지연</b> — standby replica를 두지 않아 복원이 끝날 때까지 해당 파티션의 punctuate가 멈춤. 현재 규모에서는 수용 가능하다고 판단했고, 복원 시간이 SLA를 넘기면 standby replica 도입이 다음 단계</li>
-  <li><b>이벤트가 절대 시각이 아니라 상대 지연(<span class="mono">delayMillis</span>)만 들고 다님</b> — 실행 시각을 <b>처리 시점의 시계 + 상대 지연</b>으로 계산하므로, 같은 레코드가 다시 처리되면(EOS abort 후 재처리, 리밸런싱으로 태스크 이동 후 미커밋 오프셋 재소비) <b>타이머가 리셋되어 만료가 조용히 뒤로 밀림</b>. "재시작해도 대기 작업이 남는다"는 <b>이미 StateStore에 들어간 건에 한정</b>되고, 입력 토픽에서 재소비되는 건은 미해당. 이벤트에 절대 시각을 실으면 사라지는 문제</li>
-  <li><span class="mono">delayMillis &lt;= 0</span>인 이벤트를 <b>경고 로그만 남기고 버림</b> — DLQ로도 미이관. DLQ는 출력 토픽을 구독하는 Consumer 실패에만 걸려 있고 <b>Streams 단계의 드롭은 대상이 아님</b>. 이미 만료 시각이 지난 쿠폰(백필, 클럭 스큐, 장시간 중단 후 재개)이 이 경로로 <b>영원히 비활성화되지 않을 가능성</b></li>
-  <li><b><span class="mono">WALL_CLOCK_TIME</span>을 고른 대가</b>는 재처리 시 결정론이 깨지는 것 — 같은 입력이 같은 시점에 forward된다는 보장이 없어 <span class="mono">exactly_once_v2</span>의 보장과 궁합 부적합. 새 이벤트가 없어도 스캔이 돌아야 한다는 요구 때문에 <span class="mono">STREAM_TIME</span>을 쓸 수 없어 감수한 선택</li>
-  <li>리밸런싱 구간에는 <b>이전 소유자의 punctuate와 새 소유자의 것이 겹칠 여지</b>가 존재 — Streams의 fencing은 출력 토픽 쓰기를 막아 주지만 <b>실제 부수효과인 DB UPDATE는 출력 토픽 하류에 있어 fencing 밖</b>. 중복 실행은 값이 같아 흡수되지만, 위의 no-op 조건 부재 때문에 <b>일어났다는 사실 자체가 미관측</b></li>
 </ul>
 
 <!-- ================= 휠 파인더 ================= -->
@@ -1310,12 +1231,6 @@ public class CouponDelayProcessor implements Processor&lt;String, CouponDelayEve
   <li>연결 생명주기 콜백으로 끊어진 SSE 커넥션이 맵에 남지 않도록 하고, 재연결 시 기존 연결을 교체해 같은 관계에 중복 커넥션이 쌓이지 않게 함</li>
 </ul>
 
-<p class="sec-label limit">남은 한계</p>
-<ul class="bul-sub">
-  <li><b>다중 인스턴스 실기동으로 검증하지 못함</b> — 구조상 성립하나 2대 이상 띄워 확인한 적이 없어 이 항목은 설계 주장에 머묾. <b>다만 이 주제 자체는 AI 튜터링이 아직 못 따라온 축</b> — 그쪽 SSE 전달 맵은 여전히 인스턴스 로컬</li>
-  <li><b>느린 소비자 대비가 부재</b> — Redis 리스너 스레드에서 <span class="mono">SseEmitter.send()</span>를 직접 호출하는 구조라, 느린 보호자 클라이언트 하나가 같은 인스턴스의 다른 관계 전달까지 지연시킬 가능성. 별도 전송 큐는 두지 않았고 10분 타임아웃과 재연결로 흡수되는 범위로 한정함. 관계당 커넥션 1개 제한 때문에 <b>보호자 다중 기기도 미지원</b></li>
-</ul>
-
 <h3 class="star-title" id="wf-2">2. 단일 도메인 공존과 수동 배포를 Nginx 경로 라우팅 + Compose·CI/CD로 해결</h3>
 
 <p class="sec-label">전체적인 아키텍처</p>
@@ -1366,11 +1281,6 @@ public class CouponDelayProcessor implements Processor&lt;String, CouponDelayEve
   <li>무상태 JWT에 <b>즉시 무효화</b>를 붙이되, 개별 토큰과 사용자 전체라는 <b>두 무효화 단위를 하나의 검증 경로</b>로 합쳐 인증 필터가 매 요청에 두 키를 함께 조회하도록 통합</li>
   <li><b>여기서 드러난 키 설계의 한계가 다음 프로젝트의 설계를 전환</b> — Refresh Token을 <span class="mono">refresh_token:{token}</span>으로 저장한 탓에 <b>사용자 단위 열거·폐기가 불가능</b>했고, "전체 로그아웃"의 실제 범위가 Access Token까지. AI 튜터링에서는 <span class="mono">refreshToken:{userId}</span> 기준으로 잡고 블랙리스트 키도 토큰 전문이 아닌 <span class="mono">jti</span>로 옮겨 이 제약을 제거</li>
   <li><b>무상태의 이점을 내주고 즉시 무효화를 산 교환</b>이라는 것도 이때 확인함 — 매 요청 Redis 조회 2회가 붙고 인증 경로가 Redis 가용성에 종속됨. 이 프로젝트에서는 <b>Redis 장애 시의 통과·차단 정책을 정하지 못한 채 넘어갔고</b>, AI 튜터링에서 <b>fail-close</b>(장애 시 인증 거부)로 결정해 근거를 코드 주석에 기록 — fail-open은 장애 지속 시간만큼 폐기된 토큰을 되살리기 때문</li>
-</ul>
-
-<p class="sec-label limit">남은 한계</p>
-<ul class="bul-sub">
-  <li><b>재기동 방식이라 배포 구간에 짧은 중단이 있고 롤백은 수동 재배포에 의존</b>함. 이미지 태깅·레지스트리와 무중단 배포(블루-그린)는 도입하지 못했고 후속 과제로 잔존</li>
 </ul>
 
 </main>
