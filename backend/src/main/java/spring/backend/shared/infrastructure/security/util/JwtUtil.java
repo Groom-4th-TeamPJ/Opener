@@ -163,7 +163,9 @@ public class JwtUtil {
                 .secure(cookieSecure)
                 .path("/")
                 .sameSite(cookieSameSite)
-                .maxAge(Duration.ofMinutes(60)) // 수명 : 1시간
+                // 쿠키 maxAge 를 JWT exp 와 같은 설정에서 계산 -> 리터럴로 두면 설정만 줄였을 때
+                // 토큰은 만료됐는데 쿠키만 살아남아 "쿠키는 있는데 401" 이 설정 파일에 안 보인다
+                .maxAge(Duration.ofMillis(accessTokenExpiration))
                 .build();
 
         // Refresh Token HttpOnly에 적재
@@ -189,7 +191,8 @@ public class JwtUtil {
                 .secure(cookieSecure)
                 .path("/")
                 .sameSite(cookieSameSite)
-                .maxAge(Duration.ofMinutes(60)) // 수명 : 1시간
+                // 재발급 경로도 같은 설정에서 계산 -> 두 발급 지점 중 한쪽만 리터럴이면 수명이 다시 갈라진다
+                .maxAge(Duration.ofMillis(accessTokenExpiration))
                 .build();
 
         response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());

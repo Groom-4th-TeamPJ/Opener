@@ -2,6 +2,7 @@ package spring.backend.domain.chat.service.impl;
 
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PostConstruct;
 import java.util.ArrayList;
 import java.util.List;
@@ -43,6 +44,8 @@ public class OpenAiLlmService implements LlmService {
     private final ChatHistoryProvider chatHistoryProvider;
     private final VectorStore vectorStore; // RAG 검색용 -> 시험 문제 맥락에 맞는 근거 자료 확보
     private final spring.backend.domain.chat.util.PromptLoader promptLoader;
+    // 벡터 검색 계측 -> 오프너 경로에만 Timer 가 있어 호출량이 더 많은 일반 채팅의 비용을 못 재던 공백을 메움
+    private final MeterRegistry meterRegistry;
 
     @Value("${app.rag.top-k:5}")
     private int topK;
@@ -110,7 +113,9 @@ public class OpenAiLlmService implements LlmService {
                 .similarityThreshold(similarityThreshold)
                 .build();
 
-        List<Document> similarDocuments = vectorStore.similaritySearch(searchRequest);
+        // path 태그로 오프너 경로와 갈라 계측 -> 같은 미터를 태그 없이 쓰면 두 경로가 한 값으로 뭉쳐 구분 불가
+        List<Document> similarDocuments = meterRegistry.timer("rag.vector.search", "path", "chat")
+                .record(() -> vectorStore.similaritySearch(searchRequest));
 
         log.info("[LLM+RAG] 유사 문서 검색 완료 - 검색된 문서 수: {} (threshold: {})",
                 similarDocuments.size(), similarityThreshold);

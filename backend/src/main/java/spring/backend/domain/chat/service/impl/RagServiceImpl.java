@@ -59,7 +59,8 @@ public class RagServiceImpl implements RagService {
                 .build();
 
         // 벡터 검색 소요를 Timer 로 계측 (rag.vector.search) -> 대시보드 p95 패널
-        List<Document> similarDocuments = meterRegistry.timer("rag.vector.search")
+        // path 태그는 일반 채팅 경로와 짝 -> 한쪽만 태그를 붙이면 같은 미터에 태그 집합이 갈려 예외
+        List<Document> similarDocuments = meterRegistry.timer("rag.vector.search", "path", "opener")
                 .record(() -> vectorStore.similaritySearch(searchRequest));
 
         log.info("[RAG] 유사 문서 검색 완료 - 검색된 문서 수: {} (threshold: {})",

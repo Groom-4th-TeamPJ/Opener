@@ -3,6 +3,7 @@ package spring.backend.domain.chat.service.impl;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.github.resilience4j.reactor.circuitbreaker.operator.CircuitBreakerOperator;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,7 +39,9 @@ class OpenAiLlmServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new OpenAiLlmService(chatClientBuilder, chatHistoryProvider, vectorStore, promptLoader);
+        // 실제 SimpleMeterRegistry 를 넣는다 -> 목이면 timer(...).record(Supplier) 가 null 을 돌려줘 검색 결과가 사라진다
+        service = new OpenAiLlmService(chatClientBuilder, chatHistoryProvider, vectorStore, promptLoader,
+                new SimpleMeterRegistry());
         when(chatHistoryProvider.getRecentHistory("1")).thenReturn(List.of());
     }
 

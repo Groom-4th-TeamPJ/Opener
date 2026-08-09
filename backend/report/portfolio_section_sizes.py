@@ -51,8 +51,17 @@ def main():
     print("\n기준: 전체 8,000자 내외 / 해결과정 6~7항목 · 1,100~1,400자 / viz-frame 1개")
 
     # 경어체 종결은 0개여야 한다 (개조식 문서)
-    honorific = len(re.findall(r"(습니다|합니다)", strip_tags(html)))
-    print(f"경어체 종결: {honorific}개" + ("" if honorific == 0 else "  ← 개조식 위반"))
+    # star-pitch(15초 요약)는 면접에서 입으로 말할 문장이라 존댓말 구어체가 규약상 예외다
+    # 이 블록을 빼지 않으면 정상 상태에서 매번 위반이 뜨고, 그러면 이 검사 자체가 무시된다
+    pitches = re.findall(r'<p class="star-pitch">.*?</p>', html, flags=re.S)
+    body = html
+    for p in pitches:
+        body = body.replace(p, "")
+    honorific = len(re.findall(r"(습니다|합니다)", strip_tags(body)))
+    print(
+        f"경어체 종결: {honorific}개 (star-pitch {len(pitches)}건 제외)"
+        + ("" if honorific == 0 else "  ← 개조식 위반")
+    )
 
 
 if __name__ == "__main__":
