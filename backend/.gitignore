@@ -58,3 +58,11 @@ application-secret.yml
 
 .claude
 *.md
+
+# ── 정산 산출물 추적 예외 (위 *.md 무시의 예외) ──────────────────
+# 리뷰·감사·측정 보고서와 포트폴리오는 추적한다. 루트 .gitignore 와 짝을 이룬다.
+!report/*.md
+!report/*.py
+!docs/measurements/*.md
+!docs/measurements/*.html
+!docs/portfolio/*.html

@@ -1,0 +1,234 @@
+[
+  {
+    "before": "<li>LLM 응답 생성에 십수 초가 걸려 <b>첫 응답까지 평균 15초</b>가 소요되고, 이 지연을 견디려면 응답이 끝날 때까지 연결을 유지하는 long-lived 구조가 필요했습니다</li>",
+    "after": "<li>LLM 응답 생성에 십수 초가 걸려 <b>첫 응답까지 평균 15초</b>가 소요되고, 이 지연을 견디려면 응답이 끝날 때까지 연결을 유지하는 long-lived 구조가 필요</li>"
+  },
+  {
+    "before": "<li>초기 구현은 <span class=\"mono\">@Async</span> + <span class=\"mono\">SseEmitter</span> + <span class=\"mono\">blockLast()</span> 동기 대기 조합으로, 연결 1개가 platform 스레드 1개를 스트림 종료까지 그대로 점유했습니다</li>",
+    "after": "<li>초기 구현은 <span class=\"mono\">@Async</span> + <span class=\"mono\">SseEmitter</span> + <span class=\"mono\">blockLast()</span> 동기 대기 조합으로, 연결 1개가 platform 스레드 1개를 스트림 종료까지 그대로 점유</li>"
+  },
+  {
+    "before": "<li>platform 스레드는 메모리·컨텍스트 스위칭 비용 때문에 무한정 늘릴 수 없어, 동시 접속자가 늘수록 \"스레드 풀 고갈 → 신규 연결 거부\"로 이어지는 구조적 한계가 있었습니다</li>",
+    "after": "<li>platform 스레드는 메모리·컨텍스트 스위칭 비용 때문에 무한정 늘릴 수 없어, 동시 접속자가 늘수록 \"스레드 풀 고갈 → 신규 연결 거부\"로 이어지는 구조적 한계가 있었음</li>"
+  },
+  {
+    "before": "<li>런타임은 서블릿 스택(Tomcat)을 유지한 채 컨트롤러가 <span class=\"mono\">Flux&lt;ServerSentEvent&gt;</span>를 반환하도록 바꿔 MVC의 async 요청 처리 경로를 타게 하고, <span class=\"mono\">blockLast()</span> 동기 대기를 제거해 스트림이 지속되는 동안 요청 스레드를 점유하지 않고 토큰을 받는 즉시 전달하도록 했습니다 — JPA·Spring Security를 전면 재작성해야 하는 WebFlux(Netty) 전환 대신 Reactor 타입만 도입하는 하이브리드를 택한 판단입니다</li>",
+    "after": "<li>런타임은 서블릿 스택(Tomcat)을 유지한 채 컨트롤러가 <span class=\"mono\">Flux&lt;ServerSentEvent&gt;</span>를 반환하도록 바꿔 MVC의 async 요청 처리 경로를 타게 하고, <span class=\"mono\">blockLast()</span> 동기 대기를 제거해 스트림이 지속되는 동안 요청 스레드를 점유하지 않고 토큰을 받는 즉시 전달하도록 했음 — JPA·Spring Security를 전면 재작성해야 하는 WebFlux(Netty) 전환 대신 Reactor 타입만 도입하는 하이브리드를 택한 판단임</li>"
+  },
+  {
+    "before": "<li>LLM 대기는 WebClient 리액티브 호출로 이벤트 루프에 맡기고, 요청 스레드 경로에 남아있던 동기 Redis 조회만 Virtual Thread로 흡수해 요청 스레드를 즉시 반납하게 했습니다</li>",
+    "after": "<li>LLM 대기는 WebClient 리액티브 호출로 이벤트 루프에 맡기고, 요청 스레드 경로에 남아있던 동기 Redis 조회만 Virtual Thread로 흡수해 요청 스레드를 즉시 반납하게 했음</li>"
+  },
+  {
+    "before": "<li>토큰을 받는 콜백에서 블로킹 작업이 돌던 것을 <span class=\"mono\">publishOn(Schedulers.boundedElastic())</span> 이후로 오프로딩했습니다 — 스트림이 두 종류인데 각각 블로킹의 무게가 달랐습니다. <b>일반 채팅 스트림</b>의 완료 콜백은 Redis 저장과 상태 전이를, <b>오프너 분석 스트림</b>의 완료 콜백은 거기에 더해 <b>JDBC 트랜잭션</b>(문제 결과에 오프너 사용 표시 + 시험 결과 갱신)까지 실행합니다. 후자가 이벤트 루프를 잡으면 영향이 가장 커서 두 스트림 모두 같은 경계로 옮겼습니다</li>",
+    "after": "<li>토큰을 받는 콜백에서 블로킹 작업이 돌던 것을 <span class=\"mono\">publishOn(Schedulers.boundedElastic())</span> 이후로 오프로딩 — 스트림이 두 종류인데 각각 블로킹의 무게가 달랐음. <b>일반 채팅 스트림</b>의 완료 콜백은 Redis 저장과 상태 전이를, <b>오프너 분석 스트림</b>의 완료 콜백은 거기에 더해 <b>JDBC 트랜잭션</b>(문제 결과에 오프너 사용 표시 + 시험 결과 갱신)까지 실행함. 후자가 이벤트 루프를 잡으면 영향이 가장 커서 두 스트림 모두 같은 경계로 옮겼음</li>"
+  },
+  {
+    "before": "<li>이 오프로딩이 없으면 논블로킹 스트리밍이 <b>콜백의 블로킹으로 상쇄</b>됩니다 — LLM 응답을 읽는 이벤트 루프에서 DB·Redis I/O가 돌면 그 루프가 담당하는 다른 커넥션까지 함께 멈춥니다. 주장을 코드가 아니라 런타임으로 확인할 수 있게, 첫 청크에서 콜백 스레드명을 남기는 계측을 심었습니다(매 청크마다 찍으면 로그가 토큰 수만큼 늘어나므로 첫 청크에서만)</li>",
+    "after": "<li>이 오프로딩이 없으면 논블로킹 스트리밍이 <b>콜백의 블로킹으로 상쇄</b>됨 — LLM 응답을 읽는 이벤트 루프에서 DB·Redis I/O가 돌면 그 루프가 담당하는 다른 커넥션까지 함께 멈춤. 주장을 코드가 아니라 런타임으로 확인할 수 있게, 첫 청크에서 콜백 스레드명을 남기는 계측을 심었음(매 청크마다 찍으면 로그가 토큰 수만큼 늘어나므로 첫 청크에서만)</li>"
+  },
+  {
+    "before": "<li>각 SSE 연결을 <span class=\"mono\">ConcurrentHashMap&lt;sessionId, Sink&gt;</span>로 관리하고, LLM의 빠른 토큰 생성과 느린 클라이언트 수신 속도 차이를 Backpressure Buffer로 흡수해 유실 없이 순서대로 전달했습니다</li>",
+    "after": "<li>각 SSE 연결을 <span class=\"mono\">ConcurrentHashMap&lt;sessionId, Sink&gt;</span>로 관리하고, LLM의 빠른 토큰 생성과 느린 클라이언트 수신 속도 차이를 Backpressure Buffer로 흡수해 유실 없이 순서대로 전달</li>"
+  },
+  {
+    "before": "<li>저장 경로를 응답 경로에서 분리해 전용 메시지 큐로 비동기 발행 후 Consumer가 Redis 조회·검증·PostgreSQL 적재를 담당하도록 했고, 실패 메시지는 3회 재시도 후 DLQ로 격리했습니다</li>",
+    "after": "<li>저장 경로를 응답 경로에서 분리해 전용 메시지 큐로 비동기 발행 후 Consumer가 Redis 조회·검증·PostgreSQL 적재를 담당하도록 했고, 실패 메시지는 3회 재시도 후 DLQ로 격리</li>"
+  },
+  {
+    "before": "<li>개선을 측정할 때 <b>스레드 수를 20개로 고정</b>하는 통제를 뒀습니다 — 스레드를 자유롭게 늘리면 \"스레드를 더 줬으니 빨라진 것\"이라는 반박을 배제할 수 없어, 같은 스레드 수에서 처리량 차이가 나야 원인이 구조에 있다고 확정됩니다. 측정의 목적을 숫자가 아니라 <b>인과 확정</b>으로 잡은 것입니다. 다만 부하는 실제 LLM 스트리밍이 아니라 같은 스레드 점유 특성을 재현한 <b>대리(proxy) 부하</b>였고, 실제 스트리밍은 토큰이 간헐적으로 도착하는 긴 연결이라 메모리·GC·소켓 수가 먼저 병목이 될 수 있어, 이 실험이 확정하는 범위는 <b>처리량의 스레드 종속성 해소</b>까지라고 결론 내렸습니다</li>",
+    "after": "<li>개선을 측정할 때 <b>스레드 수를 20개로 고정</b>하는 통제를 뒀음 — 스레드를 자유롭게 늘리면 \"스레드를 더 줬으니 빨라진 것\"이라는 반박을 배제할 수 없어, 같은 스레드 수에서 처리량 차이가 나야 원인이 구조에 있다고 확정됨. 측정의 목적을 숫자가 아니라 <b>인과 확정</b>으로 잡은 것임. 다만 부하는 실제 LLM 스트리밍이 아니라 같은 스레드 점유 특성을 재현한 <b>대리(proxy) 부하</b>였고, 실제 스트리밍은 토큰이 간헐적으로 도착하는 긴 연결이라 메모리·GC·소켓 수가 먼저 병목이 될 수 있어, 이 실험이 확정하는 범위는 <b>처리량의 스레드 종속성 해소</b>까지라고 결론 내렸음</li>"
+  },
+  {
+    "before": "<li>사용자가 첫 글자를 보기까지 <span class=\"metric\">전체 응답 완료 대기 15s → 첫 토큰 약 300ms</span> — 응답 완료 시점과 첫 토큰 도착 시점을 각각 재는 서로 다른 지표이고, 개선의 실체는 <b>완료 대기에서 도착 즉시 전달로 바꾼 구조</b>입니다</li>",
+    "after": "<li>사용자가 첫 글자를 보기까지 <span class=\"metric\">전체 응답 완료 대기 15s → 첫 토큰 약 300ms</span> — 응답 완료 시점과 첫 토큰 도착 시점을 각각 재는 서로 다른 지표이고, 개선의 실체는 <b>완료 대기에서 도착 즉시 전달로 바꾼 구조</b>임</li>"
+  },
+  {
+    "before": "<li>스레드 20개 고정 통제 실험에서 처리량 <span class=\"metric\">9.5 → 55 req/s(약 5.8배)</span>, p95 <span class=\"metric\">20s → 2s</span>를 k6로 확인 — 같은 스레드 수에서 벌어진 차이이므로, 확인된 것은 <b>처리량이 스레드 수에 종속되지 않는다</b>는 구조적 결론입니다</li>",
+    "after": "<li>스레드 20개 고정 통제 실험에서 처리량 <span class=\"metric\">9.5 → 55 req/s(약 5.8배)</span>, p95 <span class=\"metric\">20s → 2s</span>를 k6로 확인 — 같은 스레드 수에서 벌어진 차이이므로, 확인된 것은 <b>처리량이 스레드 수에 종속되지 않는다</b>는 구조적 결론임</li>"
+  },
+  {
+    "before": "<li>Redis Standalone 단일 노드 구조에서 노드가 죽으면 모든 채팅 세션이 한 번에 유실되는 SPOF(단일 장애점)였습니다</li>",
+    "after": "<li>Redis Standalone 단일 노드 구조에서 노드가 죽으면 모든 채팅 세션이 한 번에 유실되는 SPOF(단일 장애점)였음</li>"
+  },
+  {
+    "before": "<li>인증용 Redis와 채팅용 Redis가 같은 인스턴스를 공유하는 구조라, 한쪽 도메인의 장애가 다른 도메인까지 전파될 위험이 있었습니다</li>",
+    "after": "<li>인증용 Redis와 채팅용 Redis가 같은 인스턴스를 공유하는 구조라, 한쪽 도메인의 장애가 다른 도메인까지 전파될 위험이 있었음</li>"
+  },
+  {
+    "before": "<li>장애 발생 시 수동으로 인스턴스를 재기동해야 했고, 이 복구에 5~10분이 걸려 그 사이 채팅 기능 전체가 중단됐습니다</li>",
+    "after": "<li>장애 발생 시 수동으로 인스턴스를 재기동해야 했고, 이 복구에 5~10분이 걸려 그 사이 채팅 기능 전체가 중단됨</li>"
+  },
+  {
+    "before": "<li>Redis Cluster를 Master 3 + Replica 3, 총 6노드로 구성하고 Auth Redis와 Chat Redis를 별도 Spring 빈으로 분리해 장애 도메인을 격리했습니다 — 유실 시 대화가 통째로 사라지는 채팅 세션만 Cluster로 이중화하고, 재로그인으로 즉시 복구 가능한 인증 토큰 저장소는 Standalone을 유지해 인프라 비용과 보호 수준의 균형을 맞췄습니다</li>",
+    "after": "<li>Redis Cluster를 Master 3 + Replica 3, 총 6노드로 구성하고 Auth Redis와 Chat Redis를 별도 Spring 빈으로 분리해 장애 도메인을 격리 — 유실 시 대화가 통째로 사라지는 채팅 세션만 Cluster로 이중화하고, 재로그인으로 즉시 복구 가능한 인증 토큰 저장소는 Standalone을 유지해 인프라 비용과 보호 수준의 균형을 맞췄음</li>"
+  },
+  {
+    "before": "<li>같은 세션에 속한 키들을 Hash Tag 패턴(<span class=\"mono\">chat:{sessionId}:session</span>)으로 묶어 동일 슬롯에 배치해, 멀티키 연산에서 <span class=\"mono\">CROSSSLOT</span> 오류가 나지 않도록 했습니다</li>",
+    "after": "<li>같은 세션에 속한 키들을 Hash Tag 패턴(<span class=\"mono\">chat:{sessionId}:session</span>)으로 묶어 동일 슬롯에 배치해, 멀티키 연산에서 <span class=\"mono\">CROSSSLOT</span> 오류가 나지 않도록 했음</li>"
+  },
+  {
+    "before": "<li><span class=\"mono\">ReadFrom.REPLICA_PREFERRED</span>로 읽기 트래픽을 Replica로 분산시켜 Master의 쓰기 부하를 경감했습니다 — 다만 비동기 복제 특성상 쓰기 직후 조회에 복제 지연(stale read)이 있을 수 있어, 짧은 세션 TTL(1시간)과 이어지는 대화 맥락이 지연을 흡수하는 범위에서만 replica 읽기를 허용했습니다</li>",
+    "after": "<li><span class=\"mono\">ReadFrom.REPLICA_PREFERRED</span>로 읽기 트래픽을 Replica로 분산시켜 Master의 쓰기 부하를 경감 — 다만 비동기 복제 특성상 쓰기 직후 조회에 복제 지연(stale read)이 있을 수 있어, 짧은 세션 TTL(1시간)과 이어지는 대화 맥락이 지연을 흡수하는 범위에서만 replica 읽기를 허용</li>"
+  },
+  {
+    "before": "<li>Lettuce Connection Pool에 <span class=\"mono\">testOnBorrow=true</span>를 적용해 커넥션을 빌릴 때마다 상태를 검증하도록 해, 죽은 커넥션을 재사용하다 장애가 전파되는 경로를 차단했습니다</li>",
+    "after": "<li>Lettuce Connection Pool에 <span class=\"mono\">testOnBorrow=true</span>를 적용해 커넥션을 빌릴 때마다 상태를 검증하도록 해, 죽은 커넥션을 재사용하다 장애가 전파되는 경로를 차단</li>"
+  },
+  {
+    "before": "<li>다만 Cluster가 주는 것은 <b>가용성(HA)이지 내구성(Durability)이 아니라는 것</b>을 전제로 설계했습니다 — 복제가 비동기라 Master가 죽는 순간 복제되지 않은 쓰기는 사라집니다. 그래서 Redis는 <b>버퍼로만</b> 쓰고 원본은 메시지 큐를 거쳐 PostgreSQL에 남기는 영속 경로를 따로 뒀습니다. \"이중화했으니 데이터가 안전하다\"는 결론으로 넘어가지 않도록 <b>가용성은 Cluster가, 내구성은 영속 경로가</b> 책임지게 역할을 갈라놓은 것입니다</li>",
+    "after": "<li>다만 Cluster가 주는 것은 <b>가용성(HA)이지 내구성(Durability)이 아니라는 것</b>을 전제로 설계 — 복제가 비동기라 Master가 죽는 순간 복제되지 않은 쓰기는 사라짐. 그래서 Redis는 <b>버퍼로만</b> 쓰고 원본은 메시지 큐를 거쳐 PostgreSQL에 남기는 영속 경로를 따로 뒀음. \"이중화했으니 데이터가 안전하다\"는 결론으로 넘어가지 않도록 <b>가용성은 Cluster가, 내구성은 영속 경로가</b> 책임지게 역할을 갈라놓은 것임</li>"
+  },
+  {
+    "before": "<li>LLM은 OpenAI 외부 의존성이라 장애·지연이 발생하면 요청이 타임아웃까지 매달려 느린 실패가 누적됐습니다</li>",
+    "after": "<li>LLM은 OpenAI 외부 의존성이라 장애·지연이 발생하면 요청이 타임아웃까지 매달려 느린 실패가 누적됨</li>"
+  },
+  {
+    "before": "<li>실패 중인 외부 API를 계속 호출하면 연쇄 지연(Cascading Failure)으로 번질 위험이 있었습니다</li>",
+    "after": "<li>실패 중인 외부 API를 계속 호출하면 연쇄 지연(Cascading Failure)으로 번질 위험이 있었음</li>"
+  },
+  {
+    "before": "<li>세션 상태가 여러 boolean 플래그에 분산돼 있어 \"스트리밍 중 재전송\", \"연결 전 메시지 전송\" 같은 비정상 전이를 코드 수준에서 막을 수 없었습니다</li>",
+    "after": "<li>세션 상태가 여러 boolean 플래그에 분산돼 있어 \"스트리밍 중 재전송\", \"연결 전 메시지 전송\" 같은 비정상 전이를 코드 수준에서 막을 수 없었음</li>"
+  },
+  {
+    "before": "<li>Resilience4j <span class=\"mono\">@CircuitBreaker</span>를 채팅 스트리밍·오프너 분석·캐시 저장소 호출 3개 지점에 <b>서로 다른 정책으로</b> 분리 적용했습니다 — 외부 LLM 두 지점은 느리고 호출 단가가 높아 보수적으로, 윈도우 10 · 최소 호출 5건 · 실패율 50% 초과 시 OPEN → 30초 후 HALF-OPEN(허용 3건)으로 잡았습니다</li>",
+    "after": "<li>Resilience4j <span class=\"mono\">@CircuitBreaker</span>를 채팅 스트리밍·오프너 분석·캐시 저장소 호출 3개 지점에 <b>서로 다른 정책으로</b> 분리 적용 — 외부 LLM 두 지점은 느리고 호출 단가가 높아 보수적으로, 윈도우 10 · 최소 호출 5건 · 실패율 50% 초과 시 OPEN → 30초 후 HALF-OPEN(허용 3건)으로 잡았음</li>"
+  },
+  {
+    "before": "<li>캐시 저장소는 호출이 빠르고 훨씬 빈번해 표본 하나의 무게가 가볍다는 특성을 확인하고, 이 지점만 <b>윈도우 20 · 최소 호출 10건 · 실패율 60% · OPEN 10초</b>로 차등화했습니다 — 표본을 더 모아 통계적으로 판단하고, 임계는 너그럽게, 회복 대기는 짧게 둔 것입니다. 세 지점을 같은 값으로 맞추지 않은 이유는 <b>호출 특성이 다르면 서킷 정책도 달라야 한다</b>고 봤기 때문입니다</li>",
+    "after": "<li>캐시 저장소는 호출이 빠르고 훨씬 빈번해 표본 하나의 무게가 가볍다는 특성을 확인하고, 이 지점만 <b>윈도우 20 · 최소 호출 10건 · 실패율 60% · OPEN 10초</b>로 차등화 — 표본을 더 모아 통계적으로 판단하고, 임계는 너그럽게, 회복 대기는 짧게 둔 것임. 세 지점을 같은 값으로 맞추지 않은 이유는 <b>호출 특성이 다르면 서킷 정책도 달라야 한다</b>고 봤기 때문임</li>"
+  },
+  {
+    "before": "<li>최소 호출 수를 둔 이유는 표본이 적을 때의 오판을 막기 위해서입니다 — 호출 2건 중 1건 실패를 실패율 50%로 읽고 서킷을 열면 우연한 실패 하나로 기능 전체가 차단됩니다. 호출 빈도가 높은 캐시 지점에 더 큰 최소값(10건)을 요구한 것도 같은 이유입니다</li>",
+    "after": "<li>최소 호출 수를 둔 이유는 표본이 적을 때의 오판을 막기 위해서임 — 호출 2건 중 1건 실패를 실패율 50%로 읽고 서킷을 열면 우연한 실패 하나로 기능 전체가 차단됨. 호출 빈도가 높은 캐시 지점에 더 큰 최소값(10건)을 요구한 것도 같은 이유임</li>"
+  },
+  {
+    "before": "<li>Spring State Machine으로 IDLE → CONNECTED → PROCESSING → STREAMING → COMPLETED와 에러 3상태(총 8개)를 정의하고, 전이 테이블에 선언된 쌍만 허용해 비정상 전이를 코드 수준에서 차단했습니다</li>",
+    "after": "<li>Spring State Machine으로 IDLE → CONNECTED → PROCESSING → STREAMING → COMPLETED와 에러 3상태(총 8개)를 정의하고, 전이 테이블에 선언된 쌍만 허용해 비정상 전이를 코드 수준에서 차단</li>"
+  },
+  {
+    "before": "<li>다만 잘못된 전이를 <b>차단</b>하는 것과 어긋난 상태를 <b>회수</b>하는 것은 다르다는 것을 확인했습니다 — LLM이 빈 응답을 주면 <span class=\"mono\">STREAM_START</span>가 발화되지 않아 상태가 <span class=\"mono\">PROCESSING</span>에 남고, 뒤이은 <span class=\"mono\">STREAM_COMPLETE</span>가 거부되며 세션이 고착돼 이후 요청이 전부 <span class=\"mono\">SESSION_EXPIRED</span>로 막히는 경로를 발견했습니다. 첫 청크 발생 여부를 확인해 청크가 0개면 <span class=\"mono\">STREAM_ERROR</span>로 상태를 회수하도록 보완하고, 전이 거부를 조용히 삼키던 <span class=\"mono\">sendEvent</span> 반환값을 전 지점에서 검사하도록 정리했습니다</li>",
+    "after": "<li>다만 잘못된 전이를 <b>차단</b>하는 것과 어긋난 상태를 <b>회수</b>하는 것은 다르다는 것을 확인 — LLM이 빈 응답을 주면 <span class=\"mono\">STREAM_START</span>가 발화되지 않아 상태가 <span class=\"mono\">PROCESSING</span>에 남고, 뒤이은 <span class=\"mono\">STREAM_COMPLETE</span>가 거부되며 세션이 고착돼 이후 요청이 전부 <span class=\"mono\">SESSION_EXPIRED</span>로 막히는 경로를 발견. 첫 청크 발생 여부를 확인해 청크가 0개면 <span class=\"mono\">STREAM_ERROR</span>로 상태를 회수하도록 보완하고, 전이 거부를 조용히 삼키던 <span class=\"mono\">sendEvent</span> 반환값을 전 지점에서 검사하도록 정리</li>"
+  },
+  {
+    "before": "<li>에러 상태에서 나가는 길이 <span class=\"mono\">CLOSE → IDLE</span> 하나뿐이고 <span class=\"mono\">IDLE</span>은 <span class=\"mono\">SEND_MESSAGE</span>를 받지 않아, LLM이 한 번 실패하면 SSE 연결은 살아있는데 재전송만 영구히 막히는 구조였습니다. <span class=\"mono\">STREAM_ERROR</span>·<span class=\"mono\">PROCESSING_ERROR</span>에서 <span class=\"mono\">SEND_MESSAGE</span>로 <span class=\"mono\">PROCESSING</span>으로 돌아가는 전이 2개를 추가했습니다 — LLM의 일시 실패는 세션을 끝낼 사유가 아니라고 판단했습니다</li>",
+    "after": "<li>에러 상태에서 나가는 길이 <span class=\"mono\">CLOSE → IDLE</span> 하나뿐이고 <span class=\"mono\">IDLE</span>은 <span class=\"mono\">SEND_MESSAGE</span>를 받지 않아, LLM이 한 번 실패하면 SSE 연결은 살아있는데 재전송만 영구히 막히는 구조였음. <span class=\"mono\">STREAM_ERROR</span>·<span class=\"mono\">PROCESSING_ERROR</span>에서 <span class=\"mono\">SEND_MESSAGE</span>로 <span class=\"mono\">PROCESSING</span>으로 돌아가는 전이 2개를 추가 — LLM의 일시 실패는 세션을 끝낼 사유가 아니라고 판단</li>"
+  },
+  {
+    "before": "<li>SSE Heartbeat를 30초 주기로 보내 죽은 연결을 조기 감지·정리해 메모리 누수를 방지했습니다</li>",
+    "after": "<li>SSE Heartbeat를 30초 주기로 보내 죽은 연결을 조기 감지·정리해 메모리 누수를 방지</li>"
+  },
+  {
+    "before": "<li>LLM 단독으로는 수능·모의고사 지문과 문제에 대해 정확한 근거를 제시하지 못하고 사실과 다른 답을 생성하는 Hallucination 위험이 있었습니다</li>",
+    "after": "<li>LLM 단독으로는 수능·모의고사 지문과 문제에 대해 정확한 근거를 제시하지 못하고 사실과 다른 답을 생성하는 Hallucination 위험이 있었음</li>"
+  },
+  {
+    "before": "<li>pgvector + HNSW 벡터 스토어를 구성하고 코사인 유사도 임계값을 기본값 0.7로 설정했는데, 관련 있는 문서인데도 검색되지 않는 현상이 발생했습니다</li>",
+    "after": "<li>pgvector + HNSW 벡터 스토어를 구성하고 코사인 유사도 임계값을 기본값 0.7로 설정했는데, 관련 있는 문서인데도 검색되지 않는 현상이 발생</li>"
+  },
+  {
+    "before": "<li>원인을 추적한 결과 영어 강의자료와 한국어 질문이 섞인 조합에서 임베딩 간 유사도 분포 자체가 낮게 형성돼 임계값에 걸려 재현율이 떨어지는 것으로 확인됐습니다</li>",
+    "after": "<li>원인을 추적한 결과 영어 강의자료와 한국어 질문이 섞인 조합에서 임베딩 간 유사도 분포 자체가 낮게 형성돼 임계값에 걸려 재현율이 떨어지는 것으로 확인됨</li>"
+  },
+  {
+    "before": "<li>PostgreSQL pgvector + HNSW 인덱스(1536차원, COSINE_DISTANCE)로 벡터 스토어를 구성하고 <span class=\"mono\">text-embedding-3-small</span>로 PDF 강의자료와 JSONL 문제 데이터셋을 임베딩·적재했습니다</li>",
+    "after": "<li>PostgreSQL pgvector + HNSW 인덱스(1536차원, COSINE_DISTANCE)로 벡터 스토어를 구성하고 <span class=\"mono\">text-embedding-3-small</span>로 PDF 강의자료와 JSONL 문제 데이터셋을 임베딩·적재</li>"
+  },
+  {
+    "before": "<li>오프너(유사문제) 분석 경로에서 <span class=\"mono\">vectorStore.similaritySearch</span>로 Top-K 검색 후 system prompt에 RAG 컨텍스트를 주입하고 <span class=\"mono\">ChatClient.stream()</span>으로 스트리밍하도록 구현했습니다</li>",
+    "after": "<li>오프너(유사문제) 분석 경로에서 <span class=\"mono\">vectorStore.similaritySearch</span>로 Top-K 검색 후 system prompt에 RAG 컨텍스트를 주입하고 <span class=\"mono\">ChatClient.stream()</span>으로 스트리밍하도록 구현</li>"
+  },
+  {
+    "before": "<li>\"임계값이 높을수록 정확하다\"는 통념과 달리 다국어 임베딩 조합에서는 유사도 분포 자체가 낮게 깔린다는 것을 데이터로 확인하고, 임계값을 0.7에서 0.2로 낮춰 재현율을 회복했습니다 — <b>정밀도를 내주고 재현율을 산 교환</b>이며, 임계값 조정은 검색이 0건으로 떨어지던 상태를 되돌리는 조치이고 근본 해결은 임베딩 모델의 언어 정렬 문제라고 층을 나눠 잡았습니다</li>",
+    "after": "<li>\"임계값이 높을수록 정확하다\"는 통념과 달리 다국어 임베딩 조합에서는 유사도 분포 자체가 낮게 깔린다는 것을 데이터로 확인하고, 임계값을 0.7에서 0.2로 낮춰 재현율을 회복 — <b>정밀도를 내주고 재현율을 산 교환</b>이며, 임계값 조정은 검색이 0건으로 떨어지던 상태를 되돌리는 조치이고 근본 해결은 임베딩 모델의 언어 정렬 문제라고 층을 나눠 잡았음</li>"
+  },
+  {
+    "before": "<li>임계값을 낮추면 무관 문서가 섞여 들어올 위험이 커지므로, Top-K 5로 주입 컨텍스트 수를 제한하고 대상 코퍼스를 강의자료·기출로 좁혔습니다. 그래도 검색 결과가 비면 컨텍스트를 억지로 채우지 않고 <b>RAG 없는 프롬프트로 폴백</b>하도록 해, 무관한 문서를 주입하는 쪽보다 안전한 방향을 택했습니다</li>",
+    "after": "<li>임계값을 낮추면 무관 문서가 섞여 들어올 위험이 커지므로, Top-K 5로 주입 컨텍스트 수를 제한하고 대상 코퍼스를 강의자료·기출로 좁혔음. 그래도 검색 결과가 비면 컨텍스트를 억지로 채우지 않고 <b>RAG 없는 프롬프트로 폴백</b>하도록 해, 무관한 문서를 주입하는 쪽보다 안전한 방향을 택했음</li>"
+  },
+  {
+    "before": "<li>근본 원인은 임계값이 아니라 <b>한국어 질문과 영어 중심 임베딩 모델 사이의 언어 정렬 문제</b>라고 판단하고, 근본 해결책 세 가지를 비교했습니다 — ① 다국어 임베딩 모델로 유사도 분포를 정상화, ② 키워드 검색(BM25)과 벡터 검색을 결합해 절대 임계값 의존을 줄이기, ③ 넉넉히 뽑고 Reranker로 재정렬. 셋 다 임베딩 모델 교체나 검색 파이프라인 증설을 동반하므로, 현 단계에서는 비용 대비 효과를 근거로 임계값 재조정과 폴백을 먼저 택했습니다</li>",
+    "after": "<li>근본 원인은 임계값이 아니라 <b>한국어 질문과 영어 중심 임베딩 모델 사이의 언어 정렬 문제</b>라고 판단하고, 근본 해결책 세 가지를 비교 — ① 다국어 임베딩 모델로 유사도 분포를 정상화, ② 키워드 검색(BM25)과 벡터 검색을 결합해 절대 임계값 의존을 줄이기, ③ 넉넉히 뽑고 Reranker로 재정렬. 셋 다 임베딩 모델 교체나 검색 파이프라인 증설을 동반하므로, 현 단계에서는 비용 대비 효과를 근거로 임계값 재조정과 폴백을 먼저 택했음</li>"
+  },
+  {
+    "before": "<li>Feature Flag로 RAG On/Off를 토글할 수 있게 해 동일 질문셋으로 A/B 비교를 검증했습니다 — <b>일반 채팅 경로</b>는 같은 <span class=\"mono\">LlmService</span> 인터페이스에 RAG 사용 구현체와 미사용 구현체를 <b>짝으로</b> 두고 플래그로 갈아끼우게 해서, 플래그가 어느 값이든(설정이 없어도) 빈이 하나는 생기고 호출부 코드는 그대로 둘 수 있었습니다</li>",
+    "after": "<li>Feature Flag로 RAG On/Off를 토글할 수 있게 해 동일 질문셋으로 A/B 비교를 검증 — <b>일반 채팅 경로</b>는 같은 <span class=\"mono\">LlmService</span> 인터페이스에 RAG 사용 구현체와 미사용 구현체를 <b>짝으로</b> 두고 플래그로 갈아끼우게 해서, 플래그가 어느 값이든(설정이 없어도) 빈이 하나는 생기고 호출부 코드는 그대로 둘 수 있었음</li>"
+  },
+  {
+    "before": "<li>반면 <b>오프너 분석 경로에는 이 짝이 없었습니다</b> — <span class=\"mono\">RagService</span>가 활성 조건이 붙은 구현체 하나뿐이라 플래그를 끄면 빈이 사라지는데, 주입받는 쪽은 필수 의존이었습니다. 조건부 빈은 \"빈을 만들지 않는 것\"만으로 안전해지지 않고 <b>그 타입을 주입받는 쪽까지 함께 봐야 방어가 성립</b>합니다. 같은 인터페이스에 사용·미사용 구현체를 짝으로 두어 플래그 양방향에서 빈이 항상 하나 존재하도록 정리했습니다</li>",
+    "after": "<li>반면 <b>오프너 분석 경로에는 이 짝이 없었음</b> — <span class=\"mono\">RagService</span>가 활성 조건이 붙은 구현체 하나뿐이라 플래그를 끄면 빈이 사라지는데, 주입받는 쪽은 필수 의존이었음. 조건부 빈은 \"빈을 만들지 않는 것\"만으로 안전해지지 않고 <b>그 타입을 주입받는 쪽까지 함께 봐야 방어가 성립</b>함. 같은 인터페이스에 사용·미사용 구현체를 짝으로 두어 플래그 양방향에서 빈이 항상 하나 존재하도록 정리</li>"
+  },
+  {
+    "before": "<li>같은 벡터 저장소 빈을 주입받는 클래스가 다섯 개라는 것도 이때 함께 확인했고, 조건이 걸리지 않은 하나는 <b>의존성 자체를 선택적으로</b>(<span class=\"mono\">ObjectProvider</span>) 받도록 바꿨습니다 — 짝을 늘리면 그 짝의 소비자를 또 확인해야 해 연쇄가 끊기지 않고, 이 서비스는 검색 실패 시 빈 컨텍스트로 진행하도록 이미 설계돼 있어 선택적 의존이 코드의 의도와 일치합니다. <b>플래그를 양방향으로 실제 기동해 확인</b>했습니다(끈 상태·켠 상태 모두 정상 기동, 두 구현체가 동시에 뜨는 빈 충돌 없음)</li>",
+    "after": "<li>같은 벡터 저장소 빈을 주입받는 클래스가 다섯 개라는 것도 이때 함께 확인했고, 조건이 걸리지 않은 하나는 <b>의존성 자체를 선택적으로</b>(<span class=\"mono\">ObjectProvider</span>) 받도록 바꿨음 — 짝을 늘리면 그 짝의 소비자를 또 확인해야 해 연쇄가 끊기지 않고, 이 서비스는 검색 실패 시 빈 컨텍스트로 진행하도록 이미 설계돼 있어 선택적 의존이 코드의 의도와 일치함. <b>플래그를 양방향으로 실제 기동해 확인</b>(끈 상태·켠 상태 모두 정상 기동, 두 구현체가 동시에 뜨는 빈 충돌 없음)</li>"
+  },
+  {
+    "before": "<li>검색 컨텍스트와 함께 프롬프트에 실리는 대화 히스토리 비용도 통제했습니다 — 매 턴 전량을 주입하던 것을 최근 N턴 윈도우(<span class=\"mono\">app.chat.history-window</span>, 기본 20)로 제한해 턴이 쌓일수록 프롬프트가 선형 증가하고 비용과 첫 토큰 지연이 함께 나빠지는 구조를 차단했습니다. 다만 윈도우를 넣은 직후 <b>DB에 영구 저장되는 대화 요약이 최근 20턴 기준으로 잘리는 회귀</b>를 발견해, 히스토리 조회 계약을 <b>LLM 컨텍스트용(윈도우 적용)</b>과 <b>영속화용(전량)</b> 둘로 분리했습니다 — 컨텍스트 비용을 줄이는 최적화가 저장 데이터를 훼손하지 않도록 경로를 갈라놓은 결정입니다</li>",
+    "after": "<li>검색 컨텍스트와 함께 프롬프트에 실리는 대화 히스토리 비용도 통제 — 매 턴 전량을 주입하던 것을 최근 N턴 윈도우(<span class=\"mono\">app.chat.history-window</span>, 기본 20)로 제한해 턴이 쌓일수록 프롬프트가 선형 증가하고 비용과 첫 토큰 지연이 함께 나빠지는 구조를 차단. 다만 윈도우를 넣은 직후 <b>DB에 영구 저장되는 대화 요약이 최근 20턴 기준으로 잘리는 회귀</b>를 발견해, 히스토리 조회 계약을 <b>LLM 컨텍스트용(윈도우 적용)</b>과 <b>영속화용(전량)</b> 둘로 분리 — 컨텍스트 비용을 줄이는 최적화가 저장 데이터를 훼손하지 않도록 경로를 갈라놓은 결정임</li>"
+  },
+  {
+    "before": "<li>검색 결과가 0건일 때 RAG 컨텍스트를 비우고 일반 프롬프트로 폴백해, 문서를 못 찾은 상황이 응답 실패로 번지지 않도록 처리 — <b>RAG On/Off 양방향</b>을 실제로 기동해 두 경로 모두 정상 동작함을 검증했습니다(위 참조)</li>",
+    "after": "<li>검색 결과가 0건일 때 RAG 컨텍스트를 비우고 일반 프롬프트로 폴백해, 문서를 못 찾은 상황이 응답 실패로 번지지 않도록 처리 — <b>RAG On/Off 양방향</b>을 실제로 기동해 두 경로 모두 정상 동작함을 검증(위 참조)</li>"
+  },
+  {
+    "before": "<li>인증·세션 경로를 리팩토링하면서 <b>\"방어 장치가 동작한다\"를 무엇으로 증명할 것인가</b>를 먼저 정의해야 했습니다 — 기능 테스트는 정상 흐름만 증명하지, 방어선이 실제로 <b>거부하는지</b>는 증명하지 못하기 때문입니다</li>",
+    "after": "<li>인증·세션 경로를 리팩토링하면서 <b>\"방어 장치가 동작한다\"를 무엇으로 증명할 것인가</b>를 먼저 정의해야 했음 — 기능 테스트는 정상 흐름만 증명하지, 방어선이 실제로 <b>거부하는지</b>는 증명하지 못하기 때문임</li>"
+  },
+  {
+    "before": "<li>토큰 무효화는 <b>쓰기·읽기·거부 세 지점이 짝을 이뤄야</b> 성립하는 구조입니다 — 무효화 상태를 어디에 쓰고(<span class=\"mono\">blacklist:access:{jti}</span>), 어느 필터에서 읽고, 어떤 규칙으로 거부할지가 한 계약으로 묶여 있어야 합니다</li>",
+    "after": "<li>토큰 무효화는 <b>쓰기·읽기·거부 세 지점이 짝을 이뤄야</b> 성립하는 구조임 — 무효화 상태를 어디에 쓰고(<span class=\"mono\">blacklist:access:{jti}</span>), 어느 필터에서 읽고, 어떤 규칙으로 거부할지가 한 계약으로 묶여 있어야 함</li>"
+  },
+  {
+    "before": "<li>무효화의 <b>범위</b>도 설계 결정이 필요했습니다 — access token만 폐기할지, 서버 보관본인 <span class=\"mono\">refreshToken:{userId}</span>까지 포함할지에 따라 재발급 경로가 남는지가 갈립니다</li>",
+    "after": "<li>무효화의 <b>범위</b>도 설계 결정이 필요 — access token만 폐기할지, 서버 보관본인 <span class=\"mono\">refreshToken:{userId}</span>까지 포함할지에 따라 재발급 경로가 남는지가 갈림</li>"
+  },
+  {
+    "before": "<li>SSE 연결 생성은 <b>신규 연결·기존 연결 재사용 두 분기</b>로 갈라집니다 — 소유자 검증을 각 호출부에 두는 방식이면 분기가 늘어날 때마다 검증이 새므로, <b>검증을 어느 계층에 둘 것인가</b>가 이 문제의 본질이었습니다</li>",
+    "after": "<li>SSE 연결 생성은 <b>신규 연결·기존 연결 재사용 두 분기</b>로 갈라짐 — 소유자 검증을 각 호출부에 두는 방식이면 분기가 늘어날 때마다 검증이 새므로, <b>검증을 어느 계층에 둘 것인가</b>가 이 문제의 본질이었음</li>"
+  },
+  {
+    "before": "<li>Redis 키 문자열을 전수 검색해 <b>쓰기·읽기·삭제 지점을 대조</b>하는 절차로 시작했습니다 — 방어 장치는 \"쓰는 코드가 있다\"가 아니라 \"읽고 거부하는 코드가 있다\"로만 검증된다고 보고, 키마다 세 지점이 짝을 이루는지 확인했습니다</li>",
+    "after": "<li>Redis 키 문자열을 전수 검색해 <b>쓰기·읽기·삭제 지점을 대조</b>하는 절차로 시작 — 방어 장치는 \"쓰는 코드가 있다\"가 아니라 \"읽고 거부하는 코드가 있다\"로만 검증된다고 보고, 키마다 세 지점이 짝을 이루는지 확인</li>"
+  },
+  {
+    "before": "<li>인증 필터에 블랙리스트 조회·거부를 추가하고, <span class=\"mono\">jti</span>가 없는 토큰은 폐기 취급하도록 했습니다. Redis 조회가 실패할 때 통과시킬지(fail-open) 막을지(fail-close)를 <b>명시적으로 결정</b>해 fail-close로 두고 근거를 코드에 남겼습니다 — fail-open은 장애가 이어지는 시간만큼 폐기된 토큰 전부를 되살립니다</li>",
+    "after": "<li>인증 필터에 블랙리스트 조회·거부를 추가하고, <span class=\"mono\">jti</span>가 없는 토큰은 폐기 취급하도록 했음. Redis 조회가 실패할 때 통과시킬지(fail-open) 막을지(fail-close)를 <b>명시적으로 결정</b>해 fail-close로 두고 근거를 코드에 남겼음 — fail-open은 장애가 이어지는 시간만큼 폐기된 토큰 전부를 되살림</li>"
+  },
+  {
+    "before": "<li>로그아웃 시 서버 보관본인 <span class=\"mono\">refreshToken:{userId}</span>까지 삭제하도록 하고, 토큰이 없거나 손상·만료된 경우에도 예외를 던지지 않고 쿠키를 정리하며 정상 반환하도록 <b>멱등</b>하게 만들었습니다</li>",
+    "after": "<li>로그아웃 시 서버 보관본인 <span class=\"mono\">refreshToken:{userId}</span>까지 삭제하도록 하고, 토큰이 없거나 손상·만료된 경우에도 예외를 던지지 않고 쿠키를 정리하며 정상 반환하도록 <b>멱등</b>하게 만들었음</li>"
+  },
+  {
+    "before": "<li>SSE 연결 생성의 두 분기 중 신규 연결 경로에만 검증이 없던 비대칭을, 호출부에 조건문을 더하는 대신 <b>세션 초기화 안쪽으로 검증을 넣어</b> 없앴습니다 — 연결 생성 분기가 늘어나도 이 지점을 지나가므로 검증이 새지 않습니다. 나아가 소유자 대조 로직 자체를 <b>단일 private 헬퍼로 모으고</b>, 신규 연결(<span class=\"mono\">initializeSession</span>)과 기존 연결 재사용(<span class=\"mono\">validateSessionOwner</span>) 두 진입점이 모두 그 하나를 호출하도록 했습니다 — 판정 조건을 바꿀 때 한쪽만 고쳐 규칙이 갈라지는 것을 구조로 막은 것입니다. 헬퍼를 한 단계 두는 데는 이유가 하나 더 있습니다. 같은 클래스 안에서 <span class=\"mono\">validateSessionOwner</span>를 직접 부르면 <b>Spring AOP 프록시를 우회</b>해 거기 붙은 <span class=\"mono\">@CircuitBreaker</span>가 적용되지 않기 때문입니다 — 자기호출(self-invocation)이 부가 기능을 조용히 무력화한다는 점까지 계산해 호출 경로를 설계했습니다</li>",
+    "after": "<li>SSE 연결 생성의 두 분기 중 신규 연결 경로에만 검증이 없던 비대칭을, 호출부에 조건문을 더하는 대신 <b>세션 초기화 안쪽으로 검증을 넣어</b> 없앴음 — 연결 생성 분기가 늘어나도 이 지점을 지나가므로 검증이 새지 않음. 나아가 소유자 대조 로직 자체를 <b>단일 private 헬퍼로 모으고</b>, 신규 연결(<span class=\"mono\">initializeSession</span>)과 기존 연결 재사용(<span class=\"mono\">validateSessionOwner</span>) 두 진입점이 모두 그 하나를 호출하도록 했음 — 판정 조건을 바꿀 때 한쪽만 고쳐 규칙이 갈라지는 것을 구조로 막은 것임. 헬퍼를 한 단계 두는 데는 이유가 하나 더 있음. 같은 클래스 안에서 <span class=\"mono\">validateSessionOwner</span>를 직접 부르면 <b>Spring AOP 프록시를 우회</b>해 거기 붙은 <span class=\"mono\">@CircuitBreaker</span>가 적용되지 않기 때문임 — 자기호출(self-invocation)이 부가 기능을 조용히 무력화한다는 점까지 계산해 호출 경로를 설계</li>"
+  },
+  {
+    "before": "<li>같은 방식으로 설정도 대조했습니다 — <span class=\"mono\">application*.yml</span> 3개 파일에서 6곳이 한 단계 깊게 들여써져 엉뚱한 부모 키 아래로 들어가 있었고, Spring Boot는 모르는 프로퍼티를 조용히 무시하므로 컴파일도 부팅 로그도 경고하지 않았습니다. 문서에 적힌 SSE 30분 타임아웃, dev 1분 계정 잠금, prod 로그 레벨이 전부 미적용 상태였습니다</li>",
+    "after": "<li>같은 방식으로 설정도 대조 — <span class=\"mono\">application*.yml</span> 3개 파일에서 6곳이 한 단계 깊게 들여써져 엉뚱한 부모 키 아래로 들어가 있었고, Spring Boot는 모르는 프로퍼티를 조용히 무시하므로 컴파일도 부팅 로그도 경고하지 않았음. 문서에 적힌 SSE 30분 타임아웃, dev 1분 계정 잠금, prod 로그 레벨이 전부 미적용 상태였음</li>"
+  },
+  {
+    "before": "<li>고친 뒤에는 <b>인프라를 띄워 API로 하나씩 재현</b>했습니다 — 로그아웃 후 같은 access token 재요청이 <span class=\"metric\">401</span>로 거부되고 블랙리스트 키 TTL이 고정값이 아니라 <b>토큰 잔여 수명에 맞춰</b> 걸리는 것(실측 3579초), <span class=\"mono\">refreshToken:{userId}</span> 부재, 멱등성은 토큰 없음·변조·형식 불명·만료·이미 로그아웃한 토큰 <b>5개 변형 전부 정상 종료</b>까지 확인했습니다. \"정상 입력에서만 동작하는 것\"과 \"어떤 입력에도 안전하게 끝나는 것\"은 다른 문제라고 보고 경계 입력을 따로 넣었습니다</li>",
+    "after": "<li>고친 뒤에는 <b>인프라를 띄워 API로 하나씩 재현</b> — 로그아웃 후 같은 access token 재요청이 <span class=\"metric\">401</span>로 거부되고 블랙리스트 키 TTL이 고정값이 아니라 <b>토큰 잔여 수명에 맞춰</b> 걸리는 것(실측 3579초), <span class=\"mono\">refreshToken:{userId}</span> 부재, 멱등성은 토큰 없음·변조·형식 불명·만료·이미 로그아웃한 토큰 <b>5개 변형 전부 정상 종료</b>까지 확인. \"정상 입력에서만 동작하는 것\"과 \"어떤 입력에도 안전하게 끝나는 것\"은 다른 문제라고 보고 경계 입력을 따로 넣었음</li>"
+  },
+  {
+    "before": "<li>세션 소유권은 <b>방어선 두 곳을 각각 재현</b>했습니다 — ① 원 사용자의 SSE 연결이 살아있는 상태 ② <b>원 사용자 연결이 끊기고 Redis 세션만 TTL이 남은 상태</b>(원래 검증이 빠져 있던 시나리오). 거부는 SSE 스트림이 열리기 <b>전</b> 동기 예외로 나가므로 응답이 <span class=\"mono\">text/event-stream</span>이 아니라 JSON입니다. 그리고 <b>대조군</b>으로 정당한 소유자가 자기 세션에 연결하면 <span class=\"metric\">200</span> + <span class=\"mono\">text/event-stream</span> + <span class=\"mono\">event:connected</span>로 통과하는 것까지 봐서, 거부가 전면 차단이 아니라 <b>소유자 불일치에만 한정</b>된다는 것을 확인했습니다</li>",
+    "after": "<li>세션 소유권은 <b>방어선 두 곳을 각각 재현</b> — ① 원 사용자의 SSE 연결이 살아있는 상태 ② <b>원 사용자 연결이 끊기고 Redis 세션만 TTL이 남은 상태</b>(원래 검증이 빠져 있던 시나리오). 거부는 SSE 스트림이 열리기 <b>전</b> 동기 예외로 나가므로 응답이 <span class=\"mono\">text/event-stream</span>이 아니라 JSON임. 그리고 <b>대조군</b>으로 정당한 소유자가 자기 세션에 연결하면 <span class=\"metric\">200</span> + <span class=\"mono\">text/event-stream</span> + <span class=\"mono\">event:connected</span>로 통과하는 것까지 봐서, 거부가 전면 차단이 아니라 <b>소유자 불일치에만 한정</b>된다는 것을 확인</li>"
+  },
+  {
+    "before": "<li>설정은 값을 적는 것으로 끝내지 않고 <b>런타임 바인딩을 확인</b>했습니다 — <span class=\"mono\">/actuator/configprops</span>로 계정 잠금 설정이 의도한 빈에 실제로 바인딩됐는지, <span class=\"mono\">/actuator/loggers</span>로 로그 레벨의 실효값을 봤고, dev 계정 잠금은 <span class=\"metric\">423</span> 응답과 잠금 해제 시각이 마지막 실패 시각 + 1분으로 계산되는 것까지 확인했습니다. <b>\"값을 적었다\"와 \"그 값이 실제로 걸렸다\"를 분리해서 검증하는 것</b>이 이 작업의 핵심 절차였습니다</li>",
+    "after": "<li>설정은 값을 적는 것으로 끝내지 않고 <b>런타임 바인딩을 확인</b> — <span class=\"mono\">/actuator/configprops</span>로 계정 잠금 설정이 의도한 빈에 실제로 바인딩됐는지, <span class=\"mono\">/actuator/loggers</span>로 로그 레벨의 실효값을 봤고, dev 계정 잠금은 <span class=\"metric\">423</span> 응답과 잠금 해제 시각이 마지막 실패 시각 + 1분으로 계산되는 것까지 확인. <b>\"값을 적었다\"와 \"그 값이 실제로 걸렸다\"를 분리해서 검증하는 것</b>이 이 작업의 핵심 절차였음</li>"
+  },
+  {
+    "before": "<li>토큰 무효화의 범위를 access·refresh <b>양쪽으로 정의</b>하고, 쓰기·읽기·거부 세 지점이 하나의 계약으로 연결된 구조를 확립 — 로그아웃 후 같은 토큰으로 재요청하면 <span class=\"metric\">401</span>로 거부되고, 블랙리스트 TTL이 토큰 잔여 수명에 맞춰 걸리는 것까지 실행 검증했습니다</li>",
+    "after": "<li>토큰 무효화의 범위를 access·refresh <b>양쪽으로 정의</b>하고, 쓰기·읽기·거부 세 지점이 하나의 계약으로 연결된 구조를 확립 — 로그아웃 후 같은 토큰으로 재요청하면 <span class=\"metric\">401</span>로 거부되고, 블랙리스트 TTL이 토큰 잔여 수명에 맞춰 걸리는 것까지 실행 검증</li>"
+  },
+  {
+    "before": "<li>SSE 소유자 검증을 <b>세션 초기화라는 단일 통과점</b>으로 모아, 연결 분기가 늘어나도 검증이 새지 않는 구조 확보 — 타인 토큰으로 남의 세션에 접속하면 <span class=\"metric\">400</span> <span class=\"mono\">INVALID_SESSION</span>으로 거부되고, 정당한 소유자는 <span class=\"metric\">200</span>으로 통과하는 대조군까지 E2E로 확인했습니다</li>",
+    "after": "<li>SSE 소유자 검증을 <b>세션 초기화라는 단일 통과점</b>으로 모아, 연결 분기가 늘어나도 검증이 새지 않는 구조 확보 — 타인 토큰으로 남의 세션에 접속하면 <span class=\"metric\">400</span> <span class=\"mono\">INVALID_SESSION</span>으로 거부되고, 정당한 소유자는 <span class=\"metric\">200</span>으로 통과하는 대조군까지 E2E로 확인</li>"
+  },
+  {
+    "before": "<li>설정을 <b>\"값을 적었다\"와 \"그 값이 실제로 바인딩됐다\"를 분리 검증하는 절차</b>로 정립 — <span class=\"mono\">/actuator/configprops</span>·<span class=\"mono\">/actuator/loggers</span>로 실효값을 확인하는 단계를 표준에 넣어, 조용히 무시되는 설정을 구조적으로 걸러냅니다</li>",
+    "after": "<li>설정을 <b>\"값을 적었다\"와 \"그 값이 실제로 바인딩됐다\"를 분리 검증하는 절차</b>로 정립 — <span class=\"mono\">/actuator/configprops</span>·<span class=\"mono\">/actuator/loggers</span>로 실효값을 확인하는 단계를 표준에 넣어, 조용히 무시되는 설정을 구조적으로 걸러냄</li>"
+  }
+]
