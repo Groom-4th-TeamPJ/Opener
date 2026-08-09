@@ -134,11 +134,13 @@ details.fold > summary > h3{display:inline; margin:0; border:0; padding:0; font-
   <a href="#ai-3">3. LLM 장애 전파 → 서킷·상태머신</a>
   <a href="#ai-4">4. 다국어 RAG 재현율·조건부 빈</a>
   <a href="#ai-5">5. 인증·세션 단일 통과점</a>
+  <a href="#ai-6">6. 영속화 부재 판정 · DLQ</a>
   <a class="toc-proj" href="#proj-eco">이커머스 (groom-shopping)</a>
   <a href="#eco-1">1. 선착순 순서 → Redis + Kafka</a>
   <a href="#eco-2">2. 재고 Lost Update·전략 3종 실측</a>
   <a href="#eco-3">3. PG 부분 실패 → Saga 보상</a>
   <a href="#eco-4">4. 폴링 지연 → Kafka Streams</a>
+  <a href="#eco-5">5. 추첨 예약 — ZSet + 수동 ACK</a>
   <a class="toc-proj" href="#proj-wf">휠 파인더</a>
   <a href="#wf-1">1. 실시간 위치 Pub/Sub · Stream</a>
   <a href="#wf-2">2. Nginx 라우팅 · CI/CD</a>
@@ -628,6 +630,99 @@ if (result == Sinks.EmitResult.FAIL_OVERFLOW) {
   <li>설정은 <b>"값을 적었다"와 "실제로 바인딩됐다"를 분리 검증</b>하는 단계를 표준에 넣어 조용히 무시되는 설정을 구조적으로 걸러냄</li>
 </ul>
 
+<h3 class="star-title" id="ai-6">6. 채팅 영속화에서 "버퍼가 비었다"를 정상 만료와 유실로 갈라 관측 가능하게 전환</h3>
+
+<p class="sec-label">전체적인 아키텍처</p>
+<div class="viz-frame">
+  <div class="viz-title">영속화 컨슈머의 판정 경로 — 부재의 두 가지 뜻과 ACK/DLQ 결정</div>
+  <svg viewBox="0 0 1150 360" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .pl-b{fill:rgba(67,97,184,0.10); stroke:#4361b8; stroke-width:1.5}
+      .pl-g{fill:rgba(0,122,85,0.10); stroke:#007a55; stroke-width:1.5}
+      .pl-r{fill:rgba(232,105,105,0.10); stroke:#e86969; stroke-width:1.5}
+      .pl-y{fill:rgba(180,83,9,0.10); stroke:#b45309; stroke-width:1.5}
+      .pl-p{fill:rgba(124,58,237,0.10); stroke:#7c3aed; stroke-width:1.5}
+      .pl-d{fill:#ffffff; stroke:#1a1a2e; stroke-width:1.5; stroke-dasharray:5,3}
+      .pl-tt{fill:#1a1a2e; font:bold 13px sans-serif; text-anchor:middle}
+      .pl-mu{fill:#6b7280; font:11.5px sans-serif; text-anchor:middle}
+      .pl-l{stroke:#9ca3af; stroke-width:1.5; fill:none}
+      .pl-lg{fill:#6b7280; font:11.5px sans-serif; text-anchor:start}
+    </style>
+    <defs><marker id="pl-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#9ca3af"/></marker></defs>
+
+    <rect class="pl-b" x="25" y="150" width="125" height="46" rx="7"/>
+    <text class="pl-tt" x="87" y="170">이벤트 수신</text><text class="pl-mu" x="87" y="187">publishedAt 동봉</text>
+
+    <rect class="pl-b" x="180" y="150" width="120" height="46" rx="7"/>
+    <text class="pl-tt" x="240" y="170">버퍼 조회</text><text class="pl-mu" x="240" y="187">Redis 세션</text>
+
+    <rect class="pl-d" x="330" y="150" width="150" height="46" rx="7"/>
+    <text class="pl-tt" x="405" y="170">버퍼가 비었는가</text><text class="pl-mu" x="405" y="187">부재의 뜻을 가름</text>
+
+    <rect class="pl-y" x="530" y="45" width="205" height="52" rx="7"/>
+    <text class="pl-tt" x="632" y="66">TTL 판정</text><text class="pl-mu" x="632" y="84">now − publishedAt ≥ 1h ?</text>
+
+    <rect class="pl-g" x="790" y="18" width="200" height="44" rx="7"/>
+    <text class="pl-tt" x="890" y="37">정상 만료 · ACK</text><text class="pl-mu" x="890" y="53">reason=expired</text>
+
+    <rect class="pl-r" x="790" y="80" width="200" height="44" rx="7"/>
+    <text class="pl-tt" x="890" y="99">유실 · 예외 → DLQ</text><text class="pl-mu" x="890" y="115">reason=lost</text>
+
+    <rect class="pl-y" x="530" y="215" width="170" height="46" rx="7"/>
+    <text class="pl-tt" x="615" y="235">소유자 검증</text><text class="pl-mu" x="615" y="252">페이로드 userId</text>
+
+    <rect class="pl-y" x="735" y="290" width="200" height="42" rx="7"/>
+    <text class="pl-tt" x="835" y="308">불일치 · 부재 → ACK</text><text class="pl-mu" x="835" y="324">reason=unauthorized</text>
+
+    <rect class="pl-p" x="735" y="215" width="185" height="46" rx="7"/>
+    <text class="pl-tt" x="827" y="235">LLM 요약</text><text class="pl-mu" x="827" y="252">트랜잭션 밖에서 선행</text>
+
+    <rect class="pl-g" x="955" y="215" width="170" height="46" rx="7"/>
+    <text class="pl-tt" x="1040" y="235">DB 저장 → 버퍼 정리</text><text class="pl-mu" x="1040" y="252">TransactionTemplate</text>
+
+    <path class="pl-l" d="M150,173 L180,173" marker-end="url(#pl-arr)"/>
+    <path class="pl-l" d="M300,173 L330,173" marker-end="url(#pl-arr)"/>
+    <path class="pl-l" d="M480,173 L505,173 L505,71 L530,71" marker-end="url(#pl-arr)"/>
+    <path class="pl-l" d="M480,173 L505,173 L505,238 L530,238" marker-end="url(#pl-arr)"/>
+    <path class="pl-l" d="M735,71 L762,71 L762,40 L790,40" marker-end="url(#pl-arr)"/>
+    <path class="pl-l" d="M735,71 L762,71 L762,102 L790,102" marker-end="url(#pl-arr)"/>
+    <path class="pl-l" d="M700,238 L735,238" marker-end="url(#pl-arr)"/>
+    <path class="pl-l" d="M920,238 L955,238" marker-end="url(#pl-arr)"/>
+    <path class="pl-l" d="M615,261 L615,311 L735,311" marker-end="url(#pl-arr)"/>
+
+    <text class="pl-mu" x="405" y="128" style="text-anchor:middle">예 ↑ / 아니오 ↓</text>
+    <text class="pl-lg" x="25" y="345">세 사유가 한 카운터의 태그로 갈림 — chat.persist.dropped{reason}</text>
+  </svg>
+</div>
+
+<p class="sec-label problem">문제 원인</p>
+<ul class="bul-sub">
+  <li>채팅 버퍼는 Redis에 <b>세션 TTL 1시간</b>으로 두고 영속화는 큐로 넘기는 구조라, 이벤트가 도착한 시점에 <b>버퍼가 이미 비어 있을 가능성</b>이 상존</li>
+  <li><b>"비었다"에 두 뜻이 겹쳐 존재</b> — 하나는 TTL을 넘겨 사라진 정상 만료, 다른 하나는 복제 유실·<span class="mono">allkeys-lru</span> 축출로 인한 비정상 소실. 둘은 대응이 정반대인데 코드에서는 같은 분기</li>
+  <li><b>조용히 ACK하면 유실이 성공으로 기록</b> — 큐는 비고 지표는 깨끗한데 대화만 사라지므로, 사고가 났다는 사실 자체가 어디에도 미기록. 반대로 전부 DLQ로 보내면 정상 만료가 장애로 쌓여 DLQ가 신호를 상실</li>
+  <li>요약 LLM 호출이 <b>십수 초</b>인데 트랜잭션 안에서 기다리면 HikariCP(max 20)가 고갈 — 이 도메인이 막겠다고 한 연쇄 지연을 영속화 경로가 스스로 만드는 구조</li>
+</ul>
+
+<p class="sec-label solve">해결 과정</p>
+<ol class="bul-num">
+  <li><b>판정 근거를 이벤트에 적재</b> — 발행 시각 <span class="mono">publishedAt</span>을 페이로드에 넣고, <span class="mono">now − publishedAt ≥ 세션 TTL</span>이면 정상 만료로 판정. <b>버퍼의 부재만으로는 원인을 알 수 없고 시각이 있어야 갈린다</b>는 것이 이 설계의 전부. 기준값을 세션 TTL과 같은 상수로 둔 이유는 두 값이 어긋나는 순간 판정이 틀리기 때문</li>
+  <li><b>정상 만료는 ACK하되 사실을 남김</b> — 재처리해도 되살아나지 않으므로 큐에서 내리는 것이 맞으나, <span class="mono">chat.persist.dropped{reason=expired}</span>로 계상해 <b>얼마나 자주 만료로 버려지는지</b>가 보이게 함</li>
+  <li><b>TTL 이내의 빈 버퍼는 예외로 끊어 DLQ로 보냄</b> — <span class="mono">reason=lost</span>를 올리고 <span class="mono">CHAT_BUFFER_LOST</span>를 던져 메시지를 남김. <b>고칠 수 있는 유실과 어쩔 수 없는 만료를 다른 통로로 보낸 것</b>이 판정의 목적</li>
+  <li><span class="mono">publishedAt</span>이 없는 구 메시지는 <b>안전한 쪽인 정상 만료로 판정</b> — 판정 근거가 없는 것을 유실로 몰면 배포 직후 구 메시지가 전부 DLQ로 쏟아짐. <b>모르는 것을 사고로 세지 않는다</b>가 기준</li>
+  <li>소유자 검증 실패(<span class="mono">SESSION_NOT_FOUND</span> · <span class="mono">SESSION_ACCESS_DENIED</span>)도 <b>ACK 대상</b>으로 두고 <span class="mono">reason=unauthorized</span>로 계상 — 재처리해도 결과 동일. 이 경로만 <b>어드바이스(<span class="mono">@RequireSessionOwner</span>) 대상에서 제외</b>한 이유는 진입 규약이 다르기 때문 — 이벤트는 userId를 인자가 아니라 페이로드로 갖고, 실패 처리도 HTTP 거부가 아니라 <b>ACK/DLQ 결정</b></li>
+  <li><b><span class="mono">@Transactional</span>을 걷고 <span class="mono">TransactionTemplate</span>으로 DB 쓰기 구간만 트랜잭션으로 한정</b> — 요약 LLM은 트랜잭션을 열기 전에 끝내고, 커넥션 점유를 저장 구간으로 한정. <b>트랜잭션 경계를 메서드가 아니라 자원 점유 시간으로 정한 것</b>이 판단</li>
+  <li>경계를 <b>테스트 5개로 고정</b> — TTL 초과 시 ACK · TTL 이내 시 예외 · <span class="mono">publishedAt</span> 부재 시 만료 · 요약이 트랜잭션보다 선행 · 요약이 없어도 대화는 저장. <b>판정 기준을 바꾸면 테스트가 먼저 깨짐</b></li>
+</ol>
+
+<p class="sec-label outcome">결과</p>
+<ul class="bul-sub">
+  <li><b>"메시지가 없다"가 세 사유로 갈린 지표가 됨</b> — <span class="mono">expired</span> · <span class="mono">lost</span> · <span class="mono">unauthorized</span>가 한 카운터의 태그로 분리돼, 전체 건수가 아니라 <b>사유별 추이</b>로 읽힘</li>
+  <li><b>유실이 DLQ에 남아 추적 가능</b> — 이전에는 유실과 만료가 모두 정상 ACK로 사라져 사후 확인 수단이 부재. 지금은 DLQ 적재 자체가 "고칠 수 있는 사고"의 신호</li>
+  <li>커넥션 점유가 <b>DB 쓰기 구간으로 한정</b>돼, 요약이 느려져도 풀 잠식 미발생</li>
+  <li><b>요약 서킷이 열려도 대화는 저장</b> — 요약을 부가 정보로 다뤄 본문 영속화가 외부 호출에 종속되지 않게 분리</li>
+</ul>
+
+
 <h2 class="proj-title" id="proj-eco">이커머스 백엔드 (groom-shopping)</h2>
 <p class="proj-meta">
   2025-10 ~ 2025-12 · <a href="https://github.com/mskim98/groom-shopping">github.com/mskim98/groom-shopping</a><br/>
@@ -1115,6 +1210,85 @@ public class CouponDelayProcessor implements Processor&lt;String, CouponDelayEve
   <li>이벤트 상태를 changelog 기반 영구 StateStore에 저장해 <b>서버 재시작 후에도 대기 작업이 잔존</b> — 기존 인메모리 스케줄러에서 재시작마다 사라지던 등록분이 유지됨</li>
   <li>실패 이벤트를 DLQ로 격리해 정상 파이프라인 영향 없이 처리</li>
 </ul>
+
+<h3 class="star-title" id="eco-5">5. 추첨 예약 실행을 Redis 지연 큐 + Kafka 수동 ACK로 분리하고, 폴링 주기가 곧 지연 상한임을 확인</h3>
+
+<p class="sec-label">전체적인 아키텍처</p>
+<div class="viz-frame">
+  <div class="viz-title">추첨 예약 실행 경로 — 시각 판정은 Redis ZSet, 실행은 Kafka 컨슈머</div>
+  <svg viewBox="0 0 1150 348" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .rf-b{fill:rgba(67,97,184,0.10); stroke:#4361b8; stroke-width:1.5}
+      .rf-y{fill:rgba(180,83,9,0.10); stroke:#b45309; stroke-width:1.5}
+      .rf-p{fill:rgba(124,58,237,0.10); stroke:#7c3aed; stroke-width:1.5}
+      .rf-g{fill:rgba(0,122,85,0.10); stroke:#007a55; stroke-width:1.5}
+      .rf-tt{fill:#1a1a2e; font:bold 13px sans-serif; text-anchor:middle}
+      .rf-mu{fill:#6b7280; font:11.5px sans-serif; text-anchor:middle}
+      .rf-l{stroke:#9ca3af; stroke-width:1.5; fill:none}
+      .rf-lg{fill:#6b7280; font:11.5px sans-serif; text-anchor:start}
+      .rf-warn{fill:#e86969; font:11.5px sans-serif; text-anchor:start}
+    </style>
+    <defs><marker id="rf-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#9ca3af"/></marker></defs>
+
+    <rect class="rf-b" x="25" y="80" width="150" height="50" rx="7"/>
+    <text class="rf-tt" x="100" y="101">마감 배치</text><text class="rf-mu" x="100" y="119">자정 1분 · CLOSED</text>
+
+    <rect class="rf-y" x="215" y="72" width="215" height="58" rx="7"/>
+    <text class="rf-tt" x="322" y="95">Redis ZSet 지연 큐</text>
+    <text class="rf-mu" x="322" y="113">score = 실행 시각(epoch ms)</text>
+
+    <rect class="rf-y" x="215" y="180" width="215" height="58" rx="7"/>
+    <text class="rf-tt" x="322" y="203">폴링 — 시각 판정만</text>
+    <text class="rf-mu" x="322" y="221">rangeByScore(0, now)</text>
+
+    <rect class="rf-p" x="490" y="100" width="185" height="52" rx="7"/>
+    <text class="rf-tt" x="582" y="122">Kafka 발행</text><text class="rf-mu" x="582" y="139">drawing-execute-topic</text>
+
+    <rect class="rf-g" x="725" y="100" width="185" height="52" rx="7"/>
+    <text class="rf-tt" x="817" y="122">수동 ACK 컨슈머</text><text class="rf-mu" x="817" y="139">성공 시에만 커밋</text>
+
+    <rect class="rf-g" x="960" y="100" width="165" height="52" rx="7"/>
+    <text class="rf-tt" x="1042" y="122">추첨 확정</text><text class="rf-mu" x="1042" y="139">알림 실패는 격리</text>
+
+    <path class="rf-l" d="M175,105 L195,105 L195,101 L215,101" marker-end="url(#rf-arr)"/>
+    <path class="rf-l" d="M322,130 L322,180" marker-end="url(#rf-arr)"/>
+    <path class="rf-l" d="M430,209 L460,209 L460,126 L490,126" marker-end="url(#rf-arr)"/>
+    <path class="rf-l" d="M675,126 L725,126" marker-end="url(#rf-arr)"/>
+    <path class="rf-l" d="M910,126 L960,126" marker-end="url(#rf-arr)"/>
+    <path class="rf-l" d="M582,152 L582,262 L340,262 L340,238" marker-end="url(#rf-arr)" stroke-dasharray="4,3"/>
+
+    <text class="rf-lg" x="360" y="292">점선 = 발행이 성공한 뒤에만 ZSet에서 제거. 실패하면 남겨 다음 주기에 재시도</text>
+    <text class="rf-warn" x="25" y="322">지연 상한 = 폴링 주기. 현재 fixedDelay 6,000,000ms(100분)이라 예약 시각과 실행 시각이 그만큼 벌어짐</text>
+  </svg>
+</div>
+
+<p class="sec-label problem">문제 원인</p>
+<ul class="bul-sub">
+  <li>추첨은 선착순(§1)과 성질이 반대 — <b>접수 순서가 아니라 마감 이후의 한 시점</b>에 단 한 번 실행되는 작업이라, 요청이 실행을 끌어내지 않고 <b>시각이 실행을 끌어냄</b></li>
+  <li>인메모리 타이머에 두면 <b>재기동마다 예약이 소멸</b>. 실행 시각이 며칠 뒤일 수 있고 그 사이 배포가 들어가므로, 예약은 프로세스 밖에 있어야 함</li>
+  <li>DB 폴링은 대상이 없어도 주기마다 조회가 나가고, <b>"실행할 때가 됐는가"를 매번 애플리케이션이 계산</b>해야 함. 마감 취소가 들어오면 예약을 지우는 경로도 따로 필요</li>
+  <li>서버를 N대로 늘리면 <span class="mono">@Scheduled</span>가 N번 실행 — 추첨은 <b>중복 실행 피해가 큰 작업</b></li>
+</ul>
+
+<p class="sec-label solve">해결 과정</p>
+<ol class="bul-num">
+  <li><b>예약을 Redis Sorted Set에 두고 score를 실행 시각(epoch ms)으로 설정</b> — <span class="mono">rangeByScore(0, now)</span> 한 번이 곧 "지금 실행할 것 전부"라, <b>시각 비교를 애플리케이션이 아니라 자료구조가 수행</b>. 취소는 멤버 제거 한 번이고, 프로세스 밖에 있어 재기동에도 잔존</li>
+  <li><b>시각 판정과 실행을 분리</b> — 폴링이 하는 일은 대상 조회와 Kafka 발행까지이고 추첨 로직은 컨슈머가 담당. <b>폴링 루프가 무거운 작업을 들고 있으면 다음 주기가 밀려 지연이 누적</b>되므로, 루프는 짧게 유지하고 실행은 큐 뒤로 밀어냄</li>
+  <li><b>발행이 성공한 뒤에만 ZSet에서 제거</b> — 발행 콜백에서 제거하고 실패하면 그대로 둬 다음 주기가 다시 수거. <b>먼저 지우고 발행하면 유실, 발행하고 못 지우면 중복</b>인데, <b>둘 중 되돌릴 수 있는 쪽인 중복을 선택</b>한 것</li>
+  <li>컨슈머는 <b>수동 ACK</b>로 두고 추첨 실행이 끝난 뒤에만 커밋 — 실패하면 커밋하지 않아 재처리 대상으로 잔존. 3과 4가 겹쳐 <b>발행 실패·처리 실패 양쪽이 재시도로 수렴</b></li>
+  <li><b>당첨자 알림은 별도 <span class="mono">try/catch</span>로 격리</b> — 알림 실패가 이미 확정된 추첨을 되돌리지 않게 함. <b>부가 작업의 실패가 본 작업의 성공을 취소하지 않는다</b>는 경계이고, §3의 요약과 같은 판단</li>
+  <li><b>이 구조가 감당하는 지연의 상한은 폴링 주기와 동일</b> — 현재 <span class="mono">fixedDelay</span>가 <span class="metric">6,000,000ms</span>(100분)이라 예약 시각과 실제 실행 시각이 최대 그만큼 벌어짐(주석은 1분으로 적혀 있어 <b>값과 서술이 어긋난 상태</b>). <b>§4에서 같은 폴링 지연을 Kafka Streams Punctuator로 없앤 것과 정반대 선택</b>이고, 추첨에는 아직 미적용</li>
+</ol>
+
+<p class="sec-label outcome">결과</p>
+<ul class="bul-sub">
+  <li><b>예약이 프로세스 밖에 남아 재기동에 견딤</b> — 배포가 예약을 지우지 않고, 취소는 ZSet 멤버 제거 한 번으로 끝남</li>
+  <li><b>시각 판정 비용이 자료구조로 이동</b> — 애플리케이션은 조회 결과를 그대로 발행만 하므로 폴링 루프가 짧게 유지됨</li>
+  <li><b>발행·처리 실패가 모두 재시도로 수렴하는 at-least-once</b> — 대가는 중복 실행 가능성이고, <b>컨슈머의 멱등이 전제로 잔존</b></li>
+  <li><b>지연 상한이 폴링 주기라는 것이 이 설계의 정직한 한계</b> — 즉시성이 요구되면 §4 방식으로 옮겨야 하고, 그 전까지는 "예약이 사라지지 않는다"까지가 이 구조가 보장하는 범위</li>
+  <li><span class="mono">@Scheduled</span> 세 개에 <b>배타 실행 장치가 없어 N대에서 중복 실행</b> — §1에서 정한 기준(저빈도 · 긴 임계 구역 · 큰 중복 실행 피해)으로 보면 <b>셋 다 해당해 락이 필요한 자리</b>이고, 쿠폰 보정 배치에는 걸었으나 여기에는 아직 부재</li>
+</ul>
+
 
 <!-- ================= 휠 파인더 ================= -->
 <h2 class="proj-title" id="proj-wf">휠 파인더 (Wheel Finder)</h2>
