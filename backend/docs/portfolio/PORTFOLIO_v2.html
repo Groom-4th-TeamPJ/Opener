@@ -139,7 +139,7 @@ pre[class*="language-"]{margin:0 !important; font-size:13px !important}
   </ul>
 
   <h4>기술</h4>
-  <p class="stack">Spring Boot · JPA · PostgreSQL/pgvector · Redis(Standalone · Cluster · Lua · ZSet · Pub/Sub · Stream) · Redisson · Kafka · Kafka Streams · RabbitMQ · Project Reactor · Resilience4j · Spring State Machine · Docker · Nginx · GitHub Actions</p>
+  <p class="stack">Spring Boot · JPA · PostgreSQL/pgvector · Redis(Standalone · Cluster · Lua · Pub/Sub · Stream) · Redisson · Kafka · Kafka Streams · RabbitMQ · Project Reactor · Resilience4j · Spring State Machine · Docker · Nginx · GitHub Actions</p>
 </div>
 
 <!-- ================= AI 튜터링 서비스 ================= -->
@@ -150,7 +150,7 @@ pre[class*="language-"]{margin:0 !important; font-size:13px !important}
 <p class="sec-label">배지는 장식이 아니라 계약임</p>
 <ul class="bul-sub">
   <li><span class="src src-m">실측</span> 을 붙이려면 <b>저장소에 산출물 파일이 있어야 함</b>이 규칙임. 값에서 파일로 역추적되지 않으면 배지를 강등하거나 문장째 삭제함</li>
-  <li>출처는 6종으로 구분함 — <span class="src src-m">실측</span> 직접 잰 값 · <span class="src src-d">도출</span> 설정값에서 계산한 값 · <span class="src src-p">대리 부하 / 통제 실험</span> 특성만 재현하거나 장애를 주입해 얻은 값 · <span class="src src-s">설정</span> 내가 정한 파라미터 · <span class="src src-e">추정</span> 근거를 남기지 않은 값 · <span class="src src-x">가정</span> 아직 측정하지 않은 기대 규모임. <b>뒤 3종은 성과의 근거로 쓰지 않음</b></li>
+  <li>출처는 아래 종류로 구분함 — <span class="src src-m">실측</span> 직접 잰 값 · <span class="src src-d">도출</span> 설정값에서 계산한 값 · <span class="src src-p">대리 부하 / 통제 실험</span> 특성만 재현하거나 장애를 주입해 얻은 값 · <span class="src src-s">설정</span> 내가 정한 파라미터 · <span class="src src-e">추정</span> 근거를 남기지 않은 값 · <span class="src src-x">가정</span> 아직 측정하지 않은 기대 규모임. <b>뒤 3종은 성과의 근거로 쓰지 않음</b></li>
   <li>이 규칙이 실제로 물었음 — 감사 도중 이커머스 저장소의 <span class="mono">backend/docs/</span> 전체가 <span class="mono">.gitignore</span> 에 걸려 <b>k6 산출물이 디스크에만 있고 저장소에는 없던 것</b>을 발견함. 산출물 부재 지적의 원인 일부가 이것이었고, <span class="mono">measurements/</span> 를 강제 추가해 역추적 경로를 복구함</li>
 </ul>
 
@@ -575,7 +575,7 @@ if (result == Sinks.EmitResult.FAIL_OVERFLOW) {
 
 <p class="sec-label solve">해결 과정</p>
 <ol class="bul-num">
-  <li>Resilience4j <span class="mono">@CircuitBreaker</span>를 채팅 스트리밍·오프너 분석·캐시 저장소 호출 3개 지점에 <b>서로 다른 정책으로</b> 분리 적용 — 외부 LLM 두 지점은 느리고 호출 단가가 높아 보수적으로, 윈도우 10 · 최소 호출 5건 · 실패율 50% 초과 시 OPEN → 30초 후 HALF-OPEN(허용 3건)으로 잡았음</li>
+  <li>Resilience4j <span class="mono">@CircuitBreaker</span>를 채팅 스트리밍·오프너 분석·<b>대화 요약</b>·캐시 저장소 호출 <b>4개 지점</b>에 <b>서로 다른 정책으로</b> 분리 적용 — 외부 LLM 두 지점은 느리고 호출 단가가 높아 보수적으로, 윈도우 10 · 최소 호출 5건 · 실패율 50% 초과 시 OPEN → 30초 후 HALF-OPEN(허용 3건)으로 잡았음</li>
   <li>캐시 저장소는 호출이 빠르고 훨씬 빈번해 표본 하나의 무게가 가볍다는 특성을 확인하고, 이 지점만 <b>윈도우 20 · 최소 호출 10건 · 실패율 60% · OPEN 10초</b>로 차등화 — 표본을 더 모아 통계적으로 판단하고, 임계는 너그럽게, 회복 대기는 짧게 둔 것. 세 지점을 같은 값으로 맞추지 않은 이유는 <b>호출 특성이 다르면 서킷 정책도 달라야 한다</b>고 봤기 때문</li>
   <li>최소 호출 수를 둔 이유는 표본이 적을 때의 오판을 막기 위해서임 — 호출 2건 중 1건 실패를 실패율 50%로 읽고 서킷을 열면 우연한 실패 하나로 기능 전체가 차단됨. 호출 빈도가 높은 캐시 지점에 더 큰 최소값(10건)을 요구한 것도 같은 이유임</li>
   <li>Spring State Machine으로 IDLE → CONNECTED → PROCESSING → STREAMING → COMPLETED와 에러 3상태(총 8개)를 정의하고, 전이 테이블에 선언된 쌍만 허용해 비정상 전이를 코드 수준에서 차단</li>
@@ -781,7 +781,7 @@ if (result == Sinks.EmitResult.FAIL_OVERFLOW) {
 <p class="sec-label solve">해결 과정</p>
 <ol class="bul-num">
   <li>Redis 키를 전수 검색해 쓰기·읽기·삭제를 대조 — 방어 장치는 "쓰는 코드가 있다"가 아니라 <b>"읽고 거부하는 코드가 있다"</b>로만 검증된다고 보았음. <span class="mono">blacklist:access:{jti}</span>는 통과했으나 <span class="mono">refreshToken:{userId}</span>는 <b>발급 4경로 중 저장이 1곳뿐</b>이었음 — 폼 로그인만 저장하고 카카오·폼 회원가입·OAuth 회원가입은 쿠키만 내주었음. 재발급이 서버 보관본과 대조하는 방식이라 <b>그 세 경로 사용자는 access 1시간이 끝나면 반드시 재로그인</b>해야 함</li>
-  <li>원인은 발급 코드가 4곳에 복제된 것 — <b>한 곳에만 저장을 추가하면 나머지는 컴파일도 테스트도 통과하면서 조용히 다름</b>. 발급·쿠키·저장을 <span class="mono">TokenIssuer</span> 한 메서드로 묶어 누락이 구조적으로 불가능하게 함. 같은 대조에서 <b>수명이 세 값으로 갈라진 것</b>도 나왔음 — JWT <span class="mono">exp</span> 14일 vs Redis TTL·쿠키 7일이라 <b>7일 뒤에는 폼 로그인 사용자도 재발급 실패</b>였고 주석은 "TTL 7일 = 수명"으로 착오를 고정하고 있었음. 셋 다 설정값 하나에서 계산하게 통일함</li>
+  <li>원인은 발급 코드가 4곳에 복제된 것 — <b>한 곳에만 저장을 추가하면 나머지는 컴파일도 테스트도 통과하면서 조용히 다름</b>. 발급·쿠키·저장을 <span class="mono">TokenIssuer</span> 한 메서드로 묶어 누락이 구조적으로 불가능하게 함. 같은 대조에서 <b>수명이 세 값으로 갈라진 것</b>도 나왔음 — JWT <span class="mono">exp</span> 14일 vs Redis TTL·쿠키 7일이라 <b>7일 뒤에는 폼 로그인 사용자도 재발급 실패</b>였고 주석은 "TTL 7일 = 수명"으로 착오를 고정하고 있었음. 셋 다 설정값 하나에서 계산하게 통일함. <b>다만 통일한 것은 refresh 축뿐임</b> — access 쿠키의 <span class="mono">maxAge</span>는 아직 60분 리터럴이라 설정을 바꿔도 쿠키만 따라오지 않음(지금은 두 값이 우연히 같아 증상이 없음)</li>
   <li>인증 필터가 블랙리스트를 조회해 거부하고 <span class="mono">jti</span> 없는 토큰도 폐기 취급. 조회 실패 시 통과냐 차단이냐를 <b>명시적으로 결정</b> — fail-open은 장애 시간만큼 폐기 토큰을 되살리므로 <b>fail-close</b>, 근거는 코드에 남김. 로그아웃은 <span class="mono">refreshToken:{userId}</span>까지 지우고 손상·만료 토큰에도 쿠키 정리 후 정상 반환하는 <b>멱등</b> 처리</li>
   <li><b>"단일 통과점"에는 두 뜻이 있는데 약한 쪽만 구현돼 있었음</b> — 판정 로직은 헬퍼 하나로 모았지만(약), 호출은 각 진입점이 손으로 해야 해서 새 엔드포인트에서 빠뜨리면 그대로 구멍이었음(강). 같은 클래스 안에만 검증 호출이 <b>5곳</b> 흩어져 있었음. 그래서 <b>판정과 진입 통제를 분리</b>해 통제를 <span class="mono">@RequireSessionOwner</span> + 어드바이스로 옮겼음. 인자 추출은 리플렉션이 아니라 <b>인터페이스 계약</b>으로 정하고 <b>추출 실패 시 통과가 아니라 거부</b>하게 함 — 규약을 못 맞춘 메서드를 통과시키면 애너테이션이 방어가 아니라 장식이 됨. 검증 지점 6곳 → <b>어드바이스 1 + 근거 있는 예외 2곳</b>(연결 생성은 세션을 <b>지금 만드는</b> 요청이라 전제가 다르고, 메시지 소비자는 실패 처리가 HTTP 거부가 아니라 ACK/DLQ 결정임)</li>
   <li><b>거부는 하는데 그 거부를 관측할 수 없었음</b> — 소유자 불일치가 <span class="metric">400</span> <span class="mono">C_001</span>로 나갔는데 이 코드는 <b>요청 본문 검증 실패에도 붙어</b> 오타와 세션 탈취 시도가 같은 버킷에 들어갔음. <span class="metric">403</span>(인가 실패)과 <span class="metric">404</span>(대상 부재)로 갈랐음. <b>통과점을 우회하는 목록도 점검하지 않았던 것</b>을 함께 정리 — <span class="mono">permitAll</span>에 부하 테스트용 <span class="mono">/test/**</span>가 남아 <b>dev가 곧 배포 프로파일인 이 저장소에서 스레드 점유 엔드포인트가 미인증 공개</b>였음. 전수 대조를 Redis 키에만 적용한 범위 누락이었음</li>
@@ -810,7 +810,7 @@ if (result == Sinks.EmitResult.FAIL_OVERFLOW) {
 <p class="proj-meta">
   2025-10 ~ 2025-12 · <a href="https://github.com/mskim98/groom-shopping">github.com/mskim98/groom-shopping</a><br/>
   <span class="tag">Spring</span><span class="tag">JPA</span><span class="tag">PostgreSQL</span>
-  <span class="tag">Redis</span><span class="tag">Lua</span><span class="tag">ZSet</span><span class="tag">Redisson</span><span class="tag">Kafka</span><span class="tag">Kafka Streams</span><span class="tag">Resilience4j</span><br/>
+  <span class="tag">Redis</span><span class="tag">Lua</span><span class="tag">Redisson</span><span class="tag">Kafka</span><span class="tag">Kafka Streams</span><span class="tag">Resilience4j</span><br/>
   <b>개인 프로젝트</b> · 설계·구현 전 범위 담당 (도메인 모델링 · 동시성 제어 · 결제 연동 · 부하 테스트)
 </p>
 <p>한정 수량 쿠폰 발급, 재고 차감, PG사 결제, 쿠폰 지연 처리 4개 기능에서 동시성·안정성·관측성 문제를 해결한 이커머스 백엔드임</p>
@@ -957,7 +957,7 @@ if (result == Sinks.EmitResult.FAIL_OVERFLOW) {
     <rect class="ch-lock" x="470" y="288" width="195" height="48" rx="7"/>
     <text class="ch-tt" x="567" y="308">Redisson 분산 락</text><text class="ch-mu" x="567" y="325">N대 중 1대만 실행</text>
     <rect class="ch-lock" x="695" y="288" width="180" height="48" rx="7"/>
-    <text class="ch-tt" x="785" y="308">재고 대조·보정</text><text class="ch-mu" x="785" y="325">조기 마감 · 만료</text>
+    <text class="ch-tt" x="785" y="308">재고 대조·보정</text><text class="ch-mu" x="785" y="325">배치 배타 실행</text>
 
     <path class="ch-line" d="M145,76 L175,76 L175,100 L205,100" marker-end="url(#ch-arr)"/>
     <path class="ch-line" d="M145,128 L205,105" marker-end="url(#ch-arr)"/>
@@ -995,7 +995,7 @@ if (result == Sinks.EmitResult.FAIL_OVERFLOW) {
   <li><b>대기 순번은 아예 응답하지 않기로 함.</b> "당신은 N번째"가 확정 결과와 같아야 하는데 <b>접수 시점엔 알 수 없음</b> — 게이트 통과 순서와 오프셋 순서가 컨텍스트 스위칭으로 어긋나고, 게이트는 근사라 통과분이 재고보다 많을 수 있음. 주는 순간 <b>지킬 수 없는 순서를 약속</b>하므로, 접수는 <span class="mono">requestId</span>만 돌려주고 확정은 상태 조회로 넘겼음. <b>ZSet 원장에 <span class="mono">ZRANK</span>로 순번을 두는 안도 검토했으나 넣지 않았음</b> — 취소 승계 요구가 없으면 오프셋 순서를 한 번 더 복제하는 것이고, <b>두 순서가 어긋날 때 진실을 정할 방법이 없어 정합성 부채만 남음</b></li>
   <li><b>응답 경로에서 DB를 들어내었음.</b> API는 Lua 게이트 통과와 Kafka 발행까지만 하고 즉시 응답하며, DB 쓰기는 컨슈머가 담당함. <b>쿠폰 스파이크가 커넥션을 점유하지 않아 주문·결제 경로를 밀어내지 않음</b> — 가용성 주장의 구조적 근거임. 대가는 <b>사용자가 발급 결과 대신 접수 확인만 받는 것</b>임</li>
   <li><b>최후 방어선은 DB에 두 겹 — 유니크 제약과 조건부 UPDATE임.</b> 게이트가 근사이고 컨슈머 재처리도 가능하므로, 중복은 <span class="mono">UNIQUE(coupon_id, user_id)</span>로, 초과발급은 <span class="mono">UPDATE ... SET quantity = quantity - 1 WHERE id = ? AND quantity &gt; 0</span>의 <b>영향 행 수 0 판정</b>으로 막음. <b>조건부 UPDATE인 이유는 검사와 차감이 한 문장에서 끝나기 때문</b> — 컨슈머가 1명이라 경합이 없어도 재처리·수동 보정 경로가 생기면 읽기-쓰기 분리는 뚫림. <b>실제로 걸어 보니 dev DB에 이미 위반 데이터가 있었음</b> — 같은 사용자·같은 쿠폰 2건이 <b>56ms 간격</b>, 동시 요청 둘이 Redis 중복 검사를 함께 뚫었다는 뜻임. <b>"이론적으로 가능"이라 적었던 구멍이 데이터로 확인된 것</b>이라, 이 제약은 보험이 아니라 이미 난 사고를 막는 장치임</li>
-  <li><b>분산 락은 발급 경로에서 걷어내 배치·관리 경로로 옮겼음.</b> N대면 <span class="mono">@Scheduled</span>가 N번 실행되므로, 재고 대조·보정 배치와 조기 마감에는 <b>하나만 실행</b>하도록 락을 걸었음. <b>락을 쓸 조건은 저빈도 · 긴 임계 구역 · 큰 중복 실행 피해인데, 배치는 셋 다 맞고 발급 경로는 셋 다 반대였음</b> — 어디에 쓰지 않을지를 정한 것이 이 절의 판단임. eco-4의 Kafka Streams는 같은 중복 실행 문제를 파티션 소유권으로 풀었으나, 보정 배치는 Kafka 토폴로지 밖이라 그 방법이 닿지 않음</li>
+  <li><b>분산 락은 발급 경로에서 걷어내 배치·관리 경로로 옮겼음.</b> N대면 <span class="mono">@Scheduled</span>가 N번 실행되므로, 재고 대조·보정 배치에는 <b>하나만 실행</b>하도록 락을 걸었음. <b>락을 쓸 조건은 저빈도 · 긴 임계 구역 · 큰 중복 실행 피해인데, 배치는 셋 다 맞고 발급 경로는 셋 다 반대였음</b> — 어디에 쓰지 않을지를 정한 것이 이 절의 판단임. eco-4의 Kafka Streams는 같은 중복 실행 문제를 파티션 소유권으로 풀었으나, 보정 배치는 Kafka 토폴로지 밖이라 그 방법이 닿지 않음</li>
 </ol>
 
 <div class="code-card">
@@ -1186,7 +1186,7 @@ return 1</code></pre>
   <li>보상 레코드는 <b>4개 상태의 전이표</b>로 관리 — <span class="mono">PENDING</span> · <span class="mono">FAILED</span>에서만 다음으로 갈 수 있고 <span class="mono">SUCCEEDED</span> · <span class="mono">GIVEN_UP</span>은 <b>종단</b>임. 원래는 상태 기록 메서드가 <b>현재 상태를 보지 않고 무조건 덮어써서</b> "취소 성공 후 다시 재시도" 같은 경로가 열려 있었고, 조회 쿼리의 상태 조건에만 의존하면 <b>새 호출부가 생기는 순간 뚫림</b>. 그래서 전이표를 <b>엔티티 안</b>에 두어 거부되게 함. 이때 순서도 바꿨는데, <b>전이가 거부되면 재시도 횟수도 오르지 않아야</b> 하므로 상태를 먼저 판정하고 카운트를 나중에 올림. 상태를 더 늘리지 않은 것은 의도적임 — 컬럼과 조회 쿼리까지 바뀌는데 <b>4개로도 비정상 경로 차단은 그대로 달성</b>되기 때문</li>
   <li>승인 경로 멱등성은 내부 결제 키 선조회와 외부 PG <span class="mono">Idempotency-Key</span> 헤더의 2단계 — 다만 <b>두 단계는 대등하지 않음</b>. 선조회는 트랜잭션 없는 읽기라 <b>동시 요청 둘이 함께 통과할 수 있어 정합성 보증이 아니라 조기 반환 최적화</b>이고, 실제로 이중 결제를 막는 것은 PG의 멱등키와 결제 상태 머신임(두 번째 요청은 상태 전이에서 막혀 롤백됨). PG가 발급한 결제 키가 <b>재시도 사이에 변하지 않는 불변 값</b>이라는 점이 그 보증의 근거임</li>
   <li>보상(취소) 경로에도 승인 경로와 같은 기준을 세웠음 — 멱등키가 만족해야 하는 성질을 <b>① 동일 의도는 동일 키 ② 다른 의도는 다른 키 ③ 프로세스 재시작에도 살아남을 것</b> 세 가지로 정리하고, 보상 레코드의 식별자처럼 <b>재시도 간 불변인 값</b>을 키로 삼는 것을 기준으로 잡았음. 재시도 횟수처럼 시도마다 변하는 값이 키에 섞이면 첫 번째 성질이 깨져 "상대는 취소를 처리했는데 응답만 타임아웃된" 경우를 새 요청으로 오인하게 되고, 그러면 멱등키가 목적을 잃음</li>
-  <li>백오프 총합(2+4+8+16 = 30분)이 PG가 정한 멱등성 윈도우 안에 들어오는지도 함께 확인 — 같은 키를 다시 보내도 새 요청으로 취급되는 시점을 넘기면 키가 무의미해지므로, 재시도 한도와 백오프 간격은 이 윈도우를 상한으로 두고 정한 값임</li>
+  <li>재시도 한도와 백오프 간격은 <b>PG 멱등성 윈도우를 상한으로 두고 정해야 하는 값</b>임 — <b>다만 그 상한값을 확인하지 못했으므로 "윈도우 안에 든다"는 주장은 하지 않음</b>. 게다가 백오프는 <b>실패 시점 기준</b>이고 배치가 30초 주기로 줍기 때문에 실제 경과는 항상 크며, <b>총합 30분은 상한이 아니라 하한</b>임 — 같은 키를 다시 보내도 새 요청으로 취급되는 시점을 넘기면 키가 무의미해지므로, 재시도 한도와 백오프 간격은 이 윈도우를 상한으로 두고 정한 값임</li>
   <li>Resilience4j 서킷브레이커로 실패율 50% 초과 시 30초 OPEN, HALF-OPEN 단계적 복구를 적용해 PG 장애가 다른 요청까지 지연시키는 Cascading Failure를 방지 — <b>단, 서킷이 승인 경로에만 붙어 있었고 취소 호출은 무보호였음</b>. PG 전면 장애 구간에서 보상 취소가 매번 타임아웃까지 스레드를 붙잡아 <b>보상 배치 자체가 느려지는</b> 구조였음</li>
   <li>취소에도 서킷을 붙이되 <b>승인과 같은 회로에 물리지 않고 전용 회로로 분리</b>함 — 같은 회로면 양방향 모두 나쁨: 보상 취소 실패가 회로를 열면 <b>정상 결제까지 막히고</b>, 반대로 승인 장애로 열린 회로가 취소를 fast-fail시키면 <b>채무가 쌓이는 동안 아무 시도도 못 함</b>. 하나의 외부 시스템이라도 <b>실패의 의미가 다른 호출은 회로를 나눠야 한다</b>는 것이 이 판단의 요지임</li>
 </ol>
@@ -1231,7 +1231,7 @@ return 1</code></pre>
     <rect class="ks-bar-g" x="220" y="130" width="60" height="40"/>
     <text class="ks-mu" x="290" y="156">약 1.1s (실측)</text>
     <path d="M290,120 C 420,112 600,112 720,102" stroke="#db2777" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>
-    <text class="ks-gain" x="505" y="140">약 91% 단축 (12s → 1.1s)</text>
+    <text class="ks-gain" x="505" y="140">실측 1.1s · 폴링 대안은 도출 12s</text>
   </svg>
 </div>
 
@@ -1259,6 +1259,7 @@ return 1</code></pre>
 // 달라져 대기 중이던 지연 이벤트가 통째로 유실된다
 public class CouponDelayProcessor implements Processor&lt;String, CouponDelayEvent, String, CouponDelayEvent&gt; {
 
+    private final String stateStoreName;
     private ProcessorContext&lt;String, CouponDelayEvent&gt; context;
     // Key = 실행 예정 시각(초 단위), Value = 그 초에 실행할 이벤트 목록
     private KeyValueStore&lt;Long, CouponDelayEventListWrapper&gt; stateStore;
@@ -1266,28 +1267,41 @@ public class CouponDelayProcessor implements Processor&lt;String, CouponDelayEve
     @Override
     public void init(ProcessorContext&lt;String, CouponDelayEvent&gt; context) {
         this.context = context;
-        this.stateStore = context.getStateStore("delay-events-store");
-        // 실제 시계 기준 1초마다 punctuate 호출 — 새 이벤트가 없어도 계속 동작
-        // STREAM_TIME 은 신규 레코드가 없으면 전진하지 않아 여기서는 쓸 수 없다
-        context.schedule(Duration.ofSeconds(1), PunctuationType.WALL_CLOCK_TIME, this::punctuate);
+        this.stateStore = context.getStateStore(stateStoreName);
+        // WALL_CLOCK 을 쓰는 이유는 STREAM_TIME 이 신규 레코드 없이는 전진하지 않아,
+        // 유입이 멈춘 구간에서 대기 중인 쿠폰이 영원히 비활성화되지 않기 때문이다
+        this.context.schedule(Duration.ofSeconds(1), PunctuationType.WALL_CLOCK_TIME,
+                              this::checkStoreAndForward);
     }
 
     @Override
     public void process(Record&lt;String, CouponDelayEvent&gt; record) {
         CouponDelayEvent event = record.value();
+        if (event == null || event.getDelayMillis() == null || event.getDelayMillis() &lt;= 0) {
+            log.warn("잘못된 지연 이벤트 수신 (무시): {}", event);   // ← DLQ 로 가지 않는다 (한계 참조)
+            return;
+        }
+        // 실행 예정 시각을 '초' 로 그룹화한다. 밀리초로 두면 키가 과도하게 늘어난다
         long executionSecond = (context.currentSystemTimeMs() + event.getDelayMillis()) / 1000;
+
         CouponDelayEventListWrapper wrapper = stateStore.get(executionSecond);
         if (wrapper == null) wrapper = new CouponDelayEventListWrapper(new ArrayList&lt;&gt;());
-        wrapper.getEvents().add(event);   // 같은 초 이벤트는 목록에 누적 — 덮어쓰기 유실 방지
+        wrapper.getEvents().add(event);   // 같은 초의 이벤트는 누적한다 — 덮어쓰면 유실된다
         stateStore.put(executionSecond, wrapper);
     }
 
-    private void punctuate(long wallClockTime) {
-        try (var it = stateStore.range(0L, wallClockTime / 1000)) {   // 도래한 초만 조회
-            while (it.hasNext()) {
-                KeyValue&lt;Long, CouponDelayEventListWrapper&gt; entry = it.next();
-                for (CouponDelayEvent e : entry.value.getEvents()) {
-                    context.forward(new Record&lt;&gt;(entry.key.toString(), e, wallClockTime));
+    // 도래한 초만 range 로 훑어 forward 하고 즉시 지운다. 지우지 않으면 다음 초에 중복 처리된다
+    private void checkStoreAndForward(long wallClockTime) {
+        long currentSecond = wallClockTime / 1000;
+        try (KeyValueIterator&lt;Long, CouponDelayEventListWrapper&gt; iter =
+                     stateStore.range(0L, currentSecond)) {
+            while (iter.hasNext()) {
+                KeyValue&lt;Long, CouponDelayEventListWrapper&gt; entry = iter.next();
+                for (CouponDelayEvent event : entry.value.getEvents()) {
+                    // 출력 키는 '초' 가 아니라 couponId 다 — 그래야 하류에서도
+                    // 쿠폰당 파티션이 유지돼 §1 의 "쿠폰당 판정자 1명" 이 깨지지 않는다
+                    context.forward(new Record&lt;&gt;(String.valueOf(event.getCouponId()),
+                                                 event, wallClockTime));
                 }
                 stateStore.delete(entry.key);
             }
@@ -1299,7 +1313,7 @@ public class CouponDelayProcessor implements Processor&lt;String, CouponDelayEve
 <p class="sec-label outcome">결과</p>
 <ul class="bul-sub">
   <li><b>지연 단축의 직접 원인은 주기 단축(10s → 1s)이며, Kafka Streams를 택한 이유는 그 주기를 DB 부하 증가 없이 감당하기 위해서임</b> — 폴링을 1초로 줄이면 스캔 빈도가 10배가 되지만 StateStore 조회는 DB 밖에서 끝남. 즉 이 절의 성과는 "더 빠른 도구"가 아니라 <b>"같은 속도를 DB 부하 없이, 그리고 인스턴스를 늘려도 중복 실행 없이"</b>임</li>
-  <li>처리 지연 <b>최악값 기준</b> <span class="metric">12s → 1.1s (약 91% 감소)</span> — <b>두 값의 성격이 다르므로 나란히 읽을 때 주의가 필요함</b>. <b>12s는 채택하지 않은 폴링 대안의 설정에서 도출한 값</b> <span class="src src-d">도출</span>(주기 10s + 스캔 2s)으로 <b>실제로 돌려 본 구현이 아니고</b>, <b>1.1s는 실측 최악값</b> <span class="src src-m">실측</span>(이벤트 발행~비활성 전환 시각 차 직접 측정)으로 punctuate 주기 1s + 처리시간이라는 이론 최악값에 수렴함. 즉 이 비교는 <b>측정 대 측정이 아니라 설계 계산 대 측정</b>임</li>
+  <li>처리 지연 <b>최악값 기준</b> <span class="metric">1.1s</span> — <b>두 값의 성격이 다르므로 나란히 읽을 때 주의가 필요함</b>. <b>12s는 채택하지 않은 폴링 대안의 설정에서 도출한 값</b> <span class="src src-d">도출</span>(주기 10s + 스캔 2s)으로 <b>실제로 돌려 본 구현이 아니고</b>, <b>1.1s는 실측 최악값</b> <span class="src src-m">실측</span>(이벤트 발행~비활성 전환 시각 차 직접 측정)으로 punctuate 주기 1s + 처리시간이라는 이론 최악값에 수렴함. 즉 이 비교는 <b>측정 대 측정이 아니라 설계 계산 대 측정</b>임</li>
   <li>이벤트 상태를 changelog 기반 영구 StateStore에 저장해 <b>서버 재시작 후에도 대기 작업이 남음</b> — 기존 인메모리 스케줄러에서 재시작마다 사라지던 등록분이 유지됨</li>
   <li>실패 이벤트를 DLQ로 격리해 정상 파이프라인 영향 없이 처리</li>
 </ul>
@@ -1529,7 +1543,7 @@ public class CouponDelayProcessor implements Processor&lt;String, CouponDelayEve
   <li>도메인 하나로 프론트·백엔드를 함께 서비스하면서도 각 서버의 역할이 Nginx 설정으로 분리되는 구조 확보, CORS·쿠키 도메인 문제를 구성 단계에서 제거</li>
   <li>docker-compose 기반 구성으로 로컬·운영 환경 차이를 줄이고, 배포 자동화로 수동 배포 절차 제거</li>
   <li>무상태 JWT에 <b>즉시 무효화</b>를 붙이되, 개별 토큰과 사용자 전체라는 <b>두 무효화 단위를 하나의 검증 경로</b>로 합쳐 인증 필터가 매 요청에 두 키를 함께 조회하도록 통합</li>
-  <li><b>여기서 드러난 키 설계의 한계가 다음 프로젝트의 설계를 바꿨음</b> — Refresh Token을 <span class="mono">refresh_token:{token}</span>으로 저장한 탓에 <b>사용자 단위 열거·폐기가 불가능</b>했고, "전체 로그아웃"의 실제 범위가 Access Token까지였음. AI 튜터링에서는 <span class="mono">refreshToken:{userId}</span> 기준으로 잡고 블랙리스트 키도 토큰 전문이 아닌 <span class="mono">jti</span>로 옮겨 이 제약을 없앴음</li>
+  <li><b>여기서 드러난 키 설계의 한계가 다음 프로젝트의 설계를 바꿨음</b> — Refresh Token을 <span class="mono">refresh_token:{token}</span>으로 저장한 탓에 <b>사용자 단위 열거·폐기가 불가능</b>했고, "전체 로그아웃"의 실제 범위가 Access Token까지였음. AI 튜터링에서는 <span class="mono">refreshToken:{userId}</span> 기준으로 잡고 블랙리스트 키도 토큰 전문이 아닌 <span class="mono">jti</span>로 옮겨 <b>키 설계 쪽 제약은 없앴음</b>. <b>다만 같이 잃은 것이 있음</b> — 휠 파인더에 있던 <span class="mono">blacklist:user:{id}:version</span>(사용자 단위 access 일괄 무효화)을 함께 가져오지 않아 <b>키 설계는 나아졌으나 폐기 단위는 후퇴함</b></li>
   <li><b>무상태의 이점을 내주고 즉시 무효화를 산 교환</b>이라는 것도 이때 확인함 — 매 요청 Redis 조회 2회가 붙고 인증 경로가 Redis 가용성에 종속됨. 이 프로젝트에서는 <b>Redis 장애 시의 통과·차단 정책을 정하지 못한 채 넘어갔고</b>, AI 튜터링에서 <b>fail-close</b>(장애 시 인증 거부)로 결정해 근거를 코드 주석에 남겼음 — fail-open은 장애 지속 시간만큼 폐기된 토큰을 되살리기 때문</li>
 </ul>
 
