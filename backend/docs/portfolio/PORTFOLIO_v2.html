@@ -24,9 +24,6 @@ body{
 .layout{display:flex; justify-content:center; max-width:1400px; margin:0 auto}
 main{width:100%; max-width:1100px; min-width:0; padding:40px clamp(20px,4vw,64px) 100px}
 h1{font-size:36px; font-weight:800; margin:0 0 6px; color:var(--text-dark); letter-spacing:-0.5px}
-.subtitle{color:var(--text-muted); font-size:15px; margin-bottom:6px}
-.contact{color:var(--text-muted); font-size:14px; margin-bottom:36px}
-.contact a{color:inherit; text-decoration:none; border-bottom:1px solid var(--line)}
 h2.proj-title{
   font-size:27px; font-weight:800; margin:64px 0 6px; padding:24px 0 0 14px;
   border-top:3px solid var(--border); border-left:5px solid var(--green); color:var(--text-dark);
@@ -87,14 +84,6 @@ pre[class*="language-"]{margin:0 !important; font-size:13px !important}
 .token.function,.token.class-name{color:#7dd3fc !important}
 .token.comment{color:#9ca3af !important; font-style:italic}
 .token.annotation,.token.atrule,.token.property{color:#f472b6 !important}
-/* 문서 도입부 — 작업 방식·기술 스택 */
-.doc-intro{background:var(--bg-card); border:1px solid var(--border); border-left:5px solid var(--blue); border-radius:10px; padding:22px 26px; margin:0 0 40px; max-width:980px; box-shadow:0 4px 24px rgba(0,0,0,0.04)}
-.doc-intro h4{font-size:14px; font-weight:800; color:var(--text-dark); margin:18px 0 8px; letter-spacing:-0.2px}
-.doc-intro h4:first-child{margin-top:0}
-.doc-intro ul{list-style:none; padding-left:0; margin:0}
-.doc-intro li{position:relative; padding-left:15px; margin:6px 0; font-size:14.5px; line-height:1.75}
-.doc-intro li::before{content:"·"; position:absolute; left:2px; top:-1px; font-weight:800; color:var(--text-muted)}
-.doc-intro .stack{font-size:13.5px; color:var(--text-muted); line-height:1.9}
 /* 수치 신뢰도 라벨 */
 .src{display:inline-block; font-size:10.5px; font-weight:700; padding:1px 6px; border-radius:4px; margin-left:4px; vertical-align:2px; letter-spacing:-0.2px; white-space:nowrap}
 .src-m{background:#e8f3ee; color:var(--green); border:1px solid #bfe0d2}
@@ -119,26 +108,6 @@ details.fold > summary > h3{display:inline; margin:0; border:0; padding:0; font-
 <div class="layout">
 <main>
 <h1 id="top">포트폴리오 — 김민성</h1>
-<p class="subtitle">측정으로 원인을 확정하고, 파라미터가 아니라 구조로 처리</p>
-<p class="contact"><a href="mailto:msung98@naver.com">msung98@naver.com</a></p>
-
-<div class="doc-intro">
-
-  <h4>시간이 없다면 이 셋</h4>
-  <ul>
-    <li><b>이커머스 §2 재고 차감</b> — 계측을 믿지 않고 계측 자체를 의심해 <b>"구조적으로 절대 증가할 수 없는 죽은 카운터"</b>를 찾아낸 사례</li>
-    <li><b>AI 튜터링 §5 인증·세션</b> — 방어가 동작한다는 것을 무엇으로 증명하는가를 다룬 사례. 쓰기·읽기·거부 세 지점을 하나의 계약으로 통합</li>
-    <li><b>휠 파인더 §1 실시간 전달</b> — 인스턴스 경계(공간)와 발행 시점(시간)을 한 문제의 두 축으로 나눠 푼 사례</li>
-  </ul>
-
-  <h4>반복해서 다룬 축</h4>
-  <ul>
-    <li><b>TTL을 무엇의 수명에 맞출 것인가</b>를 다섯 사례에서 각각 다르게 답함 — 블랙리스트는 <b>토큰 잔여 수명</b>에(AI-5), version 키는 <b>Access Token 수명</b>에(휠-2), 채팅 세션은 <b>대화 유효 기간</b>에 맞췄고, 재고 선점 키에는 <b>TTL을 두지 않는 것</b>이 결정(이커머스-2 — 사라지면 게이트가 무력해지므로). <b>"얼마로 잡을까"가 아니라 "무엇과 함께 사라져야 하는가"를 먼저 정하면 값은 따라 나옴</b></li>
-  </ul>
-
-  <h4>기술</h4>
-  <p class="stack">Spring Boot · JPA · PostgreSQL/pgvector · Redis(Standalone · Cluster · Lua · Pub/Sub · Stream) · Redisson · Kafka · Kafka Streams · RabbitMQ · Project Reactor · Resilience4j · Spring State Machine · Docker · Nginx · GitHub Actions</p>
-</div>
 
 <!-- ================= AI 튜터링 서비스 ================= -->
 <h2 class="proj-title" id="proj-ai">AI 튜터링 서비스 (Opener)</h2>
