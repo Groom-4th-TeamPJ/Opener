@@ -47,7 +47,7 @@ public class OpenAiLlmService implements LlmService {
     @Value("${app.rag.top-k:5}")
     private int topK;
 
-    @Value("${app.rag.similarity-threshold:0.7}")
+    @Value("${app.rag.similarity-threshold:0.2}")
     private double similarityThreshold;
 
     @Value("${spring.ai.openai.api-key:}")

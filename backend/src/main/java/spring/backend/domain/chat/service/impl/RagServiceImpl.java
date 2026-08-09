@@ -43,7 +43,7 @@ public class RagServiceImpl implements RagService {
     private int topK;
 
     // 임계값 -> 무관한 문서가 프롬프트에 섞여 답변 품질을 떨어뜨리는 것 차단
-    @Value("${app.rag.similarity-threshold:0.7}")
+    @Value("${app.rag.similarity-threshold:0.2}")
     private double similarityThreshold;
 
     // @CircuitBreaker -> OpenAI 장애·지연이 길어지면 즉시 실패시켜, SSE 스레드가 응답 대기에 묶이는 연쇄 지연 차단

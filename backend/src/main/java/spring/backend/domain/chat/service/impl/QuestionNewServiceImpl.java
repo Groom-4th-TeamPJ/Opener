@@ -66,7 +66,7 @@ public class QuestionNewServiceImpl implements QuestionNewService {
     @Value("${app.rag.top-k:5}")
     private int topK;
 
-    @Value("${app.rag.similarity-threshold:0.7}")
+    @Value("${app.rag.similarity-threshold:0.2}")
     private double similarityThreshold;
 
     // @Transactional -> 변형문제 저장 + Can 차감이 한 단위, 중간 실패 시 일관성 유지
