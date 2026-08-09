@@ -24,7 +24,9 @@ body{
 .layout{display:flex; justify-content:center; max-width:1400px; margin:0 auto}
 main{width:100%; max-width:1100px; min-width:0; padding:40px clamp(20px,4vw,64px) 100px}
 h1{font-size:36px; font-weight:800; margin:0 0 6px; color:var(--text-dark); letter-spacing:-0.5px}
-.subtitle{color:var(--text-muted); font-size:15px; margin-bottom:36px}
+.subtitle{color:var(--text-muted); font-size:15px; margin-bottom:6px}
+.contact{color:var(--text-muted); font-size:14px; margin-bottom:36px}
+.contact a{color:inherit; text-decoration:none; border-bottom:1px solid var(--line)}
 h2.proj-title{
   font-size:27px; font-weight:800; margin:64px 0 6px; padding:24px 0 0 14px;
   border-top:3px solid var(--border); border-left:5px solid var(--green); color:var(--text-dark);
@@ -110,6 +112,7 @@ pre[class*="language-"]{margin:0 !important; font-size:13px !important}
 <main>
 <h1 id="top">포트폴리오 — 김민성</h1>
 <p class="subtitle">측정으로 원인을 확정하고, 파라미터가 아니라 구조로 처리하며, 남은 한계는 범위로 한정해 적었음</p>
+<p class="contact"><a href="mailto:msung98@naver.com">msung98@naver.com</a></p>
 
 <div class="doc-intro">
   <h4>읽는 법</h4>
@@ -143,179 +146,6 @@ pre[class*="language-"]{margin:0 !important; font-size:13px !important}
 </div>
 
 <!-- ================= AI 튜터링 서비스 ================= -->
-<h3 class="star-title" id="verify">0. 이 포트폴리오를 어떻게 검증했는가 — 자기 감사로 주장을 반증하고 수치 5건을 철회함</h3>
-
-<p>대부분의 포트폴리오는 <b>주장만</b> 함. 이 문서는 2026-08 에 스스로 감사를 돌려 <b>문서가 코드보다 앞서 나간 지점</b>을 찾아냈고, 코드를 고쳐 주장을 참으로 만들거나 근거 없는 수치를 철회함. 그 과정을 아래에 공개함</p>
-
-<p class="sec-label">배지는 장식이 아니라 계약임</p>
-<ul class="bul-sub">
-  <li><span class="src src-m">실측</span> 을 붙이려면 <b>저장소에 산출물 파일이 있어야 함</b>이 규칙임. 값에서 파일로 역추적되지 않으면 배지를 강등하거나 문장째 삭제함</li>
-  <li>출처는 아래 종류로 구분함 — <span class="src src-m">실측</span> 직접 잰 값 · <span class="src src-d">도출</span> 설정값에서 계산한 값 · <span class="src src-p">대리 부하 / 통제 실험</span> 특성만 재현하거나 장애를 주입해 얻은 값 · <span class="src src-s">설정</span> 내가 정한 파라미터 · <span class="src src-e">추정</span> 근거를 남기지 않은 값 · <span class="src src-x">가정</span> 아직 측정하지 않은 기대 규모임. <b>뒤 3종은 성과의 근거로 쓰지 않음</b></li>
-  <li>이 규칙이 실제로 물었음 — 감사 도중 이커머스 저장소의 <span class="mono">backend/docs/</span> 전체가 <span class="mono">.gitignore</span> 에 걸려 <b>k6 산출물이 디스크에만 있고 저장소에는 없던 것</b>을 발견함. 산출물 부재 지적의 원인 일부가 이것이었고, <span class="mono">measurements/</span> 를 강제 추가해 역추적 경로를 복구함</li>
-</ul>
-
-<p class="sec-label solve">감사 → 코드 수정 → 문서 정산 순서로 돌렸음</p>
-<ul class="bul-sub">
-  <li>사례별 <b>비판 검증 4건</b>(eco-1 / eco-2·3·4 / ai-1·2·3 / ai-4·5)으로 드리프트를 수집함. 각 지적은 "코드 어디를 보면 이 서술이 깨지는가"까지 적게 함</li>
-  <li>지적을 계획서 4종 · <b>37 Task / 280 Step</b> 으로 쪼개 <b>코드를 먼저 고치고</b>, 문서 정산은 그 뒤에 둠 — 순서를 반대로 하면 정산이 문장 다듬기로 끝나고, 고칠 수 있었던 결함이 그대로 남음</li>
-  <li>정산 후 새로 넣은 주장을 전부 코드와 대조함 — <b>불일치 0건</b>. 태그 균형 · SVG 클래스와 marker id 중복 · 코드 카드 마크업까지 2차로 확인함</li>
-</ul>
-
-<p class="sec-label problem">철회한 수치 5건</p>
-<div class="tbl-wrap">
-<table class="cmp">
-  <thead>
-    <tr><th>섹션</th><th>철회한 값</th><th style="text-align:left; white-space:normal">뺀 이유</th></tr>
-  </thead>
-  <tbody>
-    <tr><td>ai-1</td><td>첫 토큰 약 300ms</td><td style="text-align:left; white-space:normal">측정 산출물이 없음. <span class="mono">chat.sse.ttft</span> 계측 지점만 서술하고 미측정으로 강등</td></tr>
-    <tr><td>ai-4</td><td>환각율 32% → 8%</td><td style="text-align:left; white-space:normal">질문셋 · 기준표 · 채점 결과 어느 것도 없음. <b>측정 로그가 스스로 "별도 / —" 라 적어 둔 값</b>이었음</td></tr>
-    <tr><td>eco-2</td><td>57%→72% · 59ms→47ms</td><td style="text-align:left; white-space:normal">두 런의 VU 가 달라 백투백 A/B 가 아니었음</td></tr>
-    <tr><td>eco-3</td><td>5.6s → 0.6s (약 9배)</td><td style="text-align:left; white-space:normal">대조군 산출물이 없고, 5.6s 는 <b>같은 런의 <span class="mono">confirm_latency.max</span></b> 와 소수점까지 일치함</td></tr>
-    <tr><td style="background:transparent">eco-3</td><td style="background:transparent">카오스 자동 복구 98.7%</td><td style="background:transparent; text-align:left; white-space:normal">산출물 부재. 재현 절차를 남기는 조건으로 한계 절에 이월</td></tr>
-  </tbody>
-</table>
-</div>
-
-<p class="sec-label outcome">정산이 만든 세 가지 결말</p>
-<p>감사 지적을 <b>코드가 따라잡은 섹션은 주장이 강해졌고</b>, 아직 <b>재지 못한 섹션은 수치를 철회</b>함. 그리고 <b>재봤더니 내 주장이 틀린 것이 하나 나왔는데, 그것도 그대로 적었음</b></p>
-<ul class="bul-sub">
-  <li><b>① 승격 — 코드가 따라잡음</b>(ai-1 · ai-2 · ai-5 · eco-3) — ai-5 는 <span class="src src-m">실측</span> 전수 대조가 <b>토큰 발급 4경로 중 3경로의 저장 누락</b>을 잡아내 <span class="mono">TokenIssuer</span> 단일화로 이어졌음. <i>"대조를 했다"</i> 가 <b>"대조가 결함을 잡았다"</b> 로 바뀐 것</li>
-  <li><b>② 반증 — 재측정했더니 내 주장이 틀렸음</b>(eco-2) — 제목에 걸어 둔 낙관적 락이 <b>세 전략 중 꼴찌</b>였음. 유리해질 줄 알고 잰 측정에서 불리한 결과가 나왔고, 그 표를 그대로 실었음</li>
-  <li><b>③ 철회 — 아직 재지 못함</b>(ai-1 TTFT · ai-4 · eco-3 카오스) — 근거 파일이 없는 값은 배지를 지우고, <b>무엇을 재면 되찾을 수 있는지</b>를 같이 적어 둠</li>
-  <li>셋 중 <b>②가 가장 값비싼 칸</b>임. ①은 지적받고 고친 것이고 ③은 모르는 것을 모른다고 한 것인데, <b>②는 잃을 것이 있는 상태에서 한 선택</b>이었음</li>
-</ul>
-
-<div class="viz-frame">
-  <div class="viz-title">감사 이후의 세 갈래 — 승격 · 반증 · 철회</div>
-  <svg viewBox="0 0 1100 410" xmlns="http://www.w3.org/2000/svg" width="100%">
-    <style>
-      .vf-bb{fill:rgba(67,97,184,0.10); stroke:#4361b8; stroke-width:1.5}
-      .vf-by{fill:rgba(180,83,9,0.10); stroke:#b45309; stroke-width:1.5}
-      .vf-bg{fill:rgba(0,122,85,0.10); stroke:#007a55; stroke-width:1.5}
-      .vf-bp{fill:rgba(124,58,237,0.10); stroke:#7c3aed; stroke-width:1.5}
-      .vf-br{fill:rgba(232,105,105,0.10); stroke:#e86969; stroke-width:1.5}
-      .vf-bd{fill:#ffffff; stroke:#1a1a2e; stroke-width:1.5; stroke-dasharray:5,3}
-      .vf-tt{fill:#1a1a2e; font:bold 14px sans-serif; text-anchor:middle}
-      .vf-mu{fill:#6b7280; font:12.5px sans-serif; text-anchor:middle}
-      .vf-line{stroke:#9ca3af; stroke-width:1.5; fill:none}
-      .vf-lg{stroke:#007a55; stroke-width:1.8; fill:none}
-      .vf-lp{stroke:#7c3aed; stroke-width:1.8; fill:none}
-      .vf-lr{stroke:#e86969; stroke-width:1.8; fill:none}
-    </style>
-    <defs>
-      <marker id="vf-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#9ca3af"/></marker>
-      <marker id="vf-arr-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#007a55"/></marker>
-      <marker id="vf-arr-p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#7c3aed"/></marker>
-      <marker id="vf-arr-r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#e86969"/></marker>
-    </defs>
-
-    <rect class="vf-bb" x="20" y="170" width="180" height="60" rx="8"/>
-    <text class="vf-tt" x="110" y="195">포트폴리오 초안</text>
-    <text class="vf-mu" x="110" y="214">주장 · 수치 · 도해</text>
-
-    <rect class="vf-by" x="240" y="170" width="210" height="60" rx="8"/>
-    <text class="vf-tt" x="345" y="195">자기 감사 4건</text>
-    <text class="vf-mu" x="345" y="214">문서 ↔ 코드 대조</text>
-
-    <text class="vf-mu" x="575" y="160">무엇을 했는지가 결말을 가름</text>
-    <rect class="vf-bd" x="480" y="170" width="190" height="60" rx="8"/>
-    <text class="vf-tt" x="575" y="195">감사 지적 이후</text>
-    <text class="vf-tt" x="575" y="214">무엇을 했는가</text>
-
-    <rect class="vf-bg" x="720" y="60" width="200" height="60" rx="8"/>
-    <text class="vf-tt" x="820" y="85">① 코드가 따라잡음</text>
-    <text class="vf-mu" x="820" y="104">37 Task 로 결함을 해소</text>
-    <rect class="vf-bg" x="945" y="60" width="135" height="60" rx="8"/>
-    <text class="vf-tt" x="1012" y="85">주장 강화</text>
-    <text class="vf-mu" x="1012" y="104">ai-1 · 2 · 5 · eco-3</text>
-
-    <rect class="vf-bp" x="720" y="170" width="200" height="60" rx="8"/>
-    <text class="vf-tt" x="820" y="195">② 재측정 → 반증</text>
-    <text class="vf-mu" x="820" y="214">주장이 틀렸음을 확인</text>
-    <rect class="vf-bp" x="945" y="170" width="135" height="60" rx="8"/>
-    <text class="vf-tt" x="1012" y="195">그대로 게재</text>
-    <text class="vf-mu" x="1012" y="214">eco-2</text>
-
-    <rect class="vf-br" x="720" y="280" width="200" height="60" rx="8"/>
-    <text class="vf-tt" x="820" y="305">③ 아직 재지 못함</text>
-    <text class="vf-mu" x="820" y="324">근거 파일이 없음</text>
-    <rect class="vf-br" x="945" y="280" width="135" height="60" rx="8"/>
-    <text class="vf-tt" x="1012" y="305">배지 강등</text>
-    <text class="vf-mu" x="1012" y="324">ai-1 TTFT · ai-4</text>
-
-    <path class="vf-line" d="M200,200 L240,200" marker-end="url(#vf-arr)"/>
-    <path class="vf-line" d="M450,200 L480,200" marker-end="url(#vf-arr)"/>
-    <path class="vf-lg" d="M670,190 L697,190 L697,90 L720,90" marker-end="url(#vf-arr-g)"/>
-    <path class="vf-lp" d="M670,200 L720,200" marker-end="url(#vf-arr-p)"/>
-    <path class="vf-lr" d="M670,210 L697,210 L697,310 L720,310" marker-end="url(#vf-arr-r)"/>
-    <path class="vf-lg" d="M920,90 L945,90" marker-end="url(#vf-arr-g)"/>
-    <path class="vf-lp" d="M920,200 L945,200" marker-end="url(#vf-arr-p)"/>
-    <path class="vf-lr" d="M920,310 L945,310" marker-end="url(#vf-arr-r)"/>
-
-    <text class="vf-mu" x="20" y="385" style="text-anchor:start; fill:#007a55">규칙 — 실측 배지는 저장소에 산출물 파일이 있을 때만 붙임. 역추적이 끊기면 값을 지우고 그 사실을 문서에 남김</text>
-  </svg>
-</div>
-
-<p class="sec-label limit">② 반증 — 측정이 내 주장을 틀렸다고 함</p>
-<ul class="bul-sub">
-  <li>eco-2 는 <b>제목에 낙관적 락을 해법으로 걸어 두었던 절</b>임. 같은 조건 · 같은 머신에서 세 전략을 연속 실행한 결과 <b>낙관적 락이 셋 중 꼴찌</b>였음 <span class="src src-m">실측</span></li>
-</ul>
-<div class="tbl-wrap">
-<table class="cmp">
-  <thead>
-    <tr><th>차감 전략</th><th>성공률</th><th>평균</th><th>p95</th><th>p99</th><th>재시도/건</th></tr>
-  </thead>
-  <tbody>
-    <tr><td>낙관적 락 <span class="mono">@Version</span></td><td>94.56%</td><td>134.6ms</td><td>548.1ms</td><td>633.2ms</td><td>0.524</td></tr>
-    <tr><td>조건부 UPDATE</td><td>100%</td><td>84.6ms</td><td>162.7ms</td><td>302.0ms</td><td>0</td></tr>
-    <tr><td>비관적 락</td><td>100%</td><td>64.8ms</td><td>100.9ms</td><td>135.8ms</td><td>0</td></tr>
-  </tbody>
-</table>
-</div>
-<ul class="bul-sub">
-  <li>워크로드가 낙관적 락의 전제와 정반대였음 — <b>단일 상품 행에 부하가 전량 몰려 충돌이 상시</b>라 재시도가 곧 낭비가 되고, 한도를 넘긴 5.44% 는 실패로 끝났음. p95 는 조건부 UPDATE 대비 <b>3.4배</b>, 비관적 락 대비 <b>5.4배</b> 임</li>
-</ul>
-
-<p class="sec-label">이 수치를 믿을 수 있는 이유 — 재기 전에 측정 조건을 먼저 쟀음</p>
-<div class="tbl-wrap">
-<table class="cmp">
-  <thead>
-    <tr><th>프리플라이트 지표</th><th>풀 기본값 10</th><th>풀 50</th></tr>
-  </thead>
-  <tbody>
-    <tr><td>1,000회 소요</td><td>10분 27초 (423회만 완주)</td><td>10.7초 (1,000회 완주)</td></tr>
-    <tr><td><span class="mono">confirm_latency</span> p95</td><td>30,550ms</td><td>35.7ms</td></tr>
-    <tr><td><span class="mono">Could not open JPA EntityManager</span></td><td>403건</td><td>0건</td></tr>
-  </tbody>
-</table>
-</div>
-<ul class="bul-sub">
-  <li>계획서는 풀 50 을 전제로 썼는데 <span class="mono">application-dev.yml</span> 에 <b>hikari 설정이 아예 없어 기본값 10</b> 이었음 <span class="src src-m">실측</span>. 결제 1건이 중첩 <span class="mono">REQUIRES_NEW</span> 로 커넥션 2개를 점유하므로 VU 20 이면 최소 40 이 필요함</li>
-  <li><b>이걸 못 잡았으면 위의 3자 비교가 통째로 무의미함</b> — 모든 요청이 커넥션 대기에 갇히면 락 경합 신호가 묻혀 전략 차이를 관측할 수 없음. <b>측정 전에 측정 조건을 측정한다</b> 가 이 단계의 존재 이유임</li>
-  <li>덕분에 질문 자체가 바뀌었음 — <span class="mono">maxAttempts</span> 를 몇으로 올릴지가 아니라 <b>이 워크로드에 낙관적 락이 맞지 않는다</b> 가 결론임. 한도를 키우면 실패가 지연으로 바뀔 뿐이지만, 전략을 바꾸면 실패와 지연이 동시에 사라짐</li>
-  <li>범위는 한정함 — <b>고경합 · 짧은 임계 구역에서의 순위</b>까지만 확정한 것이고 경합이 드물면 순위는 뒤집힘. 세 전략 모두 <b>초과 판매는 한 번도 발생하지 않았음</b>(정합성과 성능은 독립 축임)</li>
-</ul>
-
-<p class="sec-label outcome">되찾은 배지 — 조건을 적어 뒀더니 실제로 되찾았음</p>
-<div class="tbl-wrap">
-<table class="cmp">
-  <thead>
-    <tr><th>철회 당시 적어 둔 되찾기 조건</th><th>현재</th><th style="text-align:left; white-space:normal">근거</th></tr>
-  </thead>
-  <tbody>
-    <tr><td>eco-2 지터 A/B · 3자 비교</td><td>되찾음</td><td style="text-align:left; white-space:normal">VU 를 고정해 재측정 <span class="src src-m">실측</span> — 단 <b>결론이 뒤집힘</b></td></tr>
-    <tr><td>ai-5 <span class="mono">403/404</span> E2E</td><td>되찾음</td><td style="text-align:left; white-space:normal">타인 세션 <b>403 <span class="mono">C_013</span></b> · 없는 세션 <b>404 <span class="mono">C_014</span></b> · 대조군 <b>200 + <span class="mono">text/event-stream</span></b> <span class="src src-m">실측</span></td></tr>
-    <tr><td>ai-1 TTFT</td><td>대기</td><td style="text-align:left; white-space:normal">OpenAI 키 확보 후 <span class="mono">chat.sse.ttft</span> 측정</td></tr>
-    <tr><td>ai-4 임계값 근거</td><td>대기</td><td style="text-align:left; white-space:normal">골든셋 구축 + 임계값 스윕</td></tr>
-    <tr><td style="background:transparent">eco-3 카오스 복구율</td><td style="background:transparent">대기</td><td style="background:transparent; text-align:left; white-space:normal">재현 절차와 raw 파일을 남기는 조건으로 재측정</td></tr>
-  </tbody>
-</table>
-</div>
-<ul class="bul-sub">
-  <li>철회는 값을 지우고 끝내는 것이 아니라 <b>되찾을 조건을 명세로 남기는 일</b>이었음. 2건은 그 명세대로 실제로 되찾았고, 남은 3건은 무엇이 없어서 못 재는지가 문서에 그대로 적혀 있음</li>
-</ul>
-
 <h2 class="proj-title">AI 튜터링 서비스 (Opener)</h2>
 <p class="proj-meta">
   2025-12 ~ 2026-01 · <a href="https://github.com/Groom-4th-TeamPJ/Opener">github.com/Groom-4th-TeamPJ/Opener</a><br/>
@@ -1047,7 +877,7 @@ return 1</code></pre>
 
 <p class="sec-label">전체적인 아키텍처</p>
 <div class="viz-frame">
-  <div class="viz-title">재고 차감 2단 방어 — Redis 선점 게이트 → DB 낙관적 락</div>
+  <div class="viz-title">재고 차감 2단 방어 — Redis 선점 게이트 → DB 비관적 락</div>
   <svg viewBox="0 0 1100 255" xmlns="http://www.w3.org/2000/svg" width="100%">
     <style>
       .sk-box{fill:rgba(67,97,184,0.10); stroke:#4361b8; stroke-width:1.5}
@@ -1063,7 +893,7 @@ return 1</code></pre>
     <rect class="sk-box-y" x="230" y="80" width="200" height="60" rx="8"/><text class="sk-tt" x="330" y="102">Redis DECR 게이트</text><text class="sk-mu" x="330" y="119">원자 선점, 1단 방어</text>
     <rect class="sk-box-r" x="480" y="20" width="200" height="55" rx="8"/><text class="sk-tt" x="580" y="42">부족 → 즉시 실패</text><text class="sk-mu" x="580" y="59">PG 호출 없이 차단</text>
     <rect class="sk-box-g" x="480" y="145" width="200" height="55" rx="8"/><text class="sk-tt" x="580" y="167">확보 → PG 호출 진행</text>
-    <rect class="sk-box" x="730" y="145" width="220" height="55" rx="8"/><text class="sk-tt" x="840" y="164">@Version 낙관적 락</text><text class="sk-mu" x="840" y="180">@Retryable(3회, 지터·상한 1s), 2단 방어</text>
+    <rect class="sk-box" x="730" y="145" width="220" height="55" rx="8"/><text class="sk-tt" x="840" y="164">비관적 락 · FOR UPDATE</text><text class="sk-mu" x="840" y="180">행 선점으로 대기, 2단 방어</text>
     <rect class="sk-box-y" x="230" y="160" width="200" height="45" rx="8" stroke-dasharray="4,3"/><text class="sk-tt" x="330" y="185" style="font-size:12.5px">Redis 미초기화 → DB 락 폴백</text>
     <path class="sk-line" d="M180,110 L230,110" marker-end="url(#sk-arr)"/>
     <path class="sk-line" d="M430,95 L455,95 L455,48 L480,48" marker-end="url(#sk-arr)"/>
@@ -1072,7 +902,7 @@ return 1</code></pre>
 
     <!-- 색상 범례 -->
     <rect class="sk-box-y" x="30" y="230" width="14" height="14" rx="3"/><text class="v-lgd" x="50" y="242">1단: Redis 선점 게이트</text>
-    <rect class="sk-box" x="230" y="230" width="14" height="14" rx="3"/><text class="v-lgd" x="250" y="242">2단: DB 낙관적 락</text>
+    <rect class="sk-box" x="230" y="230" width="14" height="14" rx="3"/><text class="v-lgd" x="250" y="242">2단: DB 비관적 락</text>
     <rect class="sk-box-r" x="400" y="230" width="14" height="14" rx="3"/><text class="v-lgd" x="420" y="242">부족 → 조기 차단</text>
     <rect class="sk-box-g" x="560" y="230" width="14" height="14" rx="3"/><text class="v-lgd" x="580" y="242">확보 → 진행</text>
   </svg>
@@ -1087,9 +917,9 @@ return 1</code></pre>
 
 <p class="sec-label solve">해결 과정</p>
 <ol class="bul-num">
-  <li>상품 엔티티에 <span class="mono">@Version</span> 낙관적 락을 걸고 충돌 시 자동 재시도되게 함 — 현재 설정은 <span class="mono">@Retryable(maxAttempts=3, @Backoff(delay=100, multiplier=2, random=true, maxDelay=1000))</span>임. <b>지터와 상한은 근거가 있어 넣었고, 한도 3은 근거가 없어 그대로 둠</b>. 애너테이션 속성값을 리플렉션으로 검증하는 테스트를 붙여 <b>문서와 코드가 어긋나면 테스트가 먼저 깨지게</b> 함</li>
+  <li>상품 엔티티에 <span class="mono">@Version</span> 낙관적 락을 걸고 충돌 시 자동 재시도되게 함 — 낙관적 락 경로의 재시도 설정은 <span class="mono">@Retryable(maxAttempts=3, @Backoff(delay=100, multiplier=2, random=true, maxDelay=1000))</span>임(<b>아래 실측으로 기본 전략은 비관적 락으로 옮겼고, 이 경로는 설정으로 선택 가능한 상태로 남겨 둠</b>). <b>지터와 상한은 근거가 있어 넣었고, 한도 3은 근거가 없어 그대로 둠</b>. 애너테이션 속성값을 리플렉션으로 검증하는 테스트를 붙여 <b>문서와 코드가 어긋나면 테스트가 먼저 깨지게</b> 함</li>
   <li>재고 차감을 <span class="mono">REQUIRES_NEW</span> 독립 트랜잭션으로 처리해 매 시도가 새 트랜잭션에서 커밋·충돌 감지되게 하고, 결제 진입 직전 Redis <span class="mono">DECR</span> 원자 연산으로 재고를 선점해 부족분을 PG 호출 전에 차단함</li>
-  <li>Redis 미초기화 상품은 DB 낙관적 락으로 폴백하는 2단 방어를 구성해 캐시 미스가 곧 장애가 되지 않게 함 — 이때 <b>Redis에 되쓰지 않고 게이트만 통과시키는</b> 것이 중요. 임계 구역이 Redis 안에서 완결되므로 분산 락이 필요 없고, Redis는 <b>부하 필터</b>일 뿐 최종 정합은 DB <span class="mono">@Version</span>이 책임짐. <b>재고에 쿠폰 쪽 방식(Redis를 정확성의 근거로 승격)을 쓰지 않은 이유는 자원의 얽힘이 다르기 때문</b> — 재고 차감은 주문 상태 전이·이력 기록과 같은 트랜잭션 경계 안에서 일어나므로, 재고만 DB 밖에서 세면 그 정합을 별도로 방어해야 함</li>
+  <li>Redis 미초기화 상품은 DB 락으로 폴백하는 2단 방어를 구성해 캐시 미스가 곧 장애가 되지 않게 함 — 이때 <b>Redis에 되쓰지 않고 게이트만 통과시키는</b> 것이 중요. 임계 구역이 Redis 안에서 완결되므로 분산 락이 필요 없고, Redis는 <b>부하 필터</b>일 뿐 최종 정합은 DB의 차감 전략이 책임짐. <b>재고에 쿠폰 쪽 방식(Redis를 정확성의 근거로 승격)을 쓰지 않은 이유는 자원의 얽힘이 다르기 때문</b> — 재고 차감은 주문 상태 전이·이력 기록과 같은 트랜잭션 경계 안에서 일어나므로, 재고만 DB 밖에서 세면 그 정합을 별도로 방어해야 함</li>
   <li>재시도 한도가 타당한지 보려면 실제 충돌 횟수를 알아야 해 <b>재시도 횟수를 Micrometer로 계측</b>함 — <b>일반 트래픽 구간</b>은 평균 <span class="metric">0.35회/건</span>으로 대부분 무충돌 통과 <span class="src src-m">실측</span>. 반면 <b>1만 건이 단일 행에 몰리는 극단 경합</b>에서는 재시도 소진이 실패의 전량이었음(결과 2). <b>여기서 한도를 올리고 싶은 유혹이 생기지만 올리지 않았음</b> — 조건이 다른 두 수치를 나란히 놓고 한도를 정할 수 없고, 한도를 키우면 실패가 지연으로 바뀌어 <b>결제 API 응답 시간에 그대로 얹히기</b> 때문. 한도는 아래 3자 실측으로 정하기로 하고, 근거가 확실한 <b>지터와 대기 상한 1초만 먼저</b> 넣었음</li>
   <li>선점 키에 만료를 두지 않은 것은 의도된 선택임 — 별도 홀드 키 없이 <b>재고 카운터 자체를 <span class="mono">DECR</span>로 선점</b>하는 구조라, TTL로 사라지면 <span class="mono">미초기화</span> 폴백으로 떨어져 게이트가 무력해짐. 대신 <b>실패 경로 전부에서 선점분을 되돌리는</b> 구조로 덮었고(선점 도중 부족·PG 승인 실패·승인 후 DB 실패·결제 취소), 부하 로그의 복원 포기 마커가 <span class="metric">0건</span>이라 <b>예외가 잡히는 실패에 한해</b> 이 경로가 새지 않음을 확인</li>
   <li>남은 위험은 계측이 아니라 <b>예외 재포장</b>이었음 — 실패를 재고 부족·락 충돌·기타로 나누는 카운터가 이미 있었는데 <b>락 충돌 카운터만 한 번도 증가하지 않았음.</b> 재시도를 소진한 <span class="mono">@Recover</span>는 <span class="mono">BusinessException(PRODUCT_STOCK_CONFLICT)</span>를 제대로 던지고 있었지만, 결제 오케스트레이션의 <span class="mono">catch (Exception)</span>이 익명 <span class="mono">RuntimeException</span>으로 감싸는 순간 에러 코드가 소실돼 전역 핸들러의 catch-all로 떨어졌고, 409여야 할 응답이 500으로 나가고 있었음. <b>한 계층의 예외 재포장이 상위 계층의 관측 가능성을 통째로 지운다</b>는 것 — 그 카운터는 구조적으로 절대 증가할 수 없는 <b>죽은 카운터</b>였다는 것이 가장 큰 소득임</li>
@@ -1127,7 +957,7 @@ return 1</code></pre>
 <p class="sec-label limit">남은 한계</p>
 <ul class="bul-sub">
   <li>이번 측정 조건(재고 1만 / 요청 1만)은 <b>전량이 게이트를 통과하는 구간</b>이라 Redis 선점 게이트의 PG 차단 효과가 수치로 드러나지 않음 — 증명하려면 재고보다 요청이 많은 조건으로 다시 재야 함</li>
-  <li><b>측정으로 더 나은 전략을 찾았으나 아직 갈아타지 않았음</b> — 조건부 UPDATE로 전환하려면 <b>재고를 별도 테이블로 분리하는 것이 선행</b>돼야 함(지금은 재고가 가격·판매 상태와 <span class="mono">@Version</span> 하나를 공유하므로, 재고만 조건부 UPDATE로 빼면 나머지 필드의 동시 수정 보호가 사라짐). <b>남은 것은 "무엇이 나은지 모른다"가 아니라 "아는데 옮기는 비용이 남았다"</b>임</li>
+  <li><b>측정 결과대로 기본 전략을 비관적 락으로 옮겼음</b> — <span class="mono">stock.decrease-strategy</span> 기본값과 <span class="mono">matchIfMissing</span>을 함께 바꿔 <b>실측 꼴찌가 기본값으로 남아 있던 상태를 해소</b>함. 비관적 락은 전환에 선행 조건이 없었음. <b>반면 조건부 UPDATE는 아직 못 옮김</b> — 재고가 가격·판매 상태와 <span class="mono">@Version</span> 하나를 공유해, 재고만 빼면 나머지 필드의 동시 수정 보호가 사라지므로 <b>재고 테이블 분리가 선행</b>돼야 함. 세 전략 모두 코드에 남겨 뒀고 <b>설정 한 줄로 되돌아감</b></li>
   <li>측정 조건이 <b>단일 상품 행에 전량이 몰리는 극단</b>이라, 상품이 분산된 실제 트래픽에서는 세 전략의 격차가 훨씬 작을 것 — <b>이 실험이 확정하는 것은 "고경합 구간에서의 순위"</b>까지임</li>
   <li><b>크래시로 보상 코드가 실행되지 않는 경로</b>는 여전히 남아 있음 — 대조 배치가 어긋남을 <b>탐지</b>하게 됐지만 <b>복구</b>는 사람이 판단해야 함. 쿠폰 발급(§1)과 같은 성질의 문제라 두 도메인이 같은 후속 과제를 공유함</li>
 </ul>
@@ -1553,6 +1383,165 @@ public class CouponDelayProcessor implements Processor&lt;String, CouponDelayEve
 <ul class="bul-sub">
   <li><b>재기동 방식이라 배포 구간에 짧은 중단이 있고 롤백은 수동 재배포에 의존</b>함. 이미지 태깅·레지스트리와 무중단 배포(블루-그린)는 도입하지 못했고 후속 과제로 남음</li>
 </ul>
+
+<!-- ================= 부록 ================= -->
+<h3 class="star-title" id="verify">부록. 이 포트폴리오를 어떻게 검증했는가 — 자기 감사로 문서와 코드의 어긋남을 찾아 고쳤음</h3>
+
+<p>대부분의 포트폴리오는 <b>주장만</b> 함. 이 문서는 2026-08 에 스스로 감사를 돌려 <b>문서가 코드보다 앞서 나간 지점</b>을 찾아냈고, 코드를 고쳐 주장을 참으로 만들거나 근거 없는 수치를 철회함. 그 과정을 아래에 공개함</p>
+
+<p class="sec-label">배지는 장식이 아니라 계약임</p>
+<ul class="bul-sub">
+  <li><span class="src src-m">실측</span> 을 붙이려면 <b>저장소에 산출물 파일이 있어야 함</b>이 규칙임. 값에서 파일로 역추적되지 않으면 배지를 강등하거나 문장째 삭제함</li>
+  <li>출처는 아래 종류로 구분함 — <span class="src src-m">실측</span> 직접 잰 값 · <span class="src src-d">도출</span> 설정값에서 계산한 값 · <span class="src src-p">대리 부하 / 통제 실험</span> 특성만 재현하거나 장애를 주입해 얻은 값 · <span class="src src-s">설정</span> 내가 정한 파라미터 · <span class="src src-e">추정</span> 근거를 남기지 않은 값 · <span class="src src-x">가정</span> 아직 측정하지 않은 기대 규모임. <b>뒤 3종은 성과의 근거로 쓰지 않음</b></li>
+  <li>이 규칙이 실제로 물었음 — 감사 도중 이커머스 저장소의 <span class="mono">backend/docs/</span> 전체가 <span class="mono">.gitignore</span> 에 걸려 <b>k6 산출물이 디스크에만 있고 저장소에는 없던 것</b>을 발견함. 산출물 부재 지적의 원인 일부가 이것이었고, <span class="mono">measurements/</span> 를 강제 추가해 역추적 경로를 복구함</li>
+</ul>
+
+<p class="sec-label solve">감사 → 코드 수정 → 문서 정산 순서로 돌렸음</p>
+<ul class="bul-sub">
+  <li>사례별 <b>비판 검증 4건</b>(eco-1 / eco-2·3·4 / ai-1·2·3 / ai-4·5)으로 드리프트를 수집함. 각 지적은 "코드 어디를 보면 이 서술이 깨지는가"까지 적게 함</li>
+  <li>지적을 계획서 4종 · <b>37 Task / 280 Step</b> 으로 쪼개 <b>코드를 먼저 고치고</b>, 문서 정산은 그 뒤에 둠 — 순서를 반대로 하면 정산이 문장 다듬기로 끝나고, 고칠 수 있었던 결함이 그대로 남음</li>
+  <li>정산 후 새로 넣은 주장을 전부 코드와 대조함 — <b>불일치 0건</b>. 태그 균형 · SVG 클래스와 marker id 중복 · 코드 카드 마크업까지 2차로 확인함</li>
+</ul>
+
+<p class="sec-label outcome">정산이 만든 세 가지 결말</p>
+<p>감사 지적을 <b>코드가 따라잡은 섹션은 주장이 강해졌고</b>, 아직 <b>재지 못한 섹션은 수치를 철회</b>함. 그리고 <b>재봤더니 내 주장이 틀린 것이 하나 나왔는데, 그것도 그대로 적었음</b></p>
+<ul class="bul-sub">
+  <li><b>① 승격 — 코드가 따라잡음</b>(ai-1 · ai-2 · ai-5 · eco-3) — ai-5 는 <span class="src src-m">실측</span> 전수 대조가 <b>토큰 발급 4경로 중 3경로의 저장 누락</b>을 잡아내 <span class="mono">TokenIssuer</span> 단일화로 이어졌음. <i>"대조를 했다"</i> 가 <b>"대조가 결함을 잡았다"</b> 로 바뀐 것</li>
+  <li><b>② 반증 — 재측정했더니 내 주장이 틀렸음</b>(eco-2) — 제목에 걸어 둔 낙관적 락이 <b>세 전략 중 꼴찌</b>였음. 유리해질 줄 알고 잰 측정에서 불리한 결과가 나왔고, 그 표를 그대로 실었음</li>
+  <li><b>③ 철회 — 아직 재지 못함</b>(ai-1 TTFT · ai-4 · eco-3 카오스) — 근거 파일이 없는 값은 배지를 지우고, <b>무엇을 재면 되찾을 수 있는지</b>를 같이 적어 둠</li>
+  <li>셋 중 <b>②가 가장 값비싼 칸</b>임. ①은 지적받고 고친 것이고 ③은 모르는 것을 모른다고 한 것인데, <b>②는 잃을 것이 있는 상태에서 한 선택</b>이었음</li>
+</ul>
+
+<div class="viz-frame">
+  <div class="viz-title">감사 이후의 세 갈래 — 승격 · 반증 · 철회</div>
+  <svg viewBox="0 0 1100 410" xmlns="http://www.w3.org/2000/svg" width="100%">
+    <style>
+      .vf-bb{fill:rgba(67,97,184,0.10); stroke:#4361b8; stroke-width:1.5}
+      .vf-by{fill:rgba(180,83,9,0.10); stroke:#b45309; stroke-width:1.5}
+      .vf-bg{fill:rgba(0,122,85,0.10); stroke:#007a55; stroke-width:1.5}
+      .vf-bp{fill:rgba(124,58,237,0.10); stroke:#7c3aed; stroke-width:1.5}
+      .vf-br{fill:rgba(232,105,105,0.10); stroke:#e86969; stroke-width:1.5}
+      .vf-bd{fill:#ffffff; stroke:#1a1a2e; stroke-width:1.5; stroke-dasharray:5,3}
+      .vf-tt{fill:#1a1a2e; font:bold 14px sans-serif; text-anchor:middle}
+      .vf-mu{fill:#6b7280; font:12.5px sans-serif; text-anchor:middle}
+      .vf-line{stroke:#9ca3af; stroke-width:1.5; fill:none}
+      .vf-lg{stroke:#007a55; stroke-width:1.8; fill:none}
+      .vf-lp{stroke:#7c3aed; stroke-width:1.8; fill:none}
+      .vf-lr{stroke:#e86969; stroke-width:1.8; fill:none}
+    </style>
+    <defs>
+      <marker id="vf-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#9ca3af"/></marker>
+      <marker id="vf-arr-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#007a55"/></marker>
+      <marker id="vf-arr-p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#7c3aed"/></marker>
+      <marker id="vf-arr-r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#e86969"/></marker>
+    </defs>
+
+    <rect class="vf-bb" x="20" y="170" width="180" height="60" rx="8"/>
+    <text class="vf-tt" x="110" y="195">포트폴리오 초안</text>
+    <text class="vf-mu" x="110" y="214">주장 · 수치 · 도해</text>
+
+    <rect class="vf-by" x="240" y="170" width="210" height="60" rx="8"/>
+    <text class="vf-tt" x="345" y="195">자기 감사 4건</text>
+    <text class="vf-mu" x="345" y="214">문서 ↔ 코드 대조</text>
+
+    <text class="vf-mu" x="575" y="160">무엇을 했는지가 결말을 가름</text>
+    <rect class="vf-bd" x="480" y="170" width="190" height="60" rx="8"/>
+    <text class="vf-tt" x="575" y="195">감사 지적 이후</text>
+    <text class="vf-tt" x="575" y="214">무엇을 했는가</text>
+
+    <rect class="vf-bg" x="720" y="60" width="200" height="60" rx="8"/>
+    <text class="vf-tt" x="820" y="85">① 코드가 따라잡음</text>
+    <text class="vf-mu" x="820" y="104">37 Task 로 결함을 해소</text>
+    <rect class="vf-bg" x="945" y="60" width="135" height="60" rx="8"/>
+    <text class="vf-tt" x="1012" y="85">주장 강화</text>
+    <text class="vf-mu" x="1012" y="104">ai-1 · 2 · 5 · eco-3</text>
+
+    <rect class="vf-bp" x="720" y="170" width="200" height="60" rx="8"/>
+    <text class="vf-tt" x="820" y="195">② 재측정 → 반증</text>
+    <text class="vf-mu" x="820" y="214">주장이 틀렸음을 확인</text>
+    <rect class="vf-bp" x="945" y="170" width="135" height="60" rx="8"/>
+    <text class="vf-tt" x="1012" y="195">그대로 게재</text>
+    <text class="vf-mu" x="1012" y="214">eco-2</text>
+
+    <rect class="vf-br" x="720" y="280" width="200" height="60" rx="8"/>
+    <text class="vf-tt" x="820" y="305">③ 아직 재지 못함</text>
+    <text class="vf-mu" x="820" y="324">근거 파일이 없음</text>
+    <rect class="vf-br" x="945" y="280" width="135" height="60" rx="8"/>
+    <text class="vf-tt" x="1012" y="305">배지 강등</text>
+    <text class="vf-mu" x="1012" y="324">ai-1 TTFT · ai-4</text>
+
+    <path class="vf-line" d="M200,200 L240,200" marker-end="url(#vf-arr)"/>
+    <path class="vf-line" d="M450,200 L480,200" marker-end="url(#vf-arr)"/>
+    <path class="vf-lg" d="M670,190 L697,190 L697,90 L720,90" marker-end="url(#vf-arr-g)"/>
+    <path class="vf-lp" d="M670,200 L720,200" marker-end="url(#vf-arr-p)"/>
+    <path class="vf-lr" d="M670,210 L697,210 L697,310 L720,310" marker-end="url(#vf-arr-r)"/>
+    <path class="vf-lg" d="M920,90 L945,90" marker-end="url(#vf-arr-g)"/>
+    <path class="vf-lp" d="M920,200 L945,200" marker-end="url(#vf-arr-p)"/>
+    <path class="vf-lr" d="M920,310 L945,310" marker-end="url(#vf-arr-r)"/>
+
+    <text class="vf-mu" x="20" y="385" style="text-anchor:start; fill:#007a55">규칙 — 실측 배지는 저장소에 산출물 파일이 있을 때만 붙임. 역추적이 끊기면 값을 지우고 그 사실을 문서에 남김</text>
+  </svg>
+</div>
+
+<p class="sec-label limit">② 반증 — 측정이 내 주장을 틀렸다고 함</p>
+<ul class="bul-sub">
+  <li>eco-2 는 <b>제목에 낙관적 락을 해법으로 걸어 두었던 절</b>임. 같은 조건 · 같은 머신에서 세 전략을 연속 실행한 결과 <b>낙관적 락이 셋 중 꼴찌</b>였음 <span class="src src-m">실측</span></li>
+</ul>
+<div class="tbl-wrap">
+<table class="cmp">
+  <thead>
+    <tr><th>차감 전략</th><th>성공률</th><th>평균</th><th>p95</th><th>p99</th><th>재시도/건</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>낙관적 락 <span class="mono">@Version</span></td><td>94.56%</td><td>134.6ms</td><td>548.1ms</td><td>633.2ms</td><td>0.524</td></tr>
+    <tr><td>조건부 UPDATE</td><td>100%</td><td>84.6ms</td><td>162.7ms</td><td>302.0ms</td><td>0</td></tr>
+    <tr><td>비관적 락</td><td>100%</td><td>64.8ms</td><td>100.9ms</td><td>135.8ms</td><td>0</td></tr>
+  </tbody>
+</table>
+</div>
+<ul class="bul-sub">
+  <li>워크로드가 낙관적 락의 전제와 정반대였음 — <b>단일 상품 행에 부하가 전량 몰려 충돌이 상시</b>라 재시도가 곧 낭비가 되고, 한도를 넘긴 5.44% 는 실패로 끝났음. p95 는 조건부 UPDATE 대비 <b>3.4배</b>, 비관적 락 대비 <b>5.4배</b> 임</li>
+</ul>
+
+<p class="sec-label">이 수치를 믿을 수 있는 이유 — 재기 전에 측정 조건을 먼저 쟀음</p>
+<div class="tbl-wrap">
+<table class="cmp">
+  <thead>
+    <tr><th>프리플라이트 지표</th><th>풀 기본값 10</th><th>풀 50</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>1,000회 소요</td><td>10분 27초 (423회만 완주)</td><td>10.7초 (1,000회 완주)</td></tr>
+    <tr><td><span class="mono">confirm_latency</span> p95</td><td>30,550ms</td><td>35.7ms</td></tr>
+    <tr><td><span class="mono">Could not open JPA EntityManager</span></td><td>403건</td><td>0건</td></tr>
+  </tbody>
+</table>
+</div>
+<ul class="bul-sub">
+  <li>계획서는 풀 50 을 전제로 썼는데 <span class="mono">application-dev.yml</span> 에 <b>hikari 설정이 아예 없어 기본값 10</b> 이었음 <span class="src src-m">실측</span>. 결제 1건이 중첩 <span class="mono">REQUIRES_NEW</span> 로 커넥션 2개를 점유하므로 VU 20 이면 최소 40 이 필요함</li>
+  <li><b>이걸 못 잡았으면 위의 3자 비교가 통째로 무의미함</b> — 모든 요청이 커넥션 대기에 갇히면 락 경합 신호가 묻혀 전략 차이를 관측할 수 없음. <b>측정 전에 측정 조건을 측정한다</b> 가 이 단계의 존재 이유임</li>
+  <li>덕분에 질문 자체가 바뀌었음 — <span class="mono">maxAttempts</span> 를 몇으로 올릴지가 아니라 <b>이 워크로드에 낙관적 락이 맞지 않는다</b> 가 결론임. 한도를 키우면 실패가 지연으로 바뀔 뿐이지만, 전략을 바꾸면 실패와 지연이 동시에 사라짐</li>
+  <li>범위는 한정함 — <b>고경합 · 짧은 임계 구역에서의 순위</b>까지만 확정한 것이고 경합이 드물면 순위는 뒤집힘. 세 전략 모두 <b>초과 판매는 한 번도 발생하지 않았음</b>(정합성과 성능은 독립 축임)</li>
+</ul>
+
+<p class="sec-label outcome">되찾은 배지 — 조건을 적어 뒀더니 실제로 되찾았음</p>
+<div class="tbl-wrap">
+<table class="cmp">
+  <thead>
+    <tr><th>철회 당시 적어 둔 되찾기 조건</th><th>현재</th><th style="text-align:left; white-space:normal">근거</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>eco-2 지터 A/B · 3자 비교</td><td>되찾음</td><td style="text-align:left; white-space:normal">VU 를 고정해 재측정 <span class="src src-m">실측</span> — 단 <b>결론이 뒤집힘</b></td></tr>
+    <tr><td>ai-5 <span class="mono">403/404</span> E2E</td><td>되찾음</td><td style="text-align:left; white-space:normal">타인 세션 <b>403 <span class="mono">C_013</span></b> · 없는 세션 <b>404 <span class="mono">C_014</span></b> · 대조군 <b>200 + <span class="mono">text/event-stream</span></b> <span class="src src-m">실측</span></td></tr>
+    <tr><td>ai-1 TTFT</td><td>대기</td><td style="text-align:left; white-space:normal">OpenAI 키 확보 후 <span class="mono">chat.sse.ttft</span> 측정</td></tr>
+    <tr><td>ai-4 임계값 근거</td><td>대기</td><td style="text-align:left; white-space:normal">골든셋 구축 + 임계값 스윕</td></tr>
+    <tr><td style="background:transparent">eco-3 카오스 복구율</td><td style="background:transparent">대기</td><td style="background:transparent; text-align:left; white-space:normal">재현 절차와 raw 파일을 남기는 조건으로 재측정</td></tr>
+  </tbody>
+</table>
+</div>
+<ul class="bul-sub">
+  <li>철회는 값을 지우고 끝내는 것이 아니라 <b>되찾을 조건을 명세로 남기는 일</b>이었음. 2건은 그 명세대로 실제로 되찾았고, 남은 3건은 무엇이 없어서 못 재는지가 문서에 그대로 적혀 있음</li>
+</ul>
+
 
 </main>
 </div>

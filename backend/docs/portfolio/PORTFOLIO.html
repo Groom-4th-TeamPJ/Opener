@@ -24,7 +24,9 @@ body{
 .layout{display:flex; justify-content:center; max-width:1400px; margin:0 auto}
 main{width:100%; max-width:1100px; min-width:0; padding:40px clamp(20px,4vw,64px) 100px}
 h1{font-size:36px; font-weight:800; margin:0 0 6px; color:var(--text-dark); letter-spacing:-0.5px}
-.subtitle{color:var(--text-muted); font-size:15px; margin-bottom:36px}
+.subtitle{color:var(--text-muted); font-size:15px; margin-bottom:6px}
+.contact{color:var(--text-muted); font-size:14px; margin-bottom:36px}
+.contact a{color:inherit; text-decoration:none; border-bottom:1px solid var(--line)}
 h2.proj-title{
   font-size:27px; font-weight:800; margin:64px 0 6px; padding:24px 0 0 14px;
   border-top:3px solid var(--border); border-left:5px solid var(--green); color:var(--text-dark);
@@ -110,6 +112,7 @@ pre[class*="language-"]{margin:0 !important; font-size:13px !important}
 <main>
 <h1 id="top">포트폴리오 — 김민성</h1>
 <p class="subtitle">측정으로 원인을 확정하고, 파라미터가 아니라 구조로 처리하며, 남은 한계는 범위로 한정해 적었음</p>
+<p class="contact"><a href="mailto:msung98@naver.com">msung98@naver.com</a></p>
 
 <div class="doc-intro">
   <h4>읽는 법</h4>
@@ -882,7 +885,7 @@ return 1</code></pre>
 
 <p class="sec-label">전체적인 아키텍처</p>
 <div class="viz-frame">
-  <div class="viz-title">재고 차감 2단 방어 — Redis 선점 게이트 → DB 낙관적 락</div>
+  <div class="viz-title">재고 차감 2단 방어 — Redis 선점 게이트 → DB 비관적 락</div>
   <svg viewBox="0 0 1100 255" xmlns="http://www.w3.org/2000/svg" width="100%">
     <style>
       .sk-box{fill:rgba(67,97,184,0.10); stroke:#4361b8; stroke-width:1.5}
@@ -898,7 +901,7 @@ return 1</code></pre>
     <rect class="sk-box-y" x="230" y="80" width="200" height="60" rx="8"/><text class="sk-tt" x="330" y="102">Redis DECR 게이트</text><text class="sk-mu" x="330" y="119">원자 선점, 1단 방어</text>
     <rect class="sk-box-r" x="480" y="20" width="200" height="55" rx="8"/><text class="sk-tt" x="580" y="42">부족 → 즉시 실패</text><text class="sk-mu" x="580" y="59">PG 호출 없이 차단</text>
     <rect class="sk-box-g" x="480" y="145" width="200" height="55" rx="8"/><text class="sk-tt" x="580" y="167">확보 → PG 호출 진행</text>
-    <rect class="sk-box" x="730" y="145" width="220" height="55" rx="8"/><text class="sk-tt" x="840" y="164">@Version 낙관적 락</text><text class="sk-mu" x="840" y="180">@Retryable(3회, 지터·상한 1s), 2단 방어</text>
+    <rect class="sk-box" x="730" y="145" width="220" height="55" rx="8"/><text class="sk-tt" x="840" y="164">비관적 락 · FOR UPDATE</text><text class="sk-mu" x="840" y="180">행 선점으로 대기, 2단 방어</text>
     <rect class="sk-box-y" x="230" y="160" width="200" height="45" rx="8" stroke-dasharray="4,3"/><text class="sk-tt" x="330" y="185" style="font-size:12.5px">Redis 미초기화 → DB 락 폴백</text>
     <path class="sk-line" d="M180,110 L230,110" marker-end="url(#sk-arr)"/>
     <path class="sk-line" d="M430,95 L455,95 L455,48 L480,48" marker-end="url(#sk-arr)"/>
@@ -907,7 +910,7 @@ return 1</code></pre>
 
     <!-- 색상 범례 -->
     <rect class="sk-box-y" x="30" y="230" width="14" height="14" rx="3"/><text class="v-lgd" x="50" y="242">1단: Redis 선점 게이트</text>
-    <rect class="sk-box" x="230" y="230" width="14" height="14" rx="3"/><text class="v-lgd" x="250" y="242">2단: DB 낙관적 락</text>
+    <rect class="sk-box" x="230" y="230" width="14" height="14" rx="3"/><text class="v-lgd" x="250" y="242">2단: DB 비관적 락</text>
     <rect class="sk-box-r" x="400" y="230" width="14" height="14" rx="3"/><text class="v-lgd" x="420" y="242">부족 → 조기 차단</text>
     <rect class="sk-box-g" x="560" y="230" width="14" height="14" rx="3"/><text class="v-lgd" x="580" y="242">확보 → 진행</text>
   </svg>
@@ -922,9 +925,9 @@ return 1</code></pre>
 
 <p class="sec-label solve">해결 과정</p>
 <ol class="bul-num">
-  <li>상품 엔티티에 <span class="mono">@Version</span> 낙관적 락을 적용하고 충돌 시 자동 재시도되도록 함 — 현재 설정은 <span class="mono">@Retryable(maxAttempts=3, @Backoff(delay=100, multiplier=2, random=true, maxDelay=1000))</span>임. <b>지터와 상한은 근거가 있어 넣었고, 한도 3은 근거가 없어 그대로 둠</b>(아래 참조) — 애너테이션 속성값 자체를 리플렉션으로 검증하는 테스트를 붙여, <b>문서와 코드가 어긋나면 테스트가 먼저 깨지게</b> 함</li>
+  <li>상품 엔티티에 <span class="mono">@Version</span> 낙관적 락을 적용하고 충돌 시 자동 재시도되도록 함 — 낙관적 락 경로의 재시도 설정은 <span class="mono">@Retryable(maxAttempts=3, @Backoff(delay=100, multiplier=2, random=true, maxDelay=1000))</span>임(<b>아래 실측으로 기본 전략은 비관적 락으로 옮겼고, 이 경로는 설정으로 선택 가능한 상태로 남겨 둠</b>). <b>지터와 상한은 근거가 있어 넣었고, 한도 3은 근거가 없어 그대로 둠</b>(아래 참조) — 애너테이션 속성값 자체를 리플렉션으로 검증하는 테스트를 붙여, <b>문서와 코드가 어긋나면 테스트가 먼저 깨지게</b> 함</li>
   <li>재고 차감을 <span class="mono">REQUIRES_NEW</span> 독립 트랜잭션으로 처리해 재시도가 매 시도 새 트랜잭션에서 커밋·충돌 감지되게 보장하고, 결제 진입 직전에 Redis <span class="mono">DECR</span> 원자 연산으로 재고를 선점하는 게이트를 앞단에 두어 재고 부족을 PG 호출 전에 차단함</li>
-  <li>Redis가 아직 초기화되지 않은 상품은 DB 낙관적 락으로 폴백하도록 2단 방어를 구성해, 캐시 미스가 곧 서비스 장애가 되지 않도록 함 — 이때 <b>Redis에 되쓰지 않고 게이트만 통과시키는</b> 것이 중요. 임계 구역이 Redis 안에서 완결되므로 여기서는 분산 락이 필요하지 않고, Redis를 정확성의 근거가 아니라 <b>부하 필터</b>로만 쓰고 최종 정합은 DB <span class="mono">@Version</span>이 책임지는 역할 분담이 유지됨. <b>상품 재고에 쿠폰 쪽 방식(Redis를 정확성의 근거로 승격)을 쓰지 않은 이유는 자원의 얽힘이 다르기 때문</b> — 재고 차감은 주문 상태 전이·이력 기록과 같은 트랜잭션 경계 안에서 일어나므로, 재고만 DB 밖에서 세면 그 정합을 별도로 방어해야 함</li>
+  <li>Redis가 아직 초기화되지 않은 상품은 DB 락으로 폴백하도록 2단 방어를 구성해, 캐시 미스가 곧 서비스 장애가 되지 않도록 함 — 이때 <b>Redis에 되쓰지 않고 게이트만 통과시키는</b> 것이 중요. 임계 구역이 Redis 안에서 완결되므로 여기서는 분산 락이 필요하지 않고, Redis를 정확성의 근거가 아니라 <b>부하 필터</b>로만 쓰고 최종 정합은 DB <span class="mono">@Version</span>이 책임지는 역할 분담이 유지됨. <b>상품 재고에 쿠폰 쪽 방식(Redis를 정확성의 근거로 승격)을 쓰지 않은 이유는 자원의 얽힘이 다르기 때문</b> — 재고 차감은 주문 상태 전이·이력 기록과 같은 트랜잭션 경계 안에서 일어나므로, 재고만 DB 밖에서 세면 그 정합을 별도로 방어해야 함</li>
   <li>낙관적 락이 실제로 몇 번 충돌하는지를 알아야 재시도 한도가 타당한지 판단할 수 있어, <b>재시도 횟수를 Micrometer로 계측</b>함 — <b>일반 트래픽 구간</b>에서는 평균 <span class="metric">0.35회/건</span>으로 대부분 무충돌 통과였음 <span class="src src-m">실측</span>. 반면 <b>1만 건이 단일 행에 몰리는 극단 경합 조건</b>에서는 분포가 완전히 달라져 재시도 소진이 실패의 전량을 차지함(아래 결과 2). <b>여기서 한도를 올리고 싶은 유혹이 생기지만 올리지 않았음</b> — 두 수치는 조건이 달라 나란히 놓고 한도를 정할 수 없고, 한도를 키우면 실패를 지연으로 바꿔 <b>결제 API 응답 시간에 그대로 얹히기</b> 때문. 한도는 아래 3자 실측으로 정하기로 하고, 근거가 확실한 <b>지터와 대기 상한 1초만 먼저</b> 넣었음</li>
   <li>선점 키에 만료를 두지 않은 것은 의도된 선택임 — 별도 홀드 키를 두지 않고 <b>재고 카운터 자체를 <span class="mono">DECR</span>로 선점</b>하는 구조라, TTL로 사라지면 <span class="mono">미초기화</span> 폴백으로 떨어져 게이트 자체가 무력해지기 때문. 대신 결제가 중단된 요청의 선점분이 남지 않도록 <b>실패 경로 전부에서 선점분을 되돌리는</b> 구조로 덮었고(선점 도중 부족·PG 승인 실패·승인 후 DB 실패·결제 취소), 부하 로그에서 복원 포기 마커가 <span class="metric">0건</span>인 것으로 <b>예외가 잡히는 실패에 한해</b> 이 경로가 새지 않는다는 것을 확인</li>
   <li>남은 위험은 계측이 아니라 <b>예외 재포장</b>이었음 — 부하 스크립트에는 재고 부족·락 충돌·기타를 나누는 실패 카운터가 이미 있었는데, 그중 <b>락 충돌 카운터만 한 번도 증가하지 않았음.</b> 추적해 보니 재시도를 소진한 <span class="mono">@Recover</span>가 <span class="mono">BusinessException(PRODUCT_STOCK_CONFLICT)</span>를 제대로 던지고 있었지만, 결제 오케스트레이션의 <span class="mono">catch (Exception)</span>이 이를 익명 <span class="mono">RuntimeException</span>으로 감싸는 순간 에러 코드가 소실돼 전역 핸들러의 catch-all로 떨어졌고, 409여야 할 응답이 500으로 나가고 있었음. <b>한 계층의 예외 재포장이 상위 계층의 관측 가능성을 통째로 지운다</b>는 것 — 그래서 그 카운터는 구조적으로 절대 증가할 수 없는 <b>죽은 카운터</b>였다는 것이 이번에 얻은 가장 큰 소득임</li>
@@ -957,7 +960,7 @@ return 1</code></pre>
 <p class="sec-label limit">남은 한계</p>
 <ul class="bul-sub">
   <li>이번 측정 조건(재고 1만 / 요청 1만)은 <b>전량이 게이트를 통과하는 구간</b>이라 Redis 선점 게이트의 PG 차단 효과가 수치로 드러나지 않음 — 게이트의 이득을 증명하려면 재고보다 요청이 많은 조건으로 다시 재야 함</li>
-  <li><b>측정으로 더 나은 전략을 찾았으나 아직 갈아타지 않았음</b> — 조건부 UPDATE로 전환하려면 <b>재고를 별도 테이블로 분리하는 것이 선행</b>돼야 함(지금은 재고가 상품 엔티티의 한 필드라 가격·판매 상태와 <span class="mono">@Version</span> 하나를 공유하므로, 재고만 조건부 UPDATE로 빼면 나머지 필드의 동시 수정 보호가 사라짐). <b>측정이 끝난 시점에 남은 것은 "무엇이 나은지 모른다"가 아니라 "아는데 옮기는 비용이 남았다"</b>임</li>
+  <li><b>측정 결과대로 기본 전략을 비관적 락으로 옮겼음</b> — <span class="mono">stock.decrease-strategy</span> 기본값과 <span class="mono">matchIfMissing</span>을 함께 바꿔 <b>실측 꼴찌가 기본값으로 남아 있던 상태를 해소</b>함. 비관적 락은 전환에 선행 조건이 없었음. <b>반면 조건부 UPDATE는 아직 못 옮김</b> — 재고가 상품 엔티티의 한 필드라 가격·판매 상태와 <span class="mono">@Version</span> 하나를 공유해, 재고만 빼면 나머지 필드의 동시 수정 보호가 사라지므로 <b>재고 테이블 분리가 선행</b>돼야 함. 세 전략 모두 코드에 남겨 뒀고 <b>설정 한 줄로 되돌아감</b></li>
   <li>측정 조건이 <b>단일 상품 행에 전량이 몰리는 극단</b>이라, 상품이 분산된 실제 트래픽에서는 세 전략의 격차가 훨씬 작을 것 — <b>이 실험이 확정하는 것은 "고경합 구간에서의 순위"</b>까지임</li>
   <li><b>크래시로 보상 코드가 실행되지 않는 경로</b>는 여전히 남아 있음 — 대조 배치가 어긋남을 <b>탐지</b>하게 됐지만 <b>복구</b>는 사람이 판단해야 함. 쿠폰 발급(§1)과 같은 성질의 문제라 두 도메인이 같은 후속 과제를 공유함</li>
 </ul>
