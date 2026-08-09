@@ -508,12 +508,6 @@
             border: 1px solid #e4e4e7
         }
 
-        .src-x {
-            background: #fdecec;
-            color: #c0392b;
-            border: 1px dashed #e8a9a9
-        }
-
         @page {
             size: A4;
             margin: 12mm 10mm
@@ -596,8 +590,7 @@
         <h1 id="top">포트폴리오 — 김민성</h1>
         <p class="badge-legend">수치 출처 — <span class="src src-m">실측</span> 직접 측정한 값 · <span class="src src-d">도출</span>
             설정값에서 계산한 값 · <span class="src src-p">대리 부하 / 통제 실험</span> 특성만 재현하거나 장애를 주입해 얻은 값 · <span class="src src-s">설정</span>
-            내가 정한 파라미터 · <span class="src src-e">추정</span> 근거를 남기지 않은 값 · <span class="src src-x">가정</span> 아직 미측정인 기대
-            규모. <b>뒤 3종은 성과의 근거로 미사용</b></p>
+            내가 정한 파라미터 · <span class="src src-e">추정</span> 근거를 남기지 않은 값. <b>뒤 2종은 성과의 근거로 미사용</b></p>
 
         <!-- ================= AI 튜터링 서비스 ================= -->
         <h2 class="proj-title" id="proj-ai">AI 튜터링 서비스 (Opener)</h2>
@@ -1294,7 +1287,7 @@ if (result == Sinks.EmitResult.FAIL_OVERFLOW) {
                 AI 실제 기본값은 <span class="mono">SIMILARITY_THRESHOLD_ACCEPT_ALL = 0.0</span>, 전부 통과)
             </li>
             <li>당시 원인을 <b>영어 강의자료 + 한국어 질문 조합에서 유사도 분포가 낮게 깔리는 것</b>으로 진단하고 임계값을 낮춰 대응.
-                <b>이 진단은 뒤에 스윕 실측으로 반증됨</b> — 아래 결과 참조
+                <b>적재 자료를 확인하지 않고 내린 진단이었고 뒤에 스윕 실측으로 반증됨</b> — 아래 결과 참조
             </li>
         </ul>
 
@@ -1346,9 +1339,16 @@ if (result == Sinks.EmitResult.FAIL_OVERFLOW) {
             <li><b>임계값은 품질 손잡이가 아니라 켜기/끄기 스위치였다는 것이 이 스윕의 결론</b> — 유효한 상한은 <span class="metric">0.3</span>부터 시작
                 <details class="caveat"><summary>범위와 한계</summary><div>현재 값 <span class="metric">0.2</span>는 0.1·0.0과 결과가 완전히 동일 — <span class="mono">topK=5</span>가 먼저 차서 <b>임계값이 실질적으로 무작동</b>. 정밀도도 전 구간 <span class="metric">37% 언저리</span>에서 임계값에 거의 무반응이라, 정밀도를 올리려면 임계값이 아니라 청킹·리랭킹 축이 필요</div></details>
             </li>
-            <li>벡터 검색 지연은 <span class="mono">rag.vector.search{path=chat}</span> 기준 <span class="metric">평균 401ms · 최대 832ms</span>
-                <span class="src src-m">실측</span>(현재 코퍼스 <span class="metric">5,799</span>청크 · 임베딩 왕복 포함).
-                <b>오프너 경로는 이번에 미재측정</b>이라 이전 판본의 수치를 이월하지 않음 — 시험 데이터 픽스처가 있어야 그 경로를 태울 수 있음
+            <li><b>두 경로의 벡터 검색 비용이 사실상 동일하다는 것을 태그로 갈라 확인</b> <span class="src src-m">실측</span> —
+                <span class="mono">path=chat</span> <span class="metric">평균 401ms</span>(n=22) ·
+                <span class="mono">path=opener</span> <span class="metric">평균 361ms · 중앙값 350ms · p95 502ms</span>(n=10).
+                현재 코퍼스 <span class="metric">5,799</span>청크 기준이고 임베딩 왕복 포함.
+                <b>이전 판본의 "오프너 80ms"는 재현 불가</b>라 이월하지 않음 — 같은 코드가 5배 빨랐다면 코퍼스 규모가 달랐다고 볼 수밖에 없으나
+                당시 조건이 기록돼 있지 않아 확인 불가
+                <details class="caveat"><summary>범위와 한계</summary><div>
+                    두 값의 표본 수가 다름(22 vs 10). 오프너는 회당 LLM 응답이 길어 표본을 늘리는 비용이 커 10회로 고정.
+                    <b>같은 시점·같은 코퍼스에서 잰 값</b>이라 비교는 성립하나, 40ms 차이를 경로 간 유의한 차이로 주장하지 않음
+                </div></details>
             </li>
             <li>검색 0건일 때 컨텍스트를 비우고 일반 프롬프트로 폴백해, 문서를 못 찾은 상황이 응답 실패로 번지지 않게 처리</li>
         </ul>
@@ -1443,14 +1443,28 @@ if (result == Sinks.EmitResult.FAIL_OVERFLOW) {
         </div>
 
         <ul class="bul-sub">
-            <li><b>당시의 원인 진단이 스윕 실측으로 반증됨</b> — 진단은 "영어 자료 + 한국어 질문"이었는데, 현재 벡터 스토어
-                <span class="metric">5,799</span>청크 중 영어는 <span class="metric">4</span>청크(<span class="metric">0.07%</span>)뿐이고
-                나머지는 전부 한국어 문제·풀이(<span class="mono">MATH-ko-test.jsonl</span> · <span class="mono">ko_math-500.jsonl</span>).
-                <b>같은 언어끼리도 최고 유사도가 0.4대</b>이므로 원인은 언어 정렬이 아님. <b>임계값을 낮춘 처방은 증상을 지웠고 원인은 미확인 상태로 잔존</b>
+            <li><b>당시의 원인 진단이 스윕 실측으로 반증됨</b> — 진단은 "영어 자료 + 한국어 질문의 정렬"이었으나 <b>적재 자료에 영어 문서 자체가 부재</b>.
+                벡터 스토어 <span class="metric">5,799</span>청크는 전부 <b>한국어 수학 모의고사 문제·풀이</b>(<span class="mono">MATH-ko-test.jsonl</span> ·
+                <span class="mono">ko_math-500.jsonl</span>)이고, 그럼에도 <b>최고 유사도가 중앙값 0.40</b>에 그침.
+                <b>다국어를 원인으로 지목한 것 자체가 자료를 확인하지 않고 내린 진단</b>이었고,
+                임계값 인하는 그 진단과 무관하게 증상만 지운 처방
+            </li>
+            <li><b>실제로 남은 유력 원인은 자료의 형식</b> — 원본이 텍스트 + 그림 조합인데 <b>그림이 이미지가 아니라 Asymptote 소스 코드 텍스트로 적재</b>.
+                <span class="metric">787</span>청크(<span class="metric">13.6%</span>)가 <span class="mono">[asy]</span> 블록을 포함하고
+                <b>그 블록이 청크 길이의 평균 47%</b>를 차지 <span class="src src-m">실측</span>.
+                질문은 자연어 한 문장인데 문서 절반이 좌표·<span class="mono">draw</span>·<span class="mono">label</span> 명령인 셈
+                <details class="caveat"><summary>범위와 한계</summary><div>
+                    <b>이 축이 원인이라고 단정하지 않음.</b> 그림 코드가 섞인 청크는 검색 상위 5건에서
+                    <span class="metric">21.0%</span>를 차지해 코퍼스 비율(13.6%)보다 <b>오히려 자주 걸리고</b>,
+                    평균 유사도도 <span class="metric">0.3773 vs 0.3935</span>로 차이가 작음.
+                    그 청크가 평균 963자로 더 길어 주제를 더 많이 담는 효과와 <b>구분되지 않으므로</b>,
+                    확정하려면 <span class="mono">[asy]</span> 블록을 제거하고 같은 질문셋으로 다시 재야 함
+                </div></details>
             </li>
             <li><b>지금 위치</b> — 남은 유력 축인 청킹은 미검토. <span class="mono">new TokenTextSplitter()</span>를 인자 없이 생성해 토큰 크기·오버랩이 전부 기본값이고, 한 번도 바꿔 본 적 부재.
                 <b>도달 가능한 상한</b> — 생성자 인자를 지정하는 것만으로 <b>임계값 스윕과 같은 절차로 스윕 가능</b>. 질문셋과 정답 라벨은 이미 이 절에서 만들어 뒀으므로 재사용.
-                <b>둘을 가르는 것</b> — <b>원인 진단이 언어 축에 고정돼 있던 것</b>. 다국어를 원인으로 잡았기에 청킹이 후보에 오르지 않았고, 그 진단이 위 실측으로 반증된 지금은 <b>이 축이 1순위</b>
+                <b>둘을 가르는 것</b> — <b>자료를 열어 보지 않고 원인을 언어 축으로 단정한 것</b>. 그 진단이 청킹과 문서 형식을 후보에서 밀어냈고,
+                진단이 반증된 지금은 <b>그림 코드 제거와 청크 파라미터가 같은 순위의 1순위</b>
             </li>
             <li>일반 채팅 경로에 Timer가 없어 <b>RAG가 매 턴의 첫 토큰 지연에 얹는 비용을 답변 불가</b>했던 것을, <span class="mono">rag.vector.search</span>에
                 <span class="mono">path=chat|opener</span> 태그를 붙이고 일반 채팅 경로에도 같은 Timer를 걸어 측정 — <b>플래그 양방향 각 20회</b>
