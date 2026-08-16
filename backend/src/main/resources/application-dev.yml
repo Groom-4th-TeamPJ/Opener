@@ -158,4 +158,4 @@ app:
   rag:
     enabled: true                    # RAG 기능 활성화
     top-k: 5                         # 유사 문서 검색 시 반환할 최대 개수
-    similarity-threshold: 0.2        # 유사도 임계값 - 영어 문서 + 한국어 쿼리는 유사도가 낮음
+    similarity-threshold: 0.2        # 스윕 실측 - 질문 20문항 최고 유사도 중앙값 0.40 이라 0.7 은 검색 0건, 유효 상한은 0.3
