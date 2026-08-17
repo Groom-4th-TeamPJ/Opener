@@ -44,16 +44,7 @@ docs/
 
 *.md
 
-# ── 정산 산출물 추적 예외 ─────────────────────────────────────────
-# 위 docs/ 전체 무시는 유지하되 backend/docs 안의 "텍스트 산출물"만 연다.
-# 근거: 포트폴리오의 모든 수치가 산출물 파일로 역추적 가능해야 한다는 검증 규칙.
-# 이미지·PDF 는 계속 무시한다 (13MB 이상이라 저장소에 넣지 않는다).
-!backend/docs/
-backend/docs/*
-!backend/docs/portfolio/
-backend/docs/portfolio/*
-!backend/docs/portfolio/*.html
-!backend/docs/measurements/
-backend/docs/measurements/*
-!backend/docs/measurements/*.md
-!backend/docs/measurements/*.html
+# ── 개인 작업 산출물은 로컬 전용 ───────────────────────────────
+# 포트폴리오·검토 보고서·측정 로그는 저장소에 넣지 않는다
+# docs/ 와 *.md 가 대부분을 덮지만 report 는 확장자가 늘 수 있어 경로로 못박는다
+backend/report/
