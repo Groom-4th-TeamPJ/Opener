@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -35,6 +36,14 @@ import spring.backend.domain.chat.service.spec.DocumentService;
         matchIfMissing = false
 )
 public class DocumentServiceImpl implements DocumentService {
+
+    // [asy] 는 문제의 그림을 그리는 Asymptote 소스 코드 -> 색인 대상에서 걷어낸다
+    // 블록을 가진 문서에서 글자수의 평균 48% 를 차지해 임베딩이 좌표·draw 명령 쪽으로 기운다
+    // 질문은 자연어 한 문장이라 그 성분과 맞물리지 않고, 실제로 임계값 0.7 에서 20문항 전부 검색 0건이었다
+    private static final Pattern ASY_BLOCK = Pattern.compile("\\[asy].*?\\[/asy]", Pattern.DOTALL);
+
+    // 블록을 지우고 남은 빈 줄이 3줄 이상이면 2줄로 접는다
+    private static final Pattern BLANK_RUN = Pattern.compile("\\n{3,}");
 
     private final VectorStore vectorStore;
     private final TokenTextSplitter textSplitter;
@@ -148,6 +157,7 @@ public class DocumentServiceImpl implements DocumentService {
         ObjectMapper objectMapper = new ObjectMapper();
         int successCount = 0;
         int failCount = 0;
+        int asyStrippedCount = 0;
 
         try {
             PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
@@ -171,10 +181,16 @@ public class DocumentServiceImpl implements DocumentService {
                             JsonNode node = objectMapper.readTree(line);
 
                             // 문제와 풀이를 결합하여 문서 내용 생성
-                            String problem = node.has("problem_ko") ? node.get("problem_ko").asText() : "";
-                            String solution = node.has("solution_ko") ? node.get("solution_ko").asText() : "";
+                            String rawProblem = node.has("problem_ko") ? node.get("problem_ko").asText() : "";
+                            String rawSolution = node.has("solution_ko") ? node.get("solution_ko").asText() : "";
                             String level = node.has("level") ? node.get("level").asText() : "";
                             String type = node.has("type") ? node.get("type").asText() : "";
+
+                            String problem = stripAsyBlocks(rawProblem);
+                            String solution = stripAsyBlocks(rawSolution);
+                            if (!problem.equals(rawProblem) || !solution.equals(rawSolution)) {
+                                asyStrippedCount++;
+                            }
 
                             // 문서 내용: 문제 + 풀이
                             String content = String.format(
@@ -207,13 +223,23 @@ public class DocumentServiceImpl implements DocumentService {
                 }
             }
 
-            log.info("JSONL loading completed - Success: {}, Failed: {}", successCount, failCount);
+            log.info("JSONL loading completed - Success: {}, Failed: {}, Asymptote blocks stripped from: {} problems",
+                    successCount, failCount, asyStrippedCount);
 
         } catch (Exception e) {
             log.error("Failed to scan JSONL directory: {}", directoryPath, e);
         }
 
         return allDocuments;
+    }
+
+    // 닫히지 않은 [asy] 는 남긴다 -> 본문 끝까지 지워 문제 자체가 사라지는 것보다 낫다
+    static String stripAsyBlocks(String text) {
+        if (text == null || !text.contains("[asy]")) {
+            return text == null ? "" : text;
+        }
+        String stripped = ASY_BLOCK.matcher(text).replaceAll("");
+        return BLANK_RUN.matcher(stripped).replaceAll("\n\n").trim();
     }
 
     @Override
