@@ -259,8 +259,8 @@ class ChatServiceImplTest {
     }
 
     @Test
-    @DisplayName("연결이 해제되면 상류 LLM 구독도 취소한다")
-    void disconnectSession_연결해제_상류구독이취소된다() {
+    @DisplayName("연결이 해제되면 LLM 구독도 취소한다")
+    void disconnectSession_연결해제_LLM구독이취소된다() {
         AtomicBoolean cancelled = new AtomicBoolean(false);
         when(llmService.chatStream(SESSION_ID.toString(), "질문"))
                 .thenReturn(Flux.<String>never().doOnCancel(() -> cancelled.set(true)));

@@ -629,7 +629,7 @@ public class ChatServiceImpl implements ChatService {
         }
     }
 
-    // 구독 정리 -> Sink 제거만으로는 상류 LLM 호출이 계속 돌며 토큰을 소비한다
+    // 구독 정리 -> Sink 제거만으로는 LLM 호출이 계속 돌며 토큰을 소비한다
     private void disposeSubscription(Long sessionId) {
         Disposable subscription = subscriptions.remove(sessionId);
         if (subscription != null && !subscription.isDisposed()) {

@@ -49,7 +49,7 @@ class OpenAiLlmServiceTest {
     @DisplayName("벡터 검색이 실패해도 던지지 않고 에러 시그널로 내보낸다")
     void chatStream_벡터검색실패_예외대신에러시그널() {
         when(vectorStore.similaritySearch(any(org.springframework.ai.vectorstore.SearchRequest.class)))
-                .thenThrow(new IllegalStateException("임베딩 상류 장애"));
+                .thenThrow(new IllegalStateException("임베딩 API 장애"));
 
         // 던지면 호출자의 doOnError 가 돌지 않아 세션이 PROCESSING 에 갇힌다
         var stream = assertDoesNotThrow(() -> service.chatStream("1", "질문"));
@@ -63,7 +63,7 @@ class OpenAiLlmServiceTest {
     @DisplayName("벡터 검색 실패를 서킷이 실패로 집계한다")
     void chatStream_벡터검색실패_서킷이집계한다() {
         when(vectorStore.similaritySearch(any(org.springframework.ai.vectorstore.SearchRequest.class)))
-                .thenThrow(new IllegalStateException("임베딩 상류 장애"));
+                .thenThrow(new IllegalStateException("임베딩 API 장애"));
 
         CircuitBreaker breaker = CircuitBreaker.of("llm-chat-test", CircuitBreakerConfig.custom()
                 .slidingWindowSize(2)
