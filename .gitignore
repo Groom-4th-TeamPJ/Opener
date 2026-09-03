@@ -48,3 +48,6 @@ docs/
 # 포트폴리오·검토 보고서·측정 로그는 저장소에 넣지 않는다
 # docs/ 와 *.md 가 대부분을 덮지만 report 는 확장자가 늘 수 있어 경로로 못박는다
 backend/report/
+
+# docgraph 문서 그래프 색인 (파생본, ~/.claude/rules/docgraph.md)
+.docgraph/
