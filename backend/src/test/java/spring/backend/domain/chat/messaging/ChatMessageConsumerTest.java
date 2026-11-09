@@ -175,4 +175,25 @@ class ChatMessageConsumerTest {
 
         verify(chatMessageRepository).save(any(ChatMessage.class));
     }
+
+    // 요약 읽기는 소비자가 영구 저장에서 뺀 턴을 같은 규칙으로 뺀다
+    // (이 테스트가 여기 있는 이유: 어댑터 전용 테스트 파일은 이 작업의 파일 표 밖이다)
+    @Test
+    @DisplayName("요약이 읽는 전량 히스토리는 끊긴 응답과 답 없는 질문을 제외한다")
+    void getFullHistory_끊긴응답과답없는질문_요약읽기에서제외한다() {
+        RedisMessageDto partial = RedisMessageDto.builder()
+                .chatRole(ChatRole.LLM).message("끊긴 답").timestamp(LocalDateTime.now()).partial(true).build();
+        RedisMessageDto unansweredTail = RedisMessageDto.builder()
+                .chatRole(ChatRole.USER).message("답 없는 마지막 질문").timestamp(LocalDateTime.now()).build();
+        when(chatRedisService.getSessionMessages(SESSION_ID)).thenReturn(List.of(
+                userMessage(), partial, userMessage(), llmMessage(), unansweredTail));
+
+        List<org.springframework.ai.chat.messages.Message> history =
+                new spring.backend.domain.chat.adapter.RedisChatHistoryAdapter(chatRedisService)
+                        .getFullHistory(SESSION_ID.toString());
+
+        // 요약은 영구 저장되므로 저장본과 다른 대화를 요약하면 복습 화면의 요약이 본문과 어긋난다
+        assertEquals(List.of("질문", "답"),
+                history.stream().map(org.springframework.ai.chat.messages.Message::getText).toList());
+    }
 }
