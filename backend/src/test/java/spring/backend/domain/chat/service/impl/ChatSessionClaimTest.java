@@ -106,6 +106,18 @@ class ChatSessionClaimTest {
     }
 
     @Test
+    @DisplayName("키는 있는데 userId 가 없으면 소유자를 확인할 수 없으므로 거부한다")
+    void initializeSession_결과2_userId없는기존키_SESSION_NOT_FOUND로거부한다() {
+        claimReturns(2L);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.initializeSession(SESSION_ID, USER_ID));
+
+        // HSETNX 가 userId 없는 남의 키를 내 것으로 만들면 fail-open 이다 -> fail-closed 로 막는다
+        assertEquals(ErrorCode.SESSION_NOT_FOUND, ex.getErrorCode());
+    }
+
+    @Test
     @DisplayName("선점에 성공하거나 이미 내 세션이면 예외 없이 통과한다")
     void initializeSession_결과1_예외없이통과한다() {
         claimReturns(1L);
