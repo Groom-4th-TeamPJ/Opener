@@ -51,3 +51,6 @@ backend/report/
 
 # docgraph 문서 그래프 색인 (파생본, ~/.claude/rules/docgraph.md)
 .docgraph/
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/

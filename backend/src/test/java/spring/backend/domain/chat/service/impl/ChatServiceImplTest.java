@@ -16,6 +16,13 @@ import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.transaction.PlatformTransactionManager;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Scheduler;
+import reactor.core.scheduler.Schedulers;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicLong;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import reactor.test.StepVerifier;
 import spring.backend.domain.can.service.spec.CanService;
 import spring.backend.domain.chat.dto.request.ChatSendRequest;
@@ -274,6 +281,95 @@ class ChatServiceImplTest {
 
         // 구독을 정리하지 않으면 클라이언트가 끊어도 OpenAI 스트림은 끝까지 돌며 토큰을 소비한다
         assertTrue(cancelled.get());
+    }
+
+    @Test
+    @DisplayName("청크 콜백은 응답을 읽는 스레드가 아니라 boundedElastic 워커에서 실행된다")
+    void processMessage_콜백이_응답수신스레드밖에서_실행된다() throws Exception {
+        // 응답을 읽는 레인을 이름 붙인 스케줄러로 흉내낸다
+        // "소스가 어디서 emit 하든 publishOn 아래는 boundedElastic" 이 주장이라
+        // 소스는 OpenAI 가 아니어도 되고, 이름만 구별되면 경계 앞뒤를 갈라 볼 수 있다
+        Scheduler fakeResponseLoop = Schedulers.newSingle("fake-llm-loop");
+        AtomicReference<String> sourceThread = new AtomicReference<>();
+        AtomicReference<String> callbackThread = new AtomicReference<>();
+        CountDownLatch callbackRan = new CountDownLatch(1);
+
+        try {
+            when(llmService.chatStream(SESSION_ID.toString(), "질문"))
+                    .thenReturn(Flux.just("토큰1", "토큰2")
+                            .subscribeOn(fakeResponseLoop)
+                            // publishOn 앞이라 여기는 소스 스레드
+                            .doOnNext(c -> sourceThread.set(Thread.currentThread().getName())));
+
+            // STREAM_START 전이는 publishOn 아래 doOnNext 안에서 불린다 -> 콜백이 실제로 도는 스레드
+            when(stateMachineService.sendEvent(SESSION_ID, ChatSessionEvent.STREAM_START))
+                    .thenAnswer(inv -> {
+                        callbackThread.set(Thread.currentThread().getName());
+                        callbackRan.countDown();
+                        return true;
+                    });
+
+            Disposable sse = service.connectSession(SESSION_ID, USER_ID).subscribe();
+            service.processMessage(request(), USER_ID);
+            assertTrue(callbackRan.await(5, TimeUnit.SECONDS), "콜백이 실행되지 않음");
+            sse.dispose();
+        } finally {
+            fakeResponseLoop.dispose();
+        }
+
+        System.out.println("[스레드 경계] 소스=" + sourceThread.get() + " 콜백=" + callbackThread.get());
+
+        assertTrue(sourceThread.get().startsWith("fake-llm-loop"),
+                "소스가 흉내낸 응답 수신 레인에서 emit 하지 않음: " + sourceThread.get());
+        // publishOn 을 빼면 이 검사가 깨진다 - 콜백이 소스 스레드에서 그대로 돈다
+        assertTrue(callbackThread.get().startsWith("boundedElastic"),
+                "콜백이 boundedElastic 으로 넘어가지 않음: " + callbackThread.get());
+        assertNotEquals(sourceThread.get(), callbackThread.get(),
+                "콜백이 응답 수신 스레드에서 그대로 실행됨 - 오프로딩 미적용");
+    }
+
+    @Test
+    @DisplayName("한 세션의 콜백 블로킹이 같은 루프를 쓰는 다른 세션의 첫 청크를 밀어내지 않는다")
+    void processMessage_한세션의_블로킹이_다른세션을_밀어내지_않는다() throws Exception {
+        final long BLOCK_MS = 300;                 // A 콜백 안의 Redis 저장 · 상태 전이를 대신하는 지연
+        final Long OTHER = 2L;
+        Scheduler sharedLoop = Schedulers.newSingle("shared-loop");   // 두 세션이 한 루프를 공유
+        CountDownLatch bServed = new CountDownLatch(1);
+        AtomicLong bServedAt = new AtomicLong();
+        long startedAt;
+
+        try {
+            when(llmService.chatStream(SESSION_ID.toString(), "질문"))
+                    .thenReturn(Flux.just("A").subscribeOn(sharedLoop));
+            when(llmService.chatStream(OTHER.toString(), "질문"))
+                    .thenReturn(Flux.just("B").subscribeOn(sharedLoop));
+
+            when(stateMachineService.sendEvent(OTHER, ChatSessionEvent.SEND_MESSAGE)).thenReturn(true);
+            when(stateMachineService.sendEvent(SESSION_ID, ChatSessionEvent.STREAM_START))
+                    .thenAnswer(inv -> { Thread.sleep(BLOCK_MS); return true; });
+            when(stateMachineService.sendEvent(OTHER, ChatSessionEvent.STREAM_START))
+                    .thenAnswer(inv -> { bServedAt.set(System.nanoTime()); bServed.countDown(); return true; });
+
+            Disposable sseA = service.connectSession(SESSION_ID, USER_ID).subscribe();
+            Disposable sseB = service.connectSession(OTHER, USER_ID).subscribe();
+
+            startedAt = System.nanoTime();
+            service.processMessage(new ChatSendRequest(SESSION_ID, 10L, "질문"), USER_ID);
+            service.processMessage(new ChatSendRequest(OTHER, 10L, "질문"), USER_ID);
+
+            assertTrue(bServed.await(5, TimeUnit.SECONDS), "B 세션 콜백이 실행되지 않음");
+            sseA.dispose();
+            sseB.dispose();
+        } finally {
+            sharedLoop.dispose();
+        }
+
+        long delayMs = (bServedAt.get() - startedAt) / 1_000_000;
+        System.out.println("[오프로딩 효과] A 콜백 블로킹 " + BLOCK_MS + "ms · B 세션 첫 청크까지 " + delayMs + "ms");
+
+        // publishOn 을 빼면 B 의 구독이 A 콜백 뒤에 줄을 서서 BLOCK_MS 만큼 밀린다
+        assertTrue(delayMs < BLOCK_MS / 2,
+                "B 가 A 의 블로킹만큼 밀렸다 - 오프로딩 미적용: " + delayMs + "ms");
     }
 
 }
