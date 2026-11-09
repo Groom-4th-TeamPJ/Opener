@@ -249,7 +249,9 @@ public class ChatServiceImpl implements ChatService {
             // 구독을 두면 제거된 sink 로 토큰이 계속 흘러 OpenAI 비용이 이어진다
             closeSession(sessionId, sink, CloseReason.DISCONNECT, "");
 
-            chatRedisService.deleteSession(sessionId);
+            // Redis 세션 키와 메시지 목록은 지우지 않는다 -> 대화 저장 소비자는 이벤트가 도착한 뒤에 목록을 읽고
+            // 소유자 검증도 세션 키로 하므로, 여기서 지우면 방금 저장한 부분 응답과 함께 소비자가 볼 버퍼가 사라진다
+            // 정리는 세션 TTL 과 소비자의 deleteMessage 가 맡는다
 
             log.info("[SSE] 세션 해제 완료 - sessionId: {}, userId: {}, 남은 연결 수: {}",
                     sessionId, userId, sinks.size());
@@ -486,9 +488,22 @@ public class ChatServiceImpl implements ChatService {
             ErrorCode errorCode = e.getErrorCode();
             log.warn("[OpenerAnalysis] Can 차감 실패 - userId: {}, errorCode: {}", userId, errorCode.getCode());
             emitError(sessionId, errorCode.getMessage(), errorCode.getCode());
+            // 요청 메시지는 차감보다 먼저 저장됐다 -> 답 없이 남으면 다음 턴 문맥과 영구 저장에 섞이므로 되돌린다
+            chatRedisService.removeLastMessage(sessionId);
             // 상태를 되돌리지 않으면 Can 이 부족한 세션은 재연결 전까지 모든 메시지가 SESSION_EXPIRED 로 거부된다
             closeSession(sessionId, null, CloseReason.ASSEMBLY_FAIL, "");
             return;
+        }
+
+        // 스트림 조립도 차감 뒤에 한다 -> 조립 시점 예외(벡터 검색 등)는 아래 doOnError 를 타지 않으므로
+        // 여기서 환불과 상태 회수를 직접 한다. 조립을 차감 앞에 두면 Can 이 없는 사용자도 벡터 검색 비용을 낸다
+        Flux<String> ragStream;
+        try {
+            ragStream = ragService.generateSimilarProblemStream(problemContext);
+        } catch (RuntimeException e) {
+            canService.recoverUserCan(userId, 1);
+            recoverFromStreamFailure(sessionId, e);
+            throw e;
         }
 
         // RAG 응답 수집용
@@ -496,7 +511,7 @@ public class ChatServiceImpl implements ChatService {
         AtomicBoolean ragStreamStarted = new AtomicBoolean(false);
 
         // RAG Flux를 non-blocking subscribe
-        Disposable ragSubscription = ragService.generateSimilarProblemStream(problemContext)
+        Disposable ragSubscription = ragStream
                 // publishOn -> 이후 콜백을 boundedElastic 으로 옮김
                 // 여기 doOnComplete 는 JDBC 트랜잭션까지 돌리므로 이벤트 루프에서 실행되면 영향이 가장 큼
                 .publishOn(Schedulers.boundedElastic())
