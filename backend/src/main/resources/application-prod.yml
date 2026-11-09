@@ -62,7 +62,7 @@ management:
       show-details: never # 상세 정보 숨김
 
 app:
-  # RAG 는 env 로 켠다 - prod 는 벡터 스토어 색인을 따로 준비해야 하므로 기본은 꺼짐
+  # app.rag.enabled 를 명시 선언, 기본은 꺼짐 - RAG_ENABLED=true 로 켠다
   rag:
     enabled: ${RAG_ENABLED:false}
     top-k: 5
