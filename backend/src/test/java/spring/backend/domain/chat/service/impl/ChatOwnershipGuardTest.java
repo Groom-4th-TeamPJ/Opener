@@ -201,6 +201,27 @@ class ChatOwnershipGuardTest {
         assertEquals(1.0, meterRegistry.counter("chat.persist.dropped", "reason", "unauthorized").count());
     }
 
+    @Test
+    @DisplayName("세션 소유자 불일치 저장 이벤트도 ACK 로 버리지 않고 원인을 단 채 DLQ 로 보낸다")
+    void handleSaveMessageEvent_세션소유자불일치_재시도없이DLQ로보낸다() {
+        when(questionResultRepository.existsByIdAndExamResultUserId(QUESTION_RESULT_ID, USER_ID)).thenReturn(true);
+        when(chatRedisService.getSessionMessages(SESSION_ID)).thenReturn(List.of(
+                spring.backend.domain.chat.dto.redis_dto.RedisMessageDto.builder()
+                        .chatRole(spring.backend.domain.chat.dto.enums.ChatRole.USER).message("질문").build(),
+                spring.backend.domain.chat.dto.redis_dto.RedisMessageDto.builder()
+                        .chatRole(spring.backend.domain.chat.dto.enums.ChatRole.LLM).message("답").build()));
+        org.mockito.Mockito.doThrow(new BusinessException(ErrorCode.SESSION_ACCESS_DENIED))
+                .when(chatRedisService).validateSessionOwner(SESSION_ID, USER_ID);
+
+        // 소유자가 다른 세션의 이벤트는 재시도해도 같은 결과 -> 문항 결과 소유자 불일치와 같은 경로로 DLQ 에 원인이 남아야 한다
+        AmqpRejectAndDontRequeueException thrown = assertThrows(AmqpRejectAndDontRequeueException.class,
+                () -> consumer().handleSaveMessageEvent(event()));
+
+        assertEquals(ErrorCode.SESSION_ACCESS_DENIED, ((BusinessException) thrown.getCause()).getErrorCode());
+        verify(chatMessageRepository, never()).save(any());
+        assertEquals(1.0, meterRegistry.counter("chat.persist.dropped", "reason", "unauthorized").count());
+    }
+
     // 레코드 선언 순서가 (sessionId, questionResultId, questionId) 다
     private OpenerAnalysisRequest openerRequest() {
         return new OpenerAnalysisRequest(SESSION_ID, QUESTION_RESULT_ID, QUESTION_ID);
