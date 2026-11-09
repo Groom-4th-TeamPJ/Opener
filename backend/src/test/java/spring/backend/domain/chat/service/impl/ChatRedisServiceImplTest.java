@@ -15,6 +15,8 @@ import java.util.List;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.ListOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import spring.backend.domain.chat.dto.enums.ChatRole;
+import spring.backend.domain.chat.dto.redis_dto.RedisMessageDto;
 import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
 
@@ -178,15 +180,74 @@ class ChatRedisServiceImplTest {
         verify(masterHashOperations).get(SESSION_KEY, "userId");
     }
 
-    @Test
-    @DisplayName("마지막 메시지 제거는 메시지 목록의 끝 항목 하나만 꺼낸다")
-    void removeLastMessage_메시지키의마지막항목하나를꺼낸다() {
-        doReturn(listOperations).when(redisTemplate).opsForList();
+    private static final String USER_JSON = "{\"role\":\"USER\",\"message\":\"요청\",\"timestamp\":null,\"partial\":false}";
+    private static final String LLM_JSON = "{\"role\":\"LLM\",\"message\":\"앞선 답\",\"timestamp\":null,\"partial\":false}";
+    private static final String PARTIAL_JSON = "{\"role\":\"LLM\",\"message\":\"끊긴 답\",\"timestamp\":null,\"partial\":true}";
 
-        service.removeLastMessage(SESSION_ID);
+    private RedisMessageDto requestMessage() {
+        return RedisMessageDto.builder().chatRole(ChatRole.USER).message("요청").build();
+    }
+
+    @Test
+    @DisplayName("마지막 항목이 방금 저장하려던 USER 메시지면 그 하나만 꺼낸다")
+    void removeLastMessage_마지막이같은USER메시지_꺼낸다() {
+        doReturn(listOperations).when(redisTemplate).opsForList();
+        when(listOperations.index(MESSAGE_KEY, -1L)).thenReturn(USER_JSON);
+
+        service.removeLastMessage(SESSION_ID, requestMessage());
 
         // 세션 해시나 목록 전체를 지우면 같은 세션의 앞선 대화까지 사라진다
         verify(listOperations).rightPop(MESSAGE_KEY);
         verify(redisTemplate, never()).delete(anyString());
+    }
+
+    @Test
+    @DisplayName("마지막 항목이 LLM 답이면 아무것도 꺼내지 않는다")
+    void removeLastMessage_마지막이LLM답_꺼내지않는다() {
+        doReturn(listOperations).when(redisTemplate).opsForList();
+        // 요청 메시지 저장이 saveMessageFallback 에서 버려졌다면 마지막은 앞 턴의 답이다
+        when(listOperations.index(MESSAGE_KEY, -1L)).thenReturn(LLM_JSON);
+
+        service.removeLastMessage(SESSION_ID, requestMessage());
+
+        verify(listOperations, never()).rightPop(anyString());
+    }
+
+    @Test
+    @DisplayName("마지막 항목의 USER 내용이 다르거나 목록이 비면 아무것도 꺼내지 않는다")
+    void removeLastMessage_내용이다르거나빈목록_꺼내지않는다() {
+        doReturn(listOperations).when(redisTemplate).opsForList();
+        when(listOperations.index(MESSAGE_KEY, -1L)).thenReturn(
+                "{\"role\":\"USER\",\"message\":\"다른 질문\",\"timestamp\":null,\"partial\":false}", (String) null);
+
+        service.removeLastMessage(SESSION_ID, requestMessage());
+        service.removeLastMessage(SESSION_ID, requestMessage());
+
+        verify(listOperations, never()).rightPop(anyString());
+    }
+
+    @Test
+    @DisplayName("프롬프트용 최근 히스토리는 partial 표식 메시지를 제외한다")
+    void getRecentSessionMessages_partial표식_프롬프트에서제외한다() {
+        doReturn(masterListOperations).when(masterRedisTemplate).opsForList();
+        when(masterListOperations.range(MESSAGE_KEY, -20L, -1L)).thenReturn(List.of(USER_JSON, PARTIAL_JSON));
+
+        List<RedisMessageDto> history = service.getRecentSessionMessages(SESSION_ID);
+
+        // 끊긴 답이 다음 턴 프롬프트에 들어가면 모델이 끝나지 않은 문장을 자기 답으로 이어 쓴다
+        assertEquals(List.of("요청"), history.stream().map(RedisMessageDto::message).toList());
+    }
+
+    @Test
+    @DisplayName("영속화용 전량 조회는 partial 표식 메시지를 그대로 돌려준다")
+    void getSessionMessages_partial표식_영속화읽기에는남는다() {
+        doReturn(listOperations).when(redisTemplate).opsForList();
+        when(listOperations.range(MESSAGE_KEY, 0L, -1L)).thenReturn(List.of(USER_JSON, PARTIAL_JSON));
+
+        List<RedisMessageDto> all = service.getSessionMessages(SESSION_ID);
+
+        // 소비자가 표식을 보고 직접 제외한다 -> 여기서 빼면 제외한 사실을 메트릭으로 남길 수 없다
+        assertEquals(2, all.size());
+        assertEquals(true, all.get(1).partial());
     }
 }
