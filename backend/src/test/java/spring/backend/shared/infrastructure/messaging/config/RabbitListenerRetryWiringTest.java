@@ -1,0 +1,69 @@
+package spring.backend.shared.infrastructure.messaging.config;
+
+import java.util.concurrent.atomic.AtomicInteger;
+import org.aopalliance.aop.Advice;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.amqp.AmqpRejectAndDontRequeueException;
+import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
+import org.springframework.boot.amqp.autoconfigure.RabbitAutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.core.retry.RetryException;
+import org.springframework.core.retry.RetryTemplate;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+// 실제 RabbitMQConfig 가 만든 rabbitListenerContainerFactory 의 재시도에서 거절 예외가 제외되는지 확인한다
+// 같은 이름의 빈이 Boot 자동 구성 팩토리를 대체하므로 Boot 팩토리만 보는 검증은 이 팩토리의 동작을 보장하지 않는다
+// RabbitMQConfig 가 Boot 설정자를 거쳐야 RabbitListenerRetrySettingsCustomizer 빈이 이 팩토리에 닿는다
+class RabbitListenerRetryWiringTest {
+
+    private static final long MAX_RETRIES = 3;
+
+    @Test
+    @DisplayName("RabbitMQConfig 의 리스너 팩토리는 거절 예외를 재시도하지 않고 일반 예외는 최대 횟수까지 재시도한다")
+    void realFactory_거절예외_재시도하지않고일반예외는재시도한다() {
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(RabbitAutoConfiguration.class))
+                .withUserConfiguration(RabbitMQConfig.class, RabbitListenerRetryPolicyCustomizer.class)
+                .withPropertyValues(
+                        "spring.rabbitmq.listener.simple.retry.enabled=true",
+                        "spring.rabbitmq.listener.simple.retry.max-retries=" + MAX_RETRIES,
+                        "spring.rabbitmq.listener.simple.retry.initial-interval=1ms")
+                .run(context -> {
+                    SimpleRabbitListenerContainerFactory factory =
+                            context.getBean("rabbitListenerContainerFactory", SimpleRabbitListenerContainerFactory.class);
+                    // Boot 의 자동 구성 팩토리가 아니라 RabbitMQConfig 가 만든 팩토리인지 확인한다
+                    assertTrue(factory.getClass() == SimpleRabbitListenerContainerFactory.class
+                            && context.getBeansOfType(SimpleRabbitListenerContainerFactory.class).size() == 1);
+                    assertEquals(false, ReflectionTestUtils.getField(factory, "defaultRequeueRejected"));
+
+                    RetryTemplate template = retryTemplateOf(factory);
+
+                    assertEquals(1, attemptsUntilGiveUp(template, new AmqpRejectAndDontRequeueException("재시도 불가")));
+                    assertEquals(1 + MAX_RETRIES, attemptsUntilGiveUp(template, new RuntimeException("일시 장애")));
+                });
+    }
+
+    // 팩토리의 advice 체인 -> StatelessRetryOperationsInterceptor -> RetryTemplate (필드는 private)
+    private RetryTemplate retryTemplateOf(SimpleRabbitListenerContainerFactory factory) {
+        Advice[] chain = factory.getAdviceChain();
+        assertNotNull(chain, "재시도 설정이 켜졌는데 어드바이스 체인이 없음");
+        assertTrue(chain.length > 0);
+        return (RetryTemplate) ReflectionTestUtils.getField(chain[0], "retryOperations");
+    }
+
+    private int attemptsUntilGiveUp(RetryTemplate template, Throwable failure) {
+        AtomicInteger attempts = new AtomicInteger();
+        assertThrows(RetryException.class, () -> template.execute(() -> {
+            attempts.incrementAndGet();
+            throw failure;
+        }));
+        return attempts.get();
+    }
+}
