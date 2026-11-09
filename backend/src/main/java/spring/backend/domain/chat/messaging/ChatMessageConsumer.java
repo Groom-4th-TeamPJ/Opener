@@ -3,12 +3,15 @@ package spring.backend.domain.chat.messaging;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
+import spring.backend.domain.chat.dto.enums.ChatRole;
 import spring.backend.domain.chat.dto.message_dto.ChatMessageSaveEvent;
 import spring.backend.domain.chat.dto.redis_dto.RedisMessageDto;
 import spring.backend.domain.chat.mapper.RedisMessageMapper;
@@ -106,14 +109,20 @@ public class ChatMessageConsumer {
                 throw e;
             }
 
-            // 스트림이 끊겨 받은 만큼만 저장된 응답(partial 표식)은 영구 기록에 넣지 않는다
-            // 넣으면 복습 화면이 끊긴 문장을 완결된 풀이처럼 보여 준다 -> 완결 메시지만 남기고 사실은 메트릭으로 남긴다
-            List<RedisMessageDto> completeMessages = redisMessages.stream()
+            // 끝나지 않은 턴은 영구 기록에 넣지 않는다 -> 넣으면 복습 화면이 끊긴 문장을 완결된 풀이처럼 보여 준다
+            // (1) 스트림이 끊겨 받은 만큼만 저장된 응답(partial 표식)
+            // (2) 끝에 답 없이 남은 사용자 메시지 (첫 청크 전에 끊겼거나 아직 스트리밍 중인 턴)
+            // 완결된 턴만 남기고 제외한 개수는 메트릭으로 남긴다
+            List<RedisMessageDto> completeMessages = new ArrayList<>(redisMessages.stream()
                     .filter(message -> !message.partial())
-                    .toList();
+                    .toList());
+            while (!completeMessages.isEmpty()
+                    && completeMessages.get(completeMessages.size() - 1).chatRole() == ChatRole.USER) {
+                completeMessages.remove(completeMessages.size() - 1);
+            }
             int truncated = redisMessages.size() - completeMessages.size();
             if (truncated > 0) {
-                log.warn("[RabbitMQ] 잘린 응답 {}건 제외 - sessionId: {}", truncated, sessionId);
+                log.warn("[RabbitMQ] 끝나지 않은 턴의 메시지 {}건 제외 - sessionId: {}", truncated, sessionId);
                 meterRegistry.counter("chat.persist.dropped", "reason", "truncated").increment(truncated);
             }
             if (completeMessages.isEmpty()) {
@@ -148,7 +157,11 @@ public class ChatMessageConsumer {
         } catch (BusinessException e) {
             log.error("[RabbitMQ] 비즈니스 예외 발생 - sessionId: {}, errorCode: {}, message: {}",
                     sessionId, e.getErrorCode(), e.getMessage());
-            // 예외를 다시 던짐 -> 트랜잭션 롤백 + 메시지 DLQ 라우팅으로 유실 없이 추적
+            // 문항 결과 부재는 재시도해도 같은 결과 -> 재시도 횟수만큼 summaryChat 을 다시 부르지 않고 바로 DLQ 로 보낸다
+            if (e.getErrorCode() == ErrorCode.RESULT_NOT_FOUND) {
+                throw new AmqpRejectAndDontRequeueException("문항 결과 없음 - 재시도 불가", e);
+            }
+            // 그 밖의 예외는 그대로 던짐 -> Redis 읽기 실패 같은 일시 장애는 재시도가 걸리고, 소진되면 DLQ 로 간다
             throw e;
 
         } catch (Exception e) {
