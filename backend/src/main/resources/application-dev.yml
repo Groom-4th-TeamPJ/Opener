@@ -66,7 +66,7 @@ spring:
         retry:
           enabled: true
           initial-interval: 3000 # 3초 후 재시도
-          max-attempts: 3 # 최대 3회 재시도
+          max-retries: 2 # Boot 4 키 - 첫 시도 1회 + 재시도 2회 = 총 3회 (옛 max-attempts 는 바인딩되지 않는 키였다)
 
   # Spring AI 설정
   ai:
