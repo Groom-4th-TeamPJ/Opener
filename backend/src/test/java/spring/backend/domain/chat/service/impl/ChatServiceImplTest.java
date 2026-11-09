@@ -325,7 +325,8 @@ class ChatServiceImplTest {
         assertTrue(sourceThread.get().startsWith("fake-llm-loop"),
                 "소스가 흉내낸 응답 수신 레인에서 emit 하지 않음: " + sourceThread.get());
         // publishOn 을 빼면 이 검사가 깨진다 - 콜백이 소스 스레드에서 그대로 돈다
-        assertTrue(callbackThread.get().startsWith("boundedElastic"),
+        // 같은 JVM 에서 spring.threads.virtual.enabled 컨텍스트가 먼저 뜨면 Reactor 가 loomBoundedElastic 이름을 쓴다
+        assertTrue(callbackThread.get().contains("oundedElastic"),
                 "콜백이 boundedElastic 으로 넘어가지 않음: " + callbackThread.get());
         assertNotEquals(sourceThread.get(), callbackThread.get(),
                 "콜백이 응답 수신 스레드에서 그대로 실행됨 - 오프로딩 미적용");

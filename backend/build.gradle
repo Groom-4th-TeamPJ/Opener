@@ -111,6 +111,8 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    // 전체 묶음을 한 JVM 에서 돌리면 기본 512m 으로는 컨텍스트 로딩에서 힙이 모자란다 (r115 병합 검증 실측)
+    maxHeapSize = '1g'
 
     doFirst {
         loadDotEnv(it)
