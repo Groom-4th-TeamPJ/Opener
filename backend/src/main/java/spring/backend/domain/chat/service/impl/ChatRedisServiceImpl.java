@@ -7,6 +7,7 @@ import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import java.time.Duration;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -175,8 +176,12 @@ public class ChatRedisServiceImpl implements ChatRedisService {
         // 설정값이 0 이하면 윈도우 비활성으로 보고 전체 반환
         long start = historyWindow > 0 ? -historyWindow : 0;
         // 같은 요청 안에서 saveMessage 직후에 읽는다 -> 복제 지연 창이 항상 열려 있어 master 고정
+        // partial 표식 메시지는 프롬프트에서 뺀다 -> 끊긴 문장을 모델이 자기 답으로 이어 쓰지 않게 한다
+        // 영속화 읽기(getSessionMessages)는 그대로 둬 소비자가 표식을 보고 직접 제외한다
         return meterRegistry.timer("chat.redis.read", "route", "master")
-                .record(() -> fetchMessages(masterRedisTemplate, sessionId, start, -1));
+                .record(() -> fetchMessages(masterRedisTemplate, sessionId, start, -1).stream()
+                        .filter(message -> !message.partial())
+                        .toList());
     }
 
     // 조회 범위만 다르고 역직렬화/예외 처리는 동일 -> 중복 대신 범위를 인자로 받아 한 곳에서 처리
@@ -232,12 +237,25 @@ public class ChatRedisServiceImpl implements ChatRedisService {
         }
     }
 
-    // 방금 저장한 메시지 하나만 되돌린다 -> 목록 전체를 지우면 같은 세션의 앞선 대화까지 사라진다
+    // 방금 저장하려던 USER 메시지를 되돌린다 -> 마지막 항목이 그 메시지일 때만 꺼낸다
+    // 무조건 꺼내면 그 저장이 saveMessageFallback 에서 버려졌을 때 앞 턴의 LLM 답이 지워진다
+    // 목록 전체를 지워도 같은 세션의 앞선 대화가 사라진다
     @Override
-    public void removeLastMessage(Long sessionId) {
+    public void removeLastMessage(Long sessionId, RedisMessageDto expected) {
         String messageKey = getMessageKey(sessionId);
 
         try {
+            String lastJson = redisTemplate.opsForList().index(messageKey, -1);
+            if (lastJson == null) {
+                log.warn("[Redis Cluster] 마지막 메시지 제거 생략 - 목록이 비어 있음 - sessionId: {}", sessionId);
+                return;
+            }
+            RedisMessageDto last = objectMapper.readValue(lastJson, RedisMessageDto.class);
+            if (last.chatRole() != expected.chatRole() || !Objects.equals(last.message(), expected.message())) {
+                log.warn("[Redis Cluster] 마지막 메시지 제거 생략 - 마지막 항목이 되돌릴 메시지가 아님 - sessionId: {}, lastRole: {}",
+                        sessionId, last.chatRole());
+                return;
+            }
             redisTemplate.opsForList().rightPop(messageKey);
             log.debug("[Redis Cluster] 마지막 메시지 제거 - sessionId: {}", sessionId);
         } catch (Exception e) {
