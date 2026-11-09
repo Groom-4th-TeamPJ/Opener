@@ -214,10 +214,13 @@ public class OpenAiLlmService implements LlmService {
     @Override
     @CircuitBreaker(name = "llm-summary", fallbackMethod = "summaryChatFallback")
     public String summaryChat(String sessionId) {
-        try {
-            // 윈도우 미적용 전량 조회 -> 이 요약은 PostgreSQL 에 영구 저장되므로 최근 N 턴만 보면 기록이 영구 손실
-            List<Message> chatHistory = chatHistoryProvider.getFullHistory(sessionId);
+        // 서킷이 감싼 호출 안에서 히스토리를 읽되 실패는 여기서 끊는다 -> Redis 장애가 llm-summary 의 실패로 집계되지 않는다
+        List<Message> chatHistory = fetchFullHistory(sessionId);
+        if (chatHistory == null) {
+            return null;
+        }
 
+        try {
             log.debug("[LLM+RAG] 대화 요약 시작 - sessionId: {}, 메시지 수: {}",
                     sessionId, chatHistory.size());
 
@@ -266,6 +269,18 @@ public class OpenAiLlmService implements LlmService {
                 throw be;
             }
             throw new LlmUpstreamException("대화 요약 LLM 호출 실패", e);
+        }
+    }
+
+    // 윈도우 미적용 전량 조회 -> 이 요약은 PostgreSQL 에 영구 저장되므로 최근 N 턴만 보면 기록이 영구 손실
+    // 히스토리는 Redis 에서 읽는다 -> 조회 실패(MESSAGE_INPUT_FAIL 등)는 LLM 장애가 아니므로 null 로 내려 요약 없이 저장한다
+    private List<Message> fetchFullHistory(String sessionId) {
+        try {
+            return chatHistoryProvider.getFullHistory(sessionId);
+        } catch (RuntimeException e) {
+            log.warn("[LLM+RAG] 요약용 히스토리 조회 실패 - 요약 없이 대화만 저장 - sessionId: {}, cause: {}",
+                    sessionId, e.getMessage());
+            return null;
         }
     }
 
