@@ -3,7 +3,6 @@ package spring.backend.domain.chat.messaging;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -103,35 +102,26 @@ public class ChatMessageConsumer {
             try {
                 chatRedisService.validateSessionOwner(sessionId, event.userId());
             } catch (BusinessException e) {
-                // 세션 부재·소유자 불일치는 정상 ACK 대상이다
                 // 코드를 값으로 비교하므로 ErrorCode 를 나눌 때 여기를 같이 고쳐야 분기가 조용히 빠지지 않는다
-                if (e.getErrorCode() == ErrorCode.SESSION_NOT_FOUND
-                        || e.getErrorCode() == ErrorCode.SESSION_ACCESS_DENIED) {
-                    log.warn("[RabbitMQ] 세션 권한 검증 실패 - sessionId: {}, userId: {}. 메시지 무시",
-                            sessionId, event.userId());
+                // 소유자 불일치는 문항 결과 소유자 불일치와 같은 영구 실패 -> 던져 두면 아래 catch 가 원인을 단 채 DLQ 로 보낸다
+                if (e.getErrorCode() == ErrorCode.SESSION_ACCESS_DENIED) {
+                    log.warn("[RabbitMQ] 세션 소유자 불일치 - sessionId: {}, userId: {}", sessionId, event.userId());
                     meterRegistry.counter("chat.persist.dropped", "reason", "unauthorized").increment();
-                    // 권한 없는 경우도 정상 처리로 간주
+                    throw e;
+                }
+                // 세션 부재는 TTL 만료라 정상 ACK 대상이다
+                if (e.getErrorCode() == ErrorCode.SESSION_NOT_FOUND) {
+                    log.warn("[RabbitMQ] 세션 부재 - sessionId: {}, userId: {}. 메시지 무시", sessionId, event.userId());
+                    meterRegistry.counter("chat.persist.dropped", "reason", "unauthorized").increment();
                     return;
                 }
                 throw e;
             }
 
             // 끝나지 않은 턴은 영구 기록에 넣지 않는다 -> 넣으면 복습 화면이 끊긴 문장을 완결된 풀이처럼 보여 준다
-            // (1) 스트림이 끊겨 받은 만큼만 저장된 응답(partial 표식)
-            // (2) 바로 뒤에 LLM 답이 없는 사용자 메시지 (끝에 남았거나, 뒤의 답이 (1) 로 빠져 다음 질문과 맞붙은 경우)
-            // 완결된 턴만 남기고 제외한 개수는 메트릭으로 남긴다
-            List<RedisMessageDto> answered = redisMessages.stream()
-                    .filter(message -> !message.partial())
-                    .toList();
-            List<RedisMessageDto> completeMessages = new ArrayList<>();
-            for (int i = 0; i < answered.size(); i++) {
-                RedisMessageDto message = answered.get(i);
-                boolean unanswered = message.chatRole() == ChatRole.USER
-                        && (i + 1 >= answered.size() || answered.get(i + 1).chatRole() != ChatRole.LLM);
-                if (!unanswered) {
-                    completeMessages.add(message);
-                }
-            }
+            // 규칙(partial 응답 · 답 없는 사용자 메시지 제외)은 요약 읽기와 같은 RedisMessageDto.completeTurnsOf 하나다
+            // 제외한 개수는 메트릭으로 남긴다
+            List<RedisMessageDto> completeMessages = RedisMessageDto.completeTurnsOf(redisMessages);
             int truncated = redisMessages.size() - completeMessages.size();
             if (truncated > 0) {
                 log.warn("[RabbitMQ] 끝나지 않은 턴의 메시지 {}건 제외 - sessionId: {}", truncated, sessionId);
@@ -169,9 +159,13 @@ public class ChatMessageConsumer {
         } catch (BusinessException e) {
             log.error("[RabbitMQ] 비즈니스 예외 발생 - sessionId: {}, errorCode: {}, message: {}",
                     sessionId, e.getErrorCode(), e.getMessage());
-            // 영구 실패(문항 결과 부재 · 소유자 불일치)는 재시도해도 같은 결과 -> 재시도 횟수만큼 summaryChat 을 다시 부르지 않고
-            // 원인을 단 채 바로 DLQ 로 보낸다. 재시도 제외는 RabbitListenerRetryPolicyCustomizer 가 맡는다
-            if (e.getErrorCode() == ErrorCode.RESULT_NOT_FOUND || e.getErrorCode() == ErrorCode.AUTHORIZATION_FAILED) {
+            // 영구 실패(문항 결과 부재 · 문항 결과 소유자 불일치 · 세션 소유자 불일치)는 재시도해도 같은 결과
+            // -> 재시도 횟수만큼 summaryChat 을 다시 부르지 않고 원인을 단 채 바로 DLQ 로 보낸다
+            // 재시도 제외는 RabbitListenerRetryPolicyCustomizer 빈이 맡고, RabbitMQConfig 의 리스너 팩토리가
+            // Boot 의 SimpleRabbitListenerContainerFactoryConfigurer 를 거치므로 그 빈이 이 컨슈머의 재시도 정책에 닿는다
+            if (e.getErrorCode() == ErrorCode.RESULT_NOT_FOUND
+                    || e.getErrorCode() == ErrorCode.AUTHORIZATION_FAILED
+                    || e.getErrorCode() == ErrorCode.SESSION_ACCESS_DENIED) {
                 throw new AmqpRejectAndDontRequeueException("재시도 불가 - " + e.getErrorCode().getCode(), e);
             }
             // 그 밖의 예외는 그대로 던짐 -> Redis 읽기 실패 같은 일시 장애는 재시도가 걸리고, 소진되면 DLQ 로 간다
