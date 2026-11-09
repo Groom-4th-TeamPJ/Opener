@@ -123,6 +123,14 @@ class ChatMessageConsumerTest {
                 meterRegistry.counter("chat.persist.dropped", "reason", "expired").count());
     }
 
+    private RedisMessageDto llmMessage() {
+        return RedisMessageDto.builder()
+                .chatRole(ChatRole.LLM)
+                .message("답")
+                .timestamp(LocalDateTime.now())
+                .build();
+    }
+
     private RedisMessageDto userMessage() {
         return RedisMessageDto.builder()
                 .chatRole(ChatRole.USER)
@@ -142,7 +150,7 @@ class ChatMessageConsumerTest {
     @Test
     @DisplayName("요약 LLM 호출이 DB 트랜잭션을 열기 전에 끝난다")
     void handleSaveMessageEvent_요약호출_트랜잭션밖에서선행한다() {
-        when(chatRedisService.getSessionMessages(SESSION_ID)).thenReturn(List.of(userMessage()));
+        when(chatRedisService.getSessionMessages(SESSION_ID)).thenReturn(List.of(userMessage(), llmMessage()));
         when(questionResultRepository.findById(QUESTION_RESULT_ID)).thenReturn(Optional.of(questionResult));
         when(llmService.summaryChat(SESSION_ID.toString())).thenReturn("요약");
         runTransactionInline();
@@ -158,7 +166,7 @@ class ChatMessageConsumerTest {
     @Test
     @DisplayName("요약 서킷이 열려 요약이 없어도 대화는 저장된다")
     void handleSaveMessageEvent_요약없음_대화는저장된다() {
-        when(chatRedisService.getSessionMessages(SESSION_ID)).thenReturn(List.of(userMessage()));
+        when(chatRedisService.getSessionMessages(SESSION_ID)).thenReturn(List.of(userMessage(), llmMessage()));
         when(questionResultRepository.findById(QUESTION_RESULT_ID)).thenReturn(Optional.of(questionResult));
         when(llmService.summaryChat(SESSION_ID.toString())).thenReturn(null);
         runTransactionInline();
