@@ -177,4 +177,16 @@ class ChatRedisServiceImplTest {
 
         verify(masterHashOperations).get(SESSION_KEY, "userId");
     }
+
+    @Test
+    @DisplayName("마지막 메시지 제거는 메시지 목록의 끝 항목 하나만 꺼낸다")
+    void removeLastMessage_메시지키의마지막항목하나를꺼낸다() {
+        doReturn(listOperations).when(redisTemplate).opsForList();
+
+        service.removeLastMessage(SESSION_ID);
+
+        // 세션 해시나 목록 전체를 지우면 같은 세션의 앞선 대화까지 사라진다
+        verify(listOperations).rightPop(MESSAGE_KEY);
+        verify(redisTemplate, never()).delete(anyString());
+    }
 }
