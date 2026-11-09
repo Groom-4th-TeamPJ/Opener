@@ -248,6 +248,53 @@ class OpenerAnalysisCanOrderTest {
     }
 
     @Test
+    @DisplayName("환불이 실패해도 상태 회수는 건너뛰지 않고 원래 예외를 던진다")
+    void openerAnalysis_환불실패_상태는회수하고원래예외를던진다() {
+        readyForOpenerAnalysis();
+        when(ragService.generateSimilarProblemStream(any())).thenThrow(new IllegalStateException("벡터 검색 실패"));
+        when(canService.recoverUserCan(USER_ID, 1)).thenThrow(new IllegalArgumentException("환불 실패"));
+
+        // 환불 예외가 상태 회수를 건너뛰게 하면 그 세션은 재연결 전까지 모든 메시지가 SESSION_EXPIRED 로 거부된다
+        assertThrows(IllegalStateException.class, () -> service.openerAnalysis(openerRequest(), USER_ID));
+
+        verify(stateMachineService).sendEvent(SESSION_ID, ChatSessionEvent.STREAM_ERROR);
+    }
+
+    @Test
+    @DisplayName("사용자 메시지가 연달아 있으면 답을 받지 못한 앞의 질문은 저장하지 않는다")
+    void handleSaveMessageEvent_사용자메시지연달음_답없는질문을저장하지않는다() {
+        // 첫 답이 partial 로 빠지면 U1 뒤에 바로 U2 가 와서 끝이 아닌 자리에도 답 없는 질문이 남는다
+        when(chatRedisService.getSessionMessages(SESSION_ID)).thenReturn(List.of(
+                message(ChatRole.USER, "답을 못 받은 질문", false), message(ChatRole.LLM, "끊긴 답", true),
+                message(ChatRole.USER, "두번째 질문", false), message(ChatRole.LLM, "완결된 답", false)));
+        when(questionResultRepository.findById(QUESTION_RESULT_ID)).thenReturn(Optional.of(questionResult));
+        runTransactionInline();
+
+        consumer().handleSaveMessageEvent(event());
+
+        ArgumentCaptor<ChatMessage> saved = ArgumentCaptor.forClass(ChatMessage.class);
+        verify(chatMessageRepository).save(saved.capture());
+        assertEquals(List.of("두번째 질문", "완결된 답"),
+                saved.getValue().getMessages().stream().map(m -> m.getContent()).toList());
+        assertEquals(2.0, meterRegistry.counter("chat.persist.dropped", "reason", "truncated").count());
+    }
+
+    @Test
+    @DisplayName("필수 필드가 빠진 저장 이벤트는 재시도 없이 DLQ 로 보낸다")
+    void handleSaveMessageEvent_필수필드없음_재시도없이DLQ로보낸다() {
+        ChatMessageSaveEvent broken = ChatMessageSaveEvent.builder()
+                .sessionId(SESSION_ID)
+                .questionResultId(QUESTION_RESULT_ID)
+                .publishedAt(Instant.now())
+                .build();
+
+        // 페이로드가 잘못된 메시지는 몇 번을 다시 읽어도 같은 결과다
+        assertThrows(AmqpRejectAndDontRequeueException.class, () -> consumer().handleSaveMessageEvent(broken));
+
+        verify(chatRedisService, never()).getSessionMessages(any());
+    }
+
+    @Test
     @DisplayName("스트림 조립이 예외로 끝나면 차감한 Can 을 환불하고 상태를 회수한다")
     void openerAnalysis_스트림조립예외_Can을환불하고상태를회수한다() {
         readyForOpenerAnalysis();
@@ -271,7 +318,7 @@ class OpenerAnalysisCanOrderTest {
         service.openerAnalysis(openerRequest(), USER_ID);
 
         // 요청 메시지는 차감보다 먼저 저장된다 -> 지우지 않으면 답 없는 USER 메시지가 남아 다음 턴 문맥과 영구 저장에 섞인다
-        verify(chatRedisService).removeLastMessage(SESSION_ID);
+        verify(chatRedisService).removeLastMessage(eq(SESSION_ID), any(RedisMessageDto.class));
         verify(stateMachineService).sendEvent(SESSION_ID, ChatSessionEvent.STREAM_ERROR);
         verify(ragService, never()).generateSimilarProblemStream(any());
         verify(canService, never()).recoverUserCan(any(), anyInt());
