@@ -191,39 +191,41 @@ class ChatRedisServiceImplTest {
     @Test
     @DisplayName("마지막 항목이 방금 저장하려던 USER 메시지면 그 하나만 꺼낸다")
     void removeLastMessage_마지막이같은USER메시지_꺼낸다() {
-        doReturn(listOperations).when(redisTemplate).opsForList();
-        when(listOperations.index(MESSAGE_KEY, -1L)).thenReturn(USER_JSON);
+        doReturn(masterListOperations).when(masterRedisTemplate).opsForList();
+        when(masterListOperations.index(MESSAGE_KEY, -1L)).thenReturn(USER_JSON);
 
         service.removeLastMessage(SESSION_ID, requestMessage());
 
         // 세션 해시나 목록 전체를 지우면 같은 세션의 앞선 대화까지 사라진다
-        verify(listOperations).rightPop(MESSAGE_KEY);
-        verify(redisTemplate, never()).delete(anyString());
+        verify(masterListOperations).rightPop(MESSAGE_KEY);
+        verify(masterRedisTemplate, never()).delete(anyString());
+        // 방금 쓴 항목을 읽는 경로라 복제 지연이 있으면 replica 가 앞 턴의 꼬리를 돌려준다 -> replica 는 건드리지 않는다
+        verify(redisTemplate, never()).opsForList();
     }
 
     @Test
     @DisplayName("마지막 항목이 LLM 답이면 아무것도 꺼내지 않는다")
     void removeLastMessage_마지막이LLM답_꺼내지않는다() {
-        doReturn(listOperations).when(redisTemplate).opsForList();
+        doReturn(masterListOperations).when(masterRedisTemplate).opsForList();
         // 요청 메시지 저장이 saveMessageFallback 에서 버려졌다면 마지막은 앞 턴의 답이다
-        when(listOperations.index(MESSAGE_KEY, -1L)).thenReturn(LLM_JSON);
+        when(masterListOperations.index(MESSAGE_KEY, -1L)).thenReturn(LLM_JSON);
 
         service.removeLastMessage(SESSION_ID, requestMessage());
 
-        verify(listOperations, never()).rightPop(anyString());
+        verify(masterListOperations, never()).rightPop(anyString());
     }
 
     @Test
     @DisplayName("마지막 항목의 USER 내용이 다르거나 목록이 비면 아무것도 꺼내지 않는다")
     void removeLastMessage_내용이다르거나빈목록_꺼내지않는다() {
-        doReturn(listOperations).when(redisTemplate).opsForList();
-        when(listOperations.index(MESSAGE_KEY, -1L)).thenReturn(
+        doReturn(masterListOperations).when(masterRedisTemplate).opsForList();
+        when(masterListOperations.index(MESSAGE_KEY, -1L)).thenReturn(
                 "{\"role\":\"USER\",\"message\":\"다른 질문\",\"timestamp\":null,\"partial\":false}", (String) null);
 
         service.removeLastMessage(SESSION_ID, requestMessage());
         service.removeLastMessage(SESSION_ID, requestMessage());
 
-        verify(listOperations, never()).rightPop(anyString());
+        verify(masterListOperations, never()).rightPop(anyString());
     }
 
     @Test
