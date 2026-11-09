@@ -464,17 +464,18 @@ public class ChatServiceImpl implements ChatService {
         // 던질 수 있는 준비(문제 조회 · 지문 조립 · 요청 메시지 저장)를 Can 차감보다 앞에 끝낸다
         // 순서가 뒤집히면 저장에 실패한 턴에도 Can 이 빠진다 -> 던지면 상태만 회수하고 차감은 일어나지 않는다
         String problemContext;
+        // 요청 메시지는 Can 부족 때 되돌릴 수 있게 밖에 둔다
+        RedisMessageDto userRequestMessage = RedisMessageDto.builder()
+                .chatRole(ChatRole.USER)
+                .message("오프너 분석을 요청했습니다")
+                .timestamp(java.time.LocalDateTime.now())
+                .build();
         try {
             Question question = questionRepository.findById(questionId)
                     .orElseThrow(() -> new BusinessException(ErrorCode.QUESTION_NOT_FOUND));
             problemContext = buildProblemContext(question);
 
             // 사용자의 오프너 분석 요청 메시지를 Redis에 저장
-            RedisMessageDto userRequestMessage = RedisMessageDto.builder()
-                    .chatRole(ChatRole.USER)
-                    .message("오프너 분석을 요청했습니다")
-                    .timestamp(java.time.LocalDateTime.now())
-                    .build();
             chatRedisService.saveMessage(sessionId, userRequestMessage);
         } catch (RuntimeException e) {
             recoverFromStreamFailure(sessionId, e);
@@ -489,7 +490,7 @@ public class ChatServiceImpl implements ChatService {
             log.warn("[OpenerAnalysis] Can 차감 실패 - userId: {}, errorCode: {}", userId, errorCode.getCode());
             emitError(sessionId, errorCode.getMessage(), errorCode.getCode());
             // 요청 메시지는 차감보다 먼저 저장됐다 -> 답 없이 남으면 다음 턴 문맥과 영구 저장에 섞이므로 되돌린다
-            chatRedisService.removeLastMessage(sessionId);
+            chatRedisService.removeLastMessage(sessionId, userRequestMessage);
             // 상태를 되돌리지 않으면 Can 이 부족한 세션은 재연결 전까지 모든 메시지가 SESSION_EXPIRED 로 거부된다
             closeSession(sessionId, null, CloseReason.ASSEMBLY_FAIL, "");
             return;
@@ -501,8 +502,14 @@ public class ChatServiceImpl implements ChatService {
         try {
             ragStream = ragService.generateSimilarProblemStream(problemContext);
         } catch (RuntimeException e) {
-            canService.recoverUserCan(userId, 1);
+            // 상태 회수가 먼저 -> 환불이 던져도 세션이 PROCESSING 에 남지 않는다
             recoverFromStreamFailure(sessionId, e);
+            try {
+                canService.recoverUserCan(userId, 1);
+            } catch (RuntimeException refundFailure) {
+                log.error("[OpenerAnalysis] Can 환불 실패 - userId: {}", userId, refundFailure);
+                e.addSuppressed(refundFailure);
+            }
             throw e;
         }
 
