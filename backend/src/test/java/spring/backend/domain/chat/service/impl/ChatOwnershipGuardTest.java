@@ -10,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -184,13 +185,16 @@ class ChatOwnershipGuardTest {
     }
 
     @Test
-    @DisplayName("타인의 questionResultId 저장 이벤트는 Redis 를 읽지도 DB 에 쓰지도 않고 버린다")
-    void handleSaveMessageEvent_타인의questionResultId_저장하지않고버린다() {
+    @DisplayName("타인의 questionResultId 저장 이벤트는 Redis 를 읽지도 DB 에 쓰지도 않고 DLQ 로 보낸다")
+    void handleSaveMessageEvent_타인의questionResultId_저장하지않고DLQ로보낸다() {
         when(questionResultRepository.existsByIdAndExamResultUserId(QUESTION_RESULT_ID, USER_ID))
                 .thenReturn(false);
 
-        // 권한 없는 이벤트는 재시도해도 같은 결과라 DLQ 로 보내지 않고 ACK 한다 (기존 소유자 불일치 처리와 같다)
-        assertDoesNotThrow(() -> consumer().handleSaveMessageEvent(event()));
+        // 권한 없는 이벤트는 재시도해도 같은 결과 -> 재시도 없이 DLQ 로 보낸다. ACK 로 버리면 원인이 남지 않는다
+        AmqpRejectAndDontRequeueException thrown = assertThrows(AmqpRejectAndDontRequeueException.class,
+                () -> consumer().handleSaveMessageEvent(event()));
+        assertEquals(ErrorCode.AUTHORIZATION_FAILED,
+                ((BusinessException) thrown.getCause()).getErrorCode());
 
         verify(chatRedisService, never()).getSessionMessages(any());
         verify(chatMessageRepository, never()).save(any());
