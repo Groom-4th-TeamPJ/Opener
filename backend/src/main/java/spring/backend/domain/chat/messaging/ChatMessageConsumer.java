@@ -53,6 +53,16 @@ public class ChatMessageConsumer {
                 sessionId, questionResultId);
 
         try {
+            // 소유권 검증은 Redis 읽기와 LLM 요약보다 앞 -> 요청 본문의 questionResultId 는 사용자가 정한 값이라
+            // 남의 문항 결과에 내 대화를 붙이거나 남의 결과를 덮어쓰는 경로가 된다
+            // 재시도해도 같은 결과라 DLQ 가 아니라 ACK 한다 (아래 세션 소유자 불일치 처리와 같다)
+            if (!questionResultRepository.existsByIdAndExamResultUserId(questionResultId, event.userId())) {
+                log.warn("[RabbitMQ] 문항 결과 소유자 불일치 - questionResultId: {}, userId: {}. 메시지 무시",
+                        questionResultId, event.userId());
+                meterRegistry.counter("chat.persist.dropped", "reason", "unauthorized").increment();
+                return;
+            }
+
             // Redis에서 세션 메시지 조회
             List<RedisMessageDto> redisMessages = chatRedisService.getSessionMessages(sessionId);
 
@@ -96,8 +106,22 @@ public class ChatMessageConsumer {
                 throw e;
             }
 
+            // 스트림이 끊겨 받은 만큼만 저장된 응답(partial 표식)은 영구 기록에 넣지 않는다
+            // 넣으면 복습 화면이 끊긴 문장을 완결된 풀이처럼 보여 준다 -> 완결 메시지만 남기고 사실은 메트릭으로 남긴다
+            List<RedisMessageDto> completeMessages = redisMessages.stream()
+                    .filter(message -> !message.partial())
+                    .toList();
+            int truncated = redisMessages.size() - completeMessages.size();
+            if (truncated > 0) {
+                log.warn("[RabbitMQ] 잘린 응답 {}건 제외 - sessionId: {}", truncated, sessionId);
+                meterRegistry.counter("chat.persist.dropped", "reason", "truncated").increment(truncated);
+            }
+            if (completeMessages.isEmpty()) {
+                return;
+            }
+
             // MessageDto 리스트를 ChatMessageContent 리스트로 변환 -> 현재 구성은 동일하지만 추후 확장성 고려
-            List<ChatMessageContent> messageContents = redisMessageMapper.toEntityList(redisMessages);
+            List<ChatMessageContent> messageContents = redisMessageMapper.toEntityList(completeMessages);
 
             // 트랜잭션 밖에서 먼저 요약 -> 외부 호출 지연이 DB 커넥션 점유 시간에 더해지지 않게 한다
             String summary = llmService.summaryChat(sessionId.toString());
