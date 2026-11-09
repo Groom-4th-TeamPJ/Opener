@@ -20,6 +20,10 @@ public record RedisMessageDto(
 
         // 메세지 생성 시간
         @JsonProperty("timestamp")
-        LocalDateTime timestamp
+        LocalDateTime timestamp,
+
+        // 스트림이 끊겨 받은 만큼만 저장된 응답 표식 -> 구 메시지에는 키가 없어 false 로 읽힌다
+        @JsonProperty("partial")
+        boolean partial
 ) {
 }
