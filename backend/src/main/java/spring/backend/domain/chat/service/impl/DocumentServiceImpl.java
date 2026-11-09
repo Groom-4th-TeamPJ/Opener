@@ -38,8 +38,10 @@ import spring.backend.domain.chat.service.spec.DocumentService;
 public class DocumentServiceImpl implements DocumentService {
 
     // [asy] 는 문제의 그림을 그리는 Asymptote 소스 코드 -> 색인 대상에서 걷어낸다
-    // 블록을 가진 문서에서 글자수의 평균 48% 를 차지해 임베딩이 좌표·draw 명령 쪽으로 기운다
-    // 질문은 자연어 한 문장이라 그 성분과 맞물리지 않고, 실제로 임계값 0.7 에서 20문항 전부 검색 0건이었다
+    // 블록을 가진 문서에서 글자수의 평균 48% 를 차지한다
+    // 가설: 임베딩이 좌표·draw 명령 쪽으로 기울어 자연어 한 문장인 질문과 맞물리지 않는다
+    // 임계값 0.7 에서 20문항 전부 검색 0건이었지만 원인이 [asy] 인지는 검증되지 않았다
+    // 임계값 스윕에서는 [asy] 문서가 오히려 더 자주 검색됐다(21% 대 13.6%)
     private static final Pattern ASY_BLOCK = Pattern.compile("\\[asy].*?\\[/asy]", Pattern.DOTALL);
 
     // 블록을 지우고 남은 빈 줄이 3줄 이상이면 2줄로 접는다
@@ -51,6 +53,10 @@ public class DocumentServiceImpl implements DocumentService {
 
     @Value("${app.documents.directory:classpath:documents/}")
     private String documentsDirectory;
+
+    // 색인에서 뺄 JSONL 파일명 -> 기본값은 MATH-ko-test 와 수식 기준 176행 이상 겹치는 ko_math-500.jsonl
+    @Value("${app.rag.index.exclude-files:ko_math-500.jsonl}")
+    private List<String> excludeFiles = List.of();
 
     @Override
     public void loadAndIndexDocuments() {
@@ -150,7 +156,8 @@ public class DocumentServiceImpl implements DocumentService {
 
     /**
      * JSONL 파일에서 문서를 로드합니다.
-     * 각 줄은 하나의 JSON 객체이며, problem_ko와 solution_ko를 결합하여 문서로 변환합니다.
+     * 각 줄은 하나의 JSON 객체이며, 문제·풀이를 결합하여 문서로 변환합니다.
+     * 키는 problem_ko/solution_ko 와 problem/solution 두 형태를, 분류는 type 과 subject 를 받습니다.
      */
     public List<Document> loadJsonlDocuments(String directoryPath) {
         List<Document> allDocuments = new ArrayList<>();
@@ -158,6 +165,7 @@ public class DocumentServiceImpl implements DocumentService {
         int successCount = 0;
         int failCount = 0;
         int asyStrippedCount = 0;
+        int blankSkippedCount = 0;
 
         try {
             PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
@@ -166,6 +174,10 @@ public class DocumentServiceImpl implements DocumentService {
             log.info("Found {} JSONL files in {}", resources.length, directoryPath);
 
             for (Resource resource : resources) {
+                if (excludeFiles.contains(resource.getFilename())) {
+                    log.info("Skipping excluded JSONL: {}", resource.getFilename());
+                    continue;
+                }
                 try (BufferedReader reader = new BufferedReader(
                         new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
 
@@ -181,13 +193,19 @@ public class DocumentServiceImpl implements DocumentService {
                             JsonNode node = objectMapper.readTree(line);
 
                             // 문제와 풀이를 결합하여 문서 내용 생성
-                            String rawProblem = node.has("problem_ko") ? node.get("problem_ko").asText() : "";
-                            String rawSolution = node.has("solution_ko") ? node.get("solution_ko").asText() : "";
-                            String level = node.has("level") ? node.get("level").asText() : "";
-                            String type = node.has("type") ? node.get("type").asText() : "";
+                            String rawProblem = firstText(node, "problem_ko", "problem");
+                            String rawSolution = firstText(node, "solution_ko", "solution");
+                            String level = firstText(node, "level");
+                            // subject 는 type 이 없는 파일의 분류 키
+                            String type = firstText(node, "type", "subject");
 
                             String problem = stripAsyBlocks(rawProblem);
                             String solution = stripAsyBlocks(rawSolution);
+                            // 본문이 없는 레코드는 제목 틀만 있는 빈 청크가 되어 검색 결과 자리만 차지한다
+                            if (problem.isBlank() && solution.isBlank()) {
+                                blankSkippedCount++;
+                                continue;
+                            }
                             if (!problem.equals(rawProblem) || !solution.equals(rawSolution)) {
                                 asyStrippedCount++;
                             }
@@ -223,14 +241,25 @@ public class DocumentServiceImpl implements DocumentService {
                 }
             }
 
-            log.info("JSONL loading completed - Success: {}, Failed: {}, Asymptote blocks stripped from: {} problems",
-                    successCount, failCount, asyStrippedCount);
+            log.info("JSONL loading completed - Success: {}, Failed: {}, Blank skipped: {}, Asymptote blocks stripped from: {} problems",
+                    successCount, failCount, blankSkippedCount, asyStrippedCount);
 
         } catch (Exception e) {
             log.error("Failed to scan JSONL directory: {}", directoryPath, e);
         }
 
         return allDocuments;
+    }
+
+    // 앞쪽 키부터 보고 값이 비어 있으면 다음 키로 넘어간다 -> null 값은 "null" 문자열이 아니라 빈 문자열로 취급
+    private static String firstText(JsonNode node, String... keys) {
+        for (String key : keys) {
+            String value = node.path(key).asText("");
+            if (!value.isBlank()) {
+                return value;
+            }
+        }
+        return "";
     }
 
     // 닫히지 않은 [asy] 는 남긴다 -> 본문 끝까지 지워 문제 자체가 사라지는 것보다 낫다

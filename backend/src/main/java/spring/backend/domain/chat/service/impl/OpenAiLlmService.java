@@ -72,7 +72,7 @@ public class OpenAiLlmService implements LlmService {
             log.info("[LLM+RAG] API 키 앞 10자: {}...", openaiApiKey.substring(0, Math.min(10, openaiApiKey.length())));
         } else {
             log.info("[LLM+RAG] ✅ OpenAI API 키가 정상적으로 바인딩되었습니다.");
-            log.info("[LLM+RAG] API 키 앞 10자: {}...", openaiApiKey.substring(0, 10));
+            log.info("[LLM+RAG] API 키 앞 10자: {}...", openaiApiKey.substring(0, Math.min(10, openaiApiKey.length())));
         }
 
         log.info("[LLM+RAG] RAG 설정 - topK: {}, similarityThreshold: {}", topK, similarityThreshold);
@@ -146,7 +146,7 @@ public class OpenAiLlmService implements LlmService {
             log.warn("[LLM+RAG] 유사 문서를 찾지 못했습니다. 규칙 프롬프트만 적용하여 진행합니다.");
         }
 
-        // 히스토리는 replica 에서 읽으므로 방금 저장한 질문이 빠질 수 있다
+        // 히스토리는 master 에서 읽어 정상 경로에는 방금 질문이 들어 있지만 저장이 실패한 턴은 빠진다
         // 호출자가 넘긴 원문을 여기서 보장해야 프롬프트에서 질문이 통째로 사라지는 경로가 닫힌다
         messagesWithRag.addAll(ChatPromptAssembler.withCurrentQuestion(chatHistory, userMessage));
 
@@ -214,10 +214,13 @@ public class OpenAiLlmService implements LlmService {
     @Override
     @CircuitBreaker(name = "llm-summary", fallbackMethod = "summaryChatFallback")
     public String summaryChat(String sessionId) {
-        try {
-            // 윈도우 미적용 전량 조회 -> 이 요약은 PostgreSQL 에 영구 저장되므로 최근 N 턴만 보면 기록이 영구 손실
-            List<Message> chatHistory = chatHistoryProvider.getFullHistory(sessionId);
+        // 서킷이 감싼 호출 안에서 히스토리를 읽되 실패는 여기서 끊는다 -> Redis 장애가 llm-summary 의 실패로 집계되지 않는다
+        List<Message> chatHistory = fetchFullHistory(sessionId);
+        if (chatHistory == null) {
+            return null;
+        }
 
+        try {
             log.debug("[LLM+RAG] 대화 요약 시작 - sessionId: {}, 메시지 수: {}",
                     sessionId, chatHistory.size());
 
@@ -260,13 +263,34 @@ public class OpenAiLlmService implements LlmService {
                 log.error("[LLM+RAG] ⚠️ API 키 문제 의심 - OPENAI_API_KEY 환경변수를 확인하세요!");
             }
 
-            throw new BusinessException(ErrorCode.LLM_RESPONSE_FAIL);
+            // 도메인 거절은 그대로 올리고 호출 실패만 전용 타입으로 던진다
+            // BusinessException 으로 감싸면 llm-summary 의 ignoreExceptions 에 걸려 서킷이 실패를 세지 못한다
+            if (e instanceof BusinessException be) {
+                throw be;
+            }
+            throw new LlmUpstreamException("대화 요약 LLM 호출 실패", e);
+        }
+    }
+
+    // 윈도우 미적용 전량 조회 -> 이 요약은 PostgreSQL 에 영구 저장되므로 최근 N 턴만 보면 기록이 영구 손실
+    // 히스토리는 Redis 에서 읽는다 -> 조회 실패(MESSAGE_INPUT_FAIL 등)는 LLM 장애가 아니므로 null 로 내려 요약 없이 저장한다
+    private List<Message> fetchFullHistory(String sessionId) {
+        try {
+            return chatHistoryProvider.getFullHistory(sessionId);
+        } catch (RuntimeException e) {
+            log.warn("[LLM+RAG] 요약용 히스토리 조회 실패 - 요약 없이 대화만 저장 - sessionId: {}, cause: {}",
+                    sessionId, e.getMessage());
+            return null;
         }
     }
 
     // 요약 없이 대화만 저장하는 것이 저장 자체를 실패시키는 것보다 낫다
     @SuppressWarnings("unused")
     private String summaryChatFallback(String sessionId, Throwable t) {
+        // 도메인 거절은 요약 누락으로 덮지 않는다 -> 호출 실패와 서킷 OPEN 만 null 로 흡수
+        if (t instanceof BusinessException be) {
+            throw be;
+        }
         log.warn("[LLM+RAG] 요약 실패 - 요약 없이 대화만 저장 - sessionId: {}, cause: {}",
                 sessionId, t.getMessage());
         return null;

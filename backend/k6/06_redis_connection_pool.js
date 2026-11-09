@@ -23,6 +23,28 @@ import {Counter, Trend} from 'k6/metrics';
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080/api';
 const OPS = __ENV.OPS || '10';
 
+const EMAIL    = __ENV.TEST_EMAIL    || 'test@test.com';
+const PASSWORD = __ENV.TEST_PASSWORD || 'password123';
+
+// /test/** 는 인증 필수 -> setup 에서 한 번 로그인해 모든 VU 가 같은 토큰을 쓴다
+// 백엔드 JWT 필터는 accessToken 쿠키만 읽으므로 Authorization 헤더와 쿠키 헤더를 함께 보낸다
+export function setup() {
+    const res = http.post(`${BASE_URL}/auth/form-login`,
+        JSON.stringify({ email: EMAIL, password: PASSWORD }),
+        { headers: { 'Content-Type': 'application/json' } });
+    const cookie = res.cookies.accessToken;
+    if (res.status !== 200 || !cookie || cookie.length === 0) {
+        throw new Error(`로그인 실패 status=${res.status} body=${String(res.body).slice(0, 200)}`);
+    }
+    return { token: cookie[0].value };
+}
+
+function authParams(data, extra) {
+    return Object.assign({
+        headers: { Authorization: `Bearer ${data.token}`, Cookie: `accessToken=${data.token}` },
+    }, extra);
+}
+
 // Custom metrics
 const redisLatency = new Trend('redis_stress_latency', true);
 const redisErrors = new Counter('redis_stress_errors');
@@ -60,8 +82,8 @@ export const options = {
     },
 };
 
-export function redisStress() {
-    const res = http.post(`${BASE_URL}/test/redis-stress?ops=${OPS}`);
+export function redisStress(data) {
+    const res = http.post(`${BASE_URL}/test/redis-stress?ops=${OPS}`, null, authParams(data));
 
     const ok = check(res, {
         '200 OK': (r) => r.status === 200,

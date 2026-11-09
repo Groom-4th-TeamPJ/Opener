@@ -79,6 +79,10 @@ app:
     failure-redirect-uri: ${OAUTH2_FAILURE_REDIRECT_URI:https://opener.ai.kr/login}
   chat:
     history-window: 20       # LLM 프롬프트에 실을 최근 턴 수 - 0 이하면 윈도우 비활성
+  rag:
+    index:
+      # 색인에서 뺄 JSONL 파일명(쉼표 구분) - ko_math-500.jsonl 은 MATH-ko-test 와 수식 기준 176행 이상 겹치는 중복본
+      exclude-files: ko_math-500.jsonl
   llm:
     connect-timeout: 5s      # OpenAI 연결 수립 상한
     response-timeout: 20s    # 토큰 도착 사이의 최대 간격 - 총 응답 시간 상한이 아님
@@ -98,7 +102,7 @@ resilience4j:
         slidingWindowType: COUNT_BASED
         slidingWindowSize: 10
         minimumNumberOfCalls: 5
-        failureRateThreshold: 50            # 실패율 50% 초과 시 OPEN
+        failureRateThreshold: 50            # 실패율 50% 이상이면 OPEN
         waitDurationInOpenState: 30s        # 30초 후 HALF-OPEN 전이
         permittedNumberOfCallsInHalfOpenState: 3
         automaticTransitionFromOpenToHalfOpenEnabled: true

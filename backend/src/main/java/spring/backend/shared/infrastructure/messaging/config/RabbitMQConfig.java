@@ -11,6 +11,7 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.amqp.autoconfigure.SimpleRabbitListenerContainerFactoryConfigurer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -98,9 +99,11 @@ public class RabbitMQConfig {
     // Listener Container Factory - 메시지 수신 설정 Consumer가 사용할 팩토리
     @Bean
     public SimpleRabbitListenerContainerFactory rabbitListenerContainerFactory(
-            ConnectionFactory connectionFactory) {
+            ConnectionFactory connectionFactory,
+            SimpleRabbitListenerContainerFactoryConfigurer configurer) {
         SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
-        factory.setConnectionFactory(connectionFactory);
+        // 같은 이름의 빈이 Boot 자동 구성을 대체한다 -> 설정자를 거쳐야 spring.rabbitmq.listener.simple.* 의 prefetch·retry 가 적용된다
+        configurer.configure(factory, connectionFactory);
         factory.setMessageConverter(jsonMessageConverter());
 
         // requeue=false -> 실패 메시지를 같은 큐에 재투입하지 않음, 무한 재시도 루프 차단하고 DLQ 로 보냄

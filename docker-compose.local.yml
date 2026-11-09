@@ -27,6 +27,8 @@ services:
   redis-auth:
     image: redis:7-alpine
     container_name: redis-auth
+    command: redis-server --appendonly yes --appendfsync everysec --maxmemory-policy noeviction
+    restart: unless-stopped
     environment:
       - TZ=Asia/Seoul
     ports:
@@ -48,7 +50,8 @@ services:
   redis-chat-1:
     image: redis:7-alpine
     container_name: redis-chat-1
-    command: redis-server /etc/redis/redis.conf --port 6380 --cluster-announce-hostname redis-chat-1 --cluster-announce-port 6380 --cluster-announce-bus-port 16380
+    command: redis-server /etc/redis/redis.conf --port 6380 --cluster-announce-hostname redis-chat-1 --cluster-announce-port 6380 --cluster-announce-bus-port 16380 --appendonly yes --appendfsync everysec
+    restart: unless-stopped
     environment:
       - TZ=Asia/Seoul
     ports:
@@ -68,7 +71,8 @@ services:
   redis-chat-2:
     image: redis:7-alpine
     container_name: redis-chat-2
-    command: redis-server /etc/redis/redis.conf --port 6381 --cluster-announce-hostname redis-chat-2 --cluster-announce-port 6381 --cluster-announce-bus-port 16381
+    command: redis-server /etc/redis/redis.conf --port 6381 --cluster-announce-hostname redis-chat-2 --cluster-announce-port 6381 --cluster-announce-bus-port 16381 --appendonly yes --appendfsync everysec
+    restart: unless-stopped
     environment:
       - TZ=Asia/Seoul
     ports:
@@ -88,7 +92,8 @@ services:
   redis-chat-3:
     image: redis:7-alpine
     container_name: redis-chat-3
-    command: redis-server /etc/redis/redis.conf --port 6382 --cluster-announce-hostname redis-chat-3 --cluster-announce-port 6382 --cluster-announce-bus-port 16382
+    command: redis-server /etc/redis/redis.conf --port 6382 --cluster-announce-hostname redis-chat-3 --cluster-announce-port 6382 --cluster-announce-bus-port 16382 --appendonly yes --appendfsync everysec
+    restart: unless-stopped
     environment:
       - TZ=Asia/Seoul
     ports:
@@ -108,7 +113,8 @@ services:
   redis-chat-4:
     image: redis:7-alpine
     container_name: redis-chat-4
-    command: redis-server /etc/redis/redis.conf --port 6383 --cluster-announce-hostname redis-chat-4 --cluster-announce-port 6383 --cluster-announce-bus-port 16383
+    command: redis-server /etc/redis/redis.conf --port 6383 --cluster-announce-hostname redis-chat-4 --cluster-announce-port 6383 --cluster-announce-bus-port 16383 --appendonly yes --appendfsync everysec
+    restart: unless-stopped
     environment:
       - TZ=Asia/Seoul
     ports:
@@ -128,7 +134,8 @@ services:
   redis-chat-5:
     image: redis:7-alpine
     container_name: redis-chat-5
-    command: redis-server /etc/redis/redis.conf --port 6384 --cluster-announce-hostname redis-chat-5 --cluster-announce-port 6384 --cluster-announce-bus-port 16384
+    command: redis-server /etc/redis/redis.conf --port 6384 --cluster-announce-hostname redis-chat-5 --cluster-announce-port 6384 --cluster-announce-bus-port 16384 --appendonly yes --appendfsync everysec
+    restart: unless-stopped
     environment:
       - TZ=Asia/Seoul
     ports:
@@ -148,7 +155,8 @@ services:
   redis-chat-6:
     image: redis:7-alpine
     container_name: redis-chat-6
-    command: redis-server /etc/redis/redis.conf --port 6385 --cluster-announce-hostname redis-chat-6 --cluster-announce-port 6385 --cluster-announce-bus-port 16385
+    command: redis-server /etc/redis/redis.conf --port 6385 --cluster-announce-hostname redis-chat-6 --cluster-announce-port 6385 --cluster-announce-bus-port 16385 --appendonly yes --appendfsync everysec
+    restart: unless-stopped
     environment:
       - TZ=Asia/Seoul
     ports:

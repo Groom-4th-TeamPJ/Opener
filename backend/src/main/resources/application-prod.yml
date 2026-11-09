@@ -62,6 +62,11 @@ management:
       show-details: never # 상세 정보 숨김
 
 app:
+  # app.rag.enabled 를 명시 선언, 기본은 꺼짐 - RAG_ENABLED=true 로 켠다
+  rag:
+    enabled: ${RAG_ENABLED:false}
+    top-k: 5
+    similarity-threshold: 0.2
   cors:
     allowed-origins:
       - https://www.example.com
