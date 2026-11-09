@@ -45,9 +45,11 @@ public class RedisChatHistoryAdapter implements ChatHistoryProvider {
         try {
             Long sessionId = Long.parseLong(conversationId);
 
+            // 요약은 소비자가 영구 저장에서 뺀 턴(끊긴 응답 · 답 없는 질문)을 같은 규칙으로 뺀다
+            // 프롬프트 읽기는 지금 보내는 질문이 끝에 있으므로 이 규칙을 쓰지 않는다 (partial 은 서비스 읽기가 이미 뺀다)
             List<RedisMessageDto> redisMessages = windowed
                     ? chatRedisService.getRecentSessionMessages(sessionId)
-                    : chatRedisService.getSessionMessages(sessionId);
+                    : RedisMessageDto.completeTurnsOf(chatRedisService.getSessionMessages(sessionId));
 
             List<Message> messages = new ArrayList<>();
             for (RedisMessageDto redisMsg : redisMessages) {
