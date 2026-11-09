@@ -112,6 +112,9 @@ class ChatServiceImplTest {
 
         // SEND_MESSAGE 전이가 거부되면 processMessage 가 SESSION_EXPIRED 로 먼저 끊김
         when(stateMachineService.sendEvent(SESSION_ID, ChatSessionEvent.SEND_MESSAGE)).thenReturn(true);
+
+        // 세션 생성 시 examResultId 소유 검사를 통과시킨다
+        when(examResultRepository.existsByIdAndUserId(SESSION_ID, USER_ID)).thenReturn(true);
     }
 
     @Test
@@ -345,6 +348,7 @@ class ChatServiceImplTest {
                     .thenReturn(Flux.just("B").subscribeOn(sharedLoop));
 
             when(stateMachineService.sendEvent(OTHER, ChatSessionEvent.SEND_MESSAGE)).thenReturn(true);
+            when(examResultRepository.existsByIdAndUserId(OTHER, USER_ID)).thenReturn(true);
             when(stateMachineService.sendEvent(SESSION_ID, ChatSessionEvent.STREAM_START))
                     .thenAnswer(inv -> { Thread.sleep(BLOCK_MS); return true; });
             when(stateMachineService.sendEvent(OTHER, ChatSessionEvent.STREAM_START))
