@@ -49,6 +49,13 @@ public class ChatMessageConsumer {
     // DB 쓰기만 TransactionTemplate 으로 감싸 경계를 최소화한다
     @RabbitListener(queues = RabbitMQConfig.CHAT_MESSAGE_SAVE_QUEUE)
     public void handleSaveMessageEvent(ChatMessageSaveEvent event) {
+        // 필수 필드가 빠진 이벤트는 몇 번을 다시 읽어도 같은 결과 -> 재시도 없이 DLQ 로 보낸다
+        if (event == null || event.sessionId() == null || event.userId() == null || event.questionResultId() == null) {
+            log.error("[RabbitMQ] 저장 이벤트 필드 누락 - event: {}", event);
+            meterRegistry.counter("chat.persist.dropped", "reason", "invalid").increment();
+            throw new AmqpRejectAndDontRequeueException("저장 이벤트 필드 누락 - 재시도 불가");
+        }
+
         Long sessionId = event.sessionId();
         Long questionResultId = event.questionResultId();
 
@@ -58,12 +65,12 @@ public class ChatMessageConsumer {
         try {
             // 소유권 검증은 Redis 읽기와 LLM 요약보다 앞 -> 요청 본문의 questionResultId 는 사용자가 정한 값이라
             // 남의 문항 결과에 내 대화를 붙이거나 남의 결과를 덮어쓰는 경로가 된다
-            // 재시도해도 같은 결과라 DLQ 가 아니라 ACK 한다 (아래 세션 소유자 불일치 처리와 같다)
+            // 재시도해도 같은 결과 -> 아래 catch 가 재시도 없이 DLQ 로 보낸다. ACK 로 버리면 원인이 남지 않는다
             if (!questionResultRepository.existsByIdAndExamResultUserId(questionResultId, event.userId())) {
-                log.warn("[RabbitMQ] 문항 결과 소유자 불일치 - questionResultId: {}, userId: {}. 메시지 무시",
+                log.warn("[RabbitMQ] 문항 결과 소유자 불일치 - questionResultId: {}, userId: {}",
                         questionResultId, event.userId());
                 meterRegistry.counter("chat.persist.dropped", "reason", "unauthorized").increment();
-                return;
+                throw new BusinessException(ErrorCode.AUTHORIZATION_FAILED);
             }
 
             // Redis에서 세션 메시지 조회
@@ -111,14 +118,19 @@ public class ChatMessageConsumer {
 
             // 끝나지 않은 턴은 영구 기록에 넣지 않는다 -> 넣으면 복습 화면이 끊긴 문장을 완결된 풀이처럼 보여 준다
             // (1) 스트림이 끊겨 받은 만큼만 저장된 응답(partial 표식)
-            // (2) 끝에 답 없이 남은 사용자 메시지 (첫 청크 전에 끊겼거나 아직 스트리밍 중인 턴)
+            // (2) 바로 뒤에 LLM 답이 없는 사용자 메시지 (끝에 남았거나, 뒤의 답이 (1) 로 빠져 다음 질문과 맞붙은 경우)
             // 완결된 턴만 남기고 제외한 개수는 메트릭으로 남긴다
-            List<RedisMessageDto> completeMessages = new ArrayList<>(redisMessages.stream()
+            List<RedisMessageDto> answered = redisMessages.stream()
                     .filter(message -> !message.partial())
-                    .toList());
-            while (!completeMessages.isEmpty()
-                    && completeMessages.get(completeMessages.size() - 1).chatRole() == ChatRole.USER) {
-                completeMessages.remove(completeMessages.size() - 1);
+                    .toList();
+            List<RedisMessageDto> completeMessages = new ArrayList<>();
+            for (int i = 0; i < answered.size(); i++) {
+                RedisMessageDto message = answered.get(i);
+                boolean unanswered = message.chatRole() == ChatRole.USER
+                        && (i + 1 >= answered.size() || answered.get(i + 1).chatRole() != ChatRole.LLM);
+                if (!unanswered) {
+                    completeMessages.add(message);
+                }
             }
             int truncated = redisMessages.size() - completeMessages.size();
             if (truncated > 0) {
@@ -157,9 +169,10 @@ public class ChatMessageConsumer {
         } catch (BusinessException e) {
             log.error("[RabbitMQ] 비즈니스 예외 발생 - sessionId: {}, errorCode: {}, message: {}",
                     sessionId, e.getErrorCode(), e.getMessage());
-            // 문항 결과 부재는 재시도해도 같은 결과 -> 재시도 횟수만큼 summaryChat 을 다시 부르지 않고 바로 DLQ 로 보낸다
-            if (e.getErrorCode() == ErrorCode.RESULT_NOT_FOUND) {
-                throw new AmqpRejectAndDontRequeueException("문항 결과 없음 - 재시도 불가", e);
+            // 영구 실패(문항 결과 부재 · 소유자 불일치)는 재시도해도 같은 결과 -> 재시도 횟수만큼 summaryChat 을 다시 부르지 않고
+            // 원인을 단 채 바로 DLQ 로 보낸다. 재시도 제외는 RabbitListenerRetryPolicyCustomizer 가 맡는다
+            if (e.getErrorCode() == ErrorCode.RESULT_NOT_FOUND || e.getErrorCode() == ErrorCode.AUTHORIZATION_FAILED) {
+                throw new AmqpRejectAndDontRequeueException("재시도 불가 - " + e.getErrorCode().getCode(), e);
             }
             // 그 밖의 예외는 그대로 던짐 -> Redis 읽기 실패 같은 일시 장애는 재시도가 걸리고, 소진되면 DLQ 로 간다
             throw e;
