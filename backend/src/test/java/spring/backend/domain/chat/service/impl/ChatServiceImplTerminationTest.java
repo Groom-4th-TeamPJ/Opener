@@ -44,7 +44,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -164,6 +166,22 @@ class ChatServiceImplTerminationTest {
         service.disconnectSession(SESSION_ID, USER_ID);
 
         verify(chatRedisService, timeout(2000)).saveMessage(eq(SESSION_ID), savedLlmMessage("앞부분"));
+        sse.dispose();
+    }
+
+    @Test
+    @DisplayName("스트리밍 중 disconnect 해도 부분 응답이 든 메시지 목록과 세션 키를 지우지 않는다")
+    void disconnectSession_스트리밍중_저장한부분응답을지우지않는다() throws Exception {
+        CountDownLatch chunkSeen = new CountDownLatch(1);
+        Disposable sse = startStreamingAndWaitForFirstChunk(chunkSeen);
+
+        service.disconnectSession(SESSION_ID, USER_ID);
+
+        verify(chatRedisService, timeout(2000)).saveMessage(eq(SESSION_ID), savedLlmMessage("앞부분"));
+        // 소비자는 저장 이벤트가 도착한 뒤에 Redis 목록을 읽는다 -> 여기서 지우면 방금 저장한 부분 응답과
+        // 소유자 검증용 세션 키가 함께 사라져 소비자가 빈 버퍼를 본다. 정리는 TTL 과 소비자의 deleteMessage 가 맡는다
+        verify(chatRedisService, never()).deleteSession(any());
+        verify(chatRedisService, never()).deleteMessage(any());
         sse.dispose();
     }
 
