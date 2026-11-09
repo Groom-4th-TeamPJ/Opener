@@ -3,7 +3,7 @@
  *
  * 목적: 외부 호출 없이(/test/circuit 가상 장애) 서킷 동작을 재현
  *   1) CLOSED 구간: fail=true + delayMs(3s) 로 "느린 실패" → 응답 ~3s
- *   2) 실패율 50% 초과 → 서킷 OPEN
+ *   2) 실패율 50% 이상 → 서킷 OPEN
  *   3) OPEN 구간: 호출이 fallback 으로 즉시 차단 → fast-fail(~0ms)
  *   를 한 부하 안에서 관찰. http_req_duration 의 max(느린 실패) vs med/min(fast-fail) 대비.
  *
@@ -22,6 +22,28 @@ import { check } from 'k6';
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080/api';
 const DELAY_MS = __ENV.DELAY_MS || '3000'; // CLOSED 구간 느린 실패 지연
 
+const EMAIL  = __ENV.TEST_EMAIL  || 'test@test.com';
+const PASSWORD = __ENV.TEST_PASSWORD || 'password123';
+
+// /test/** 는 인증 필수 -> setup 에서 한 번 로그인해 모든 VU 가 같은 토큰을 쓴다
+// 백엔드 JWT 필터는 accessToken 쿠키만 읽으므로 Authorization 헤더와 쿠키 헤더를 함께 보낸다
+export function setup() {
+  const res = http.post(`${BASE_URL}/auth/form-login`,
+    JSON.stringify({ email: EMAIL, password: PASSWORD }),
+    { headers: { 'Content-Type': 'application/json' } });
+  const cookie = res.cookies.accessToken;
+  if (res.status !== 200 || !cookie || cookie.length === 0) {
+    throw new Error(`로그인 실패 status=${res.status} body=${String(res.body).slice(0, 200)}`);
+  }
+  return { token: cookie[0].value };
+}
+
+function authParams(data, extra) {
+  return Object.assign({
+    headers: { Authorization: `Bearer ${data.token}`, Cookie: `accessToken=${data.token}` },
+  }, extra);
+}
+
 const fastfail = new Trend('cb_resp_ms'); // 응답시간 추세 (OPEN 후 급감 확인)
 
 export const options = {
@@ -34,9 +56,9 @@ export const options = {
   thresholds: { 'http_req_failed': ['rate<0.05'] },
 };
 
-export default function () {
+export default function (data) {
   const res = http.post(`${BASE_URL}/test/circuit?fail=true&delayMs=${DELAY_MS}`,
-    null, { timeout: '30s' });
+    null, authParams(data, { timeout: '30s' }));
   fastfail.add(res.timings.duration);
   // fallback 도 200 으로 반환되므로 status 는 항상 200 (응답시간이 핵심 지표)
   check(res, { 'status 200': (r) => r.status === 200 });

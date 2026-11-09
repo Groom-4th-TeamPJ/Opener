@@ -9,8 +9,9 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 // [asy] 는 문제의 그림을 그리는 Asymptote 소스 코드
-// 블록을 가진 문서에서 글자수의 평균 48% 를 차지해 임베딩 벡터가 좌표·draw 명령 쪽으로 기울고,
-// 자연어 한 문장인 질문과 맞물리지 않아 임계값 0.7 에서 20문항 전부 검색 0건이었다
+// 블록을 가진 문서에서 글자수의 평균 48% 를 차지한다
+// 가설: 임베딩 벡터가 좌표·draw 명령 쪽으로 기울어 자연어 한 문장인 질문과 맞물리지 않는다
+// 임계값 0.7 에서 20문항 전부 검색 0건이었지만 원인이 [asy] 인지는 검증되지 않았다
 class DocumentServiceImplTest {
 
     @Test

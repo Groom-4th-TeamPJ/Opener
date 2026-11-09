@@ -14,10 +14,14 @@
       "fieldConfig": {
         "defaults": {
           "mappings": [
-            {"type": "value", "options": {"0": {"color": "gray", "text": "—"}, "1": {"color": "red", "text": "active"}}}
+            {"type": "value", "options": {"0": {"color": "gray", "text": "—"}, "1": {"text": "active"}}}
           ]
         },
-        "overrides": []
+        "overrides": [
+          {"matcher": {"id": "byRegexp", "options": ".* / closed$"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}]},
+          {"matcher": {"id": "byRegexp", "options": ".* / half_open$"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "yellow"}}]},
+          {"matcher": {"id": "byRegexp", "options": ".* / open$"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]}
+        ]
       }
     },
     {
@@ -36,7 +40,8 @@
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "targets": [
-        {"expr": "sum by (name, kind) (increase(resilience4j_circuitbreaker_calls_seconds_count{job=\"app-backend\"}[5m]))", "legendFormat": "{{name}} / {{kind}}", "refId": "A"}
+        {"expr": "sum by (name, kind) (increase(resilience4j_circuitbreaker_calls_seconds_count{job=\"app-backend\"}[5m]))", "legendFormat": "{{name}} / {{kind}}", "refId": "A"},
+        {"expr": "sum by (name, kind) (increase(resilience4j_circuitbreaker_not_permitted_calls_total{job=\"app-backend\"}[5m]))", "legendFormat": "{{name}} / {{kind}}", "refId": "B"}
       ]
     },
     {
@@ -55,7 +60,7 @@
       "gridPos": {"h": 10, "w": 12, "x": 12, "y": 16},
       "datasource": {"type": "loki", "uid": "${DS_LOKI}"},
       "targets": [
-        {"expr": "{service=\"backend\"} |~ \"Circuit OPEN|CircuitBreaker\"", "refId": "A"}
+        {"expr": "{service=\"backend\"} |= \"[CB_STATE]\"", "refId": "A"}
       ],
       "options": {"showTime": true, "wrapLogMessage": true, "sortOrder": "Descending"}
     }

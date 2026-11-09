@@ -27,7 +27,7 @@ services:
     container_name: redis-prod
     environment:
       - TZ=Asia/Seoul
-    command: redis-server --requirepass change_this_redis_password
+    command: redis-server --requirepass change_this_redis_password --appendonly yes --appendfsync everysec --maxmemory-policy noeviction
     volumes:
       - redis_data_prod:/data
     networks:
