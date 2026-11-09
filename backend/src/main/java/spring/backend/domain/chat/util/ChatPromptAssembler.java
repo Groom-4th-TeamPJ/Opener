@@ -11,8 +11,8 @@ public final class ChatPromptAssembler {
     private ChatPromptAssembler() {
     }
 
-    // 히스토리는 replica 에서 읽어 stale 일 수 있다
-    // 방금 쓴 질문이 빠지면 LLM 이 직전 턴에 다시 답하므로 호출자가 받은 원문을 명시적으로 보장한다
+    // 히스토리는 master 에서 읽어 정상 경로에는 방금 질문이 이미 들어 있다
+    // 저장이 실패한 턴은 질문이 빠져 LLM 이 직전 턴에 다시 답하므로 호출자가 받은 원문을 명시적으로 보장한다
     public static List<Message> withCurrentQuestion(List<Message> history, String userMessage) {
         if (userMessage == null || userMessage.isBlank()) {
             return history;
