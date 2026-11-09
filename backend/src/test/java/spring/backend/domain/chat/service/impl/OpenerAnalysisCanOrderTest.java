@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
@@ -174,10 +175,11 @@ class OpenerAnalysisCanOrderTest {
     }
 
     @Test
-    @DisplayName("끝에 partial 표식이 붙은 잘린 응답은 완결 답변으로 저장하지 않는다")
+    @DisplayName("끝에 partial 표식이 붙은 잘린 응답은 그 질문과 함께 완결 답변으로 저장하지 않는다")
     void handleSaveMessageEvent_잘린버퍼_완결응답으로저장하지않는다() {
-        when(chatRedisService.getSessionMessages(SESSION_ID))
-                .thenReturn(List.of(message(ChatRole.USER, "질문", false), message(ChatRole.LLM, "중간에 끊긴 답", true)));
+        when(chatRedisService.getSessionMessages(SESSION_ID)).thenReturn(List.of(
+                message(ChatRole.USER, "질문", false), message(ChatRole.LLM, "첫 답", false),
+                message(ChatRole.USER, "두번째 질문", false), message(ChatRole.LLM, "중간에 끊긴 답", true)));
         when(questionResultRepository.findById(QUESTION_RESULT_ID)).thenReturn(Optional.of(questionResult));
         runTransactionInline();
 
@@ -186,9 +188,93 @@ class OpenerAnalysisCanOrderTest {
         ArgumentCaptor<ChatMessage> saved = ArgumentCaptor.forClass(ChatMessage.class);
         verify(chatMessageRepository).save(saved.capture());
         // 잘린 답이 영구 기록에 완결 답변으로 남으면 복습 화면이 끊긴 문장을 정답 풀이처럼 보여 준다
-        assertTrue(saved.getValue().getMessages().stream().noneMatch(m -> "중간에 끊긴 답".equals(m.getContent())),
-                "잘린 응답이 저장됨");
+        // 답을 받지 못한 질문만 남는 것도 같은 이유로 뺀다 -> 앞의 완결된 한 턴만 남는다
+        assertEquals(List.of("질문", "첫 답"),
+                saved.getValue().getMessages().stream().map(m -> m.getContent()).toList());
+        assertEquals(2.0, meterRegistry.counter("chat.persist.dropped", "reason", "truncated").count());
+    }
+
+    @Test
+    @DisplayName("끝이 답 없는 사용자 메시지인 버퍼는 그 질문을 저장하지 않는다")
+    void handleSaveMessageEvent_끝이사용자메시지_답없는턴을저장하지않는다() {
+        // 첫 청크 전에 끊겼거나 아직 스트리밍 중인 턴이다
+        when(chatRedisService.getSessionMessages(SESSION_ID)).thenReturn(List.of(
+                message(ChatRole.USER, "질문", false), message(ChatRole.LLM, "답", false),
+                message(ChatRole.USER, "답을 못 받은 질문", false)));
+        when(questionResultRepository.findById(QUESTION_RESULT_ID)).thenReturn(Optional.of(questionResult));
+        runTransactionInline();
+
+        consumer().handleSaveMessageEvent(event());
+
+        ArgumentCaptor<ChatMessage> saved = ArgumentCaptor.forClass(ChatMessage.class);
+        verify(chatMessageRepository).save(saved.capture());
+        assertEquals(2, saved.getValue().getMessages().size());
         assertEquals(1.0, meterRegistry.counter("chat.persist.dropped", "reason", "truncated").count());
+    }
+
+    @Test
+    @DisplayName("답이 하나도 없는 버퍼는 DB 에 쓰지도 요약하지도 않는다")
+    void handleSaveMessageEvent_답이하나도없는버퍼_저장하지않는다() {
+        when(chatRedisService.getSessionMessages(SESSION_ID))
+                .thenReturn(List.of(message(ChatRole.USER, "질문", false)));
+
+        consumer().handleSaveMessageEvent(event());
+
+        verify(chatMessageRepository, never()).save(any());
+        verify(llmService, never()).summaryChat(any());
+    }
+
+    @Test
+    @DisplayName("문항 결과가 없는 영구 실패는 재시도 없이 DLQ 로 보내는 예외를 던진다")
+    void handleSaveMessageEvent_문항결과없음_재시도없이DLQ로보낸다() {
+        when(chatRedisService.getSessionMessages(SESSION_ID)).thenReturn(List.of(
+                message(ChatRole.USER, "질문", false), message(ChatRole.LLM, "답", false)));
+        when(questionResultRepository.findById(QUESTION_RESULT_ID)).thenReturn(Optional.empty());
+        runTransactionInline();
+
+        // 재시도해도 같은 결과인데 재시도 횟수만큼 summaryChat 을 다시 부른다
+        assertThrows(AmqpRejectAndDontRequeueException.class, () -> consumer().handleSaveMessageEvent(event()));
+    }
+
+    @Test
+    @DisplayName("Redis 읽기 실패는 재시도가 걸리도록 일반 예외로 던진다")
+    void handleSaveMessageEvent_Redis읽기실패_재시도가능한예외를던진다() {
+        when(chatRedisService.getSessionMessages(SESSION_ID))
+                .thenThrow(new BusinessException(ErrorCode.MESSAGE_INPUT_FAIL));
+
+        // 일시 장애는 재시도로 회복될 수 있다 -> 재시도 불가 예외로 바꾸면 한 번의 장애로 메시지가 DLQ 로 간다
+        RuntimeException thrown = assertThrows(RuntimeException.class, () -> consumer().handleSaveMessageEvent(event()));
+        assertTrue(thrown instanceof BusinessException, "재시도 가능한 BusinessException 이어야 함: " + thrown);
+    }
+
+    @Test
+    @DisplayName("스트림 조립이 예외로 끝나면 차감한 Can 을 환불하고 상태를 회수한다")
+    void openerAnalysis_스트림조립예외_Can을환불하고상태를회수한다() {
+        readyForOpenerAnalysis();
+        when(ragService.generateSimilarProblemStream(any())).thenThrow(new IllegalStateException("벡터 검색 실패"));
+
+        assertThrows(IllegalStateException.class, () -> service.openerAnalysis(openerRequest(), USER_ID));
+
+        // 조립 시점 예외는 doOnError 를 타지 않아 환불과 상태 회수가 모두 건너뛰어진다
+        InOrder order = inOrder(canService);
+        order.verify(canService).useUserCan(USER_ID, 1);
+        order.verify(canService).recoverUserCan(USER_ID, 1);
+        verify(stateMachineService).sendEvent(SESSION_ID, ChatSessionEvent.STREAM_ERROR);
+    }
+
+    @Test
+    @DisplayName("Can 이 부족하면 답 없이 남는 요청 메시지를 지우고 상태를 회수한다")
+    void openerAnalysis_Can부족_요청메시지를지우고상태를회수한다() {
+        readyForOpenerAnalysis();
+        when(canService.useUserCan(USER_ID, 1)).thenThrow(new BusinessException(ErrorCode.INSUFFICIENT_CANS));
+
+        service.openerAnalysis(openerRequest(), USER_ID);
+
+        // 요청 메시지는 차감보다 먼저 저장된다 -> 지우지 않으면 답 없는 USER 메시지가 남아 다음 턴 문맥과 영구 저장에 섞인다
+        verify(chatRedisService).removeLastMessage(SESSION_ID);
+        verify(stateMachineService).sendEvent(SESSION_ID, ChatSessionEvent.STREAM_ERROR);
+        verify(ragService, never()).generateSimilarProblemStream(any());
+        verify(canService, never()).recoverUserCan(any(), anyInt());
     }
 
     @Test
