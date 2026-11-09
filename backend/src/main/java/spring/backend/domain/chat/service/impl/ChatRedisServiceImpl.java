@@ -114,6 +114,12 @@ public class ChatRedisServiceImpl implements ChatRedisService {
             log.error("[Redis Cluster] 세션 선점 결과 없음 - sessionId: {}", sessionId);
             throw new BusinessException(ErrorCode.SESSION_INITIALIZE_FAIL);
         }
+        // 키는 있는데 userId 가 없으면 소유자를 확인할 수 없다 -> 재사용 검증과 같은 SESSION_NOT_FOUND 로 거부
+        if (claimed == 2L) {
+            log.warn("[Redis Cluster] 세션 선점 실패 - 소유자 기록이 없는 키 - sessionId: {}, userId: {}",
+                    sessionId, userId);
+            throw new BusinessException(ErrorCode.SESSION_NOT_FOUND);
+        }
         if (claimed == 0L) {
             log.warn("[Redis Cluster] 세션 선점 실패 - 소유자 불일치 - sessionId: {}, requestUserId: {}",
                     sessionId, userId);
@@ -223,6 +229,20 @@ public class ChatRedisServiceImpl implements ChatRedisService {
             log.info("[Redis Cluster] 세션 삭제 완료 - sessionId: {}", sessionId);
         } catch (Exception e) {
             log.error("[Redis Cluster] 세션 삭제 실패 - sessionId: {}", sessionId, e);
+        }
+    }
+
+    // 방금 저장한 메시지 하나만 되돌린다 -> 목록 전체를 지우면 같은 세션의 앞선 대화까지 사라진다
+    @Override
+    public void removeLastMessage(Long sessionId) {
+        String messageKey = getMessageKey(sessionId);
+
+        try {
+            redisTemplate.opsForList().rightPop(messageKey);
+            log.debug("[Redis Cluster] 마지막 메시지 제거 - sessionId: {}", sessionId);
+        } catch (Exception e) {
+            // 제거 실패는 이미 시작한 정리를 막을 사유가 아니다 -> 남는 메시지는 소비자의 답 없는 턴 제외가 거른다
+            log.error("[Redis Cluster] 마지막 메시지 제거 실패 - sessionId: {}", sessionId, e);
         }
     }
 

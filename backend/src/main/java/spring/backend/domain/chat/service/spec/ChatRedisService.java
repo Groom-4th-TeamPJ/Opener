@@ -21,6 +21,9 @@ public interface ChatRedisService {
     // 세션 삭제
     void deleteSession(Long sessionId);
 
+    // 마지막으로 저장한 메시지 하나 제거 (답을 받지 못한 요청 메시지 되돌리기용)
+    void removeLastMessage(Long sessionId);
+
     // 메세지 삭제
     void deleteMessage(Long sessionId);
 
