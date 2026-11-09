@@ -6,9 +6,11 @@ import java.time.Instant;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
+import spring.backend.domain.chat.dto.enums.ChatRole;
 import spring.backend.domain.chat.dto.message_dto.ChatMessageSaveEvent;
 import spring.backend.domain.chat.dto.redis_dto.RedisMessageDto;
 import spring.backend.domain.chat.mapper.RedisMessageMapper;
@@ -46,6 +48,13 @@ public class ChatMessageConsumer {
     // DB 쓰기만 TransactionTemplate 으로 감싸 경계를 최소화한다
     @RabbitListener(queues = RabbitMQConfig.CHAT_MESSAGE_SAVE_QUEUE)
     public void handleSaveMessageEvent(ChatMessageSaveEvent event) {
+        // 필수 필드가 빠진 이벤트는 몇 번을 다시 읽어도 같은 결과 -> 재시도 없이 DLQ 로 보낸다
+        if (event == null || event.sessionId() == null || event.userId() == null || event.questionResultId() == null) {
+            log.error("[RabbitMQ] 저장 이벤트 필드 누락 - event: {}", event);
+            meterRegistry.counter("chat.persist.dropped", "reason", "invalid").increment();
+            throw new AmqpRejectAndDontRequeueException("저장 이벤트 필드 누락 - 재시도 불가");
+        }
+
         Long sessionId = event.sessionId();
         Long questionResultId = event.questionResultId();
 
@@ -53,6 +62,16 @@ public class ChatMessageConsumer {
                 sessionId, questionResultId);
 
         try {
+            // 소유권 검증은 Redis 읽기와 LLM 요약보다 앞 -> 요청 본문의 questionResultId 는 사용자가 정한 값이라
+            // 남의 문항 결과에 내 대화를 붙이거나 남의 결과를 덮어쓰는 경로가 된다
+            // 재시도해도 같은 결과 -> 아래 catch 가 재시도 없이 DLQ 로 보낸다. ACK 로 버리면 원인이 남지 않는다
+            if (!questionResultRepository.existsByIdAndExamResultUserId(questionResultId, event.userId())) {
+                log.warn("[RabbitMQ] 문항 결과 소유자 불일치 - questionResultId: {}, userId: {}",
+                        questionResultId, event.userId());
+                meterRegistry.counter("chat.persist.dropped", "reason", "unauthorized").increment();
+                throw new BusinessException(ErrorCode.AUTHORIZATION_FAILED);
+            }
+
             // Redis에서 세션 메시지 조회
             List<RedisMessageDto> redisMessages = chatRedisService.getSessionMessages(sessionId);
 
@@ -83,21 +102,37 @@ public class ChatMessageConsumer {
             try {
                 chatRedisService.validateSessionOwner(sessionId, event.userId());
             } catch (BusinessException e) {
-                // 세션 부재·소유자 불일치는 정상 ACK 대상이다
                 // 코드를 값으로 비교하므로 ErrorCode 를 나눌 때 여기를 같이 고쳐야 분기가 조용히 빠지지 않는다
-                if (e.getErrorCode() == ErrorCode.SESSION_NOT_FOUND
-                        || e.getErrorCode() == ErrorCode.SESSION_ACCESS_DENIED) {
-                    log.warn("[RabbitMQ] 세션 권한 검증 실패 - sessionId: {}, userId: {}. 메시지 무시",
-                            sessionId, event.userId());
+                // 소유자 불일치는 문항 결과 소유자 불일치와 같은 영구 실패 -> 던져 두면 아래 catch 가 원인을 단 채 DLQ 로 보낸다
+                if (e.getErrorCode() == ErrorCode.SESSION_ACCESS_DENIED) {
+                    log.warn("[RabbitMQ] 세션 소유자 불일치 - sessionId: {}, userId: {}", sessionId, event.userId());
                     meterRegistry.counter("chat.persist.dropped", "reason", "unauthorized").increment();
-                    // 권한 없는 경우도 정상 처리로 간주
+                    throw e;
+                }
+                // 세션 부재는 TTL 만료라 정상 ACK 대상이다
+                if (e.getErrorCode() == ErrorCode.SESSION_NOT_FOUND) {
+                    log.warn("[RabbitMQ] 세션 부재 - sessionId: {}, userId: {}. 메시지 무시", sessionId, event.userId());
+                    meterRegistry.counter("chat.persist.dropped", "reason", "unauthorized").increment();
                     return;
                 }
                 throw e;
             }
 
+            // 끝나지 않은 턴은 영구 기록에 넣지 않는다 -> 넣으면 복습 화면이 끊긴 문장을 완결된 풀이처럼 보여 준다
+            // 규칙(partial 응답 · 답 없는 사용자 메시지 제외)은 요약 읽기와 같은 RedisMessageDto.completeTurnsOf 하나다
+            // 제외한 개수는 메트릭으로 남긴다
+            List<RedisMessageDto> completeMessages = RedisMessageDto.completeTurnsOf(redisMessages);
+            int truncated = redisMessages.size() - completeMessages.size();
+            if (truncated > 0) {
+                log.warn("[RabbitMQ] 끝나지 않은 턴의 메시지 {}건 제외 - sessionId: {}", truncated, sessionId);
+                meterRegistry.counter("chat.persist.dropped", "reason", "truncated").increment(truncated);
+            }
+            if (completeMessages.isEmpty()) {
+                return;
+            }
+
             // MessageDto 리스트를 ChatMessageContent 리스트로 변환 -> 현재 구성은 동일하지만 추후 확장성 고려
-            List<ChatMessageContent> messageContents = redisMessageMapper.toEntityList(redisMessages);
+            List<ChatMessageContent> messageContents = redisMessageMapper.toEntityList(completeMessages);
 
             // 트랜잭션 밖에서 먼저 요약 -> 외부 호출 지연이 DB 커넥션 점유 시간에 더해지지 않게 한다
             String summary = llmService.summaryChat(sessionId.toString());
@@ -124,7 +159,16 @@ public class ChatMessageConsumer {
         } catch (BusinessException e) {
             log.error("[RabbitMQ] 비즈니스 예외 발생 - sessionId: {}, errorCode: {}, message: {}",
                     sessionId, e.getErrorCode(), e.getMessage());
-            // 예외를 다시 던짐 -> 트랜잭션 롤백 + 메시지 DLQ 라우팅으로 유실 없이 추적
+            // 영구 실패(문항 결과 부재 · 문항 결과 소유자 불일치 · 세션 소유자 불일치)는 재시도해도 같은 결과
+            // -> 재시도 횟수만큼 summaryChat 을 다시 부르지 않고 원인을 단 채 바로 DLQ 로 보낸다
+            // 재시도 제외는 RabbitListenerRetryPolicyCustomizer 빈이 맡고, RabbitMQConfig 의 리스너 팩토리가
+            // Boot 의 SimpleRabbitListenerContainerFactoryConfigurer 를 거치므로 그 빈이 이 컨슈머의 재시도 정책에 닿는다
+            if (e.getErrorCode() == ErrorCode.RESULT_NOT_FOUND
+                    || e.getErrorCode() == ErrorCode.AUTHORIZATION_FAILED
+                    || e.getErrorCode() == ErrorCode.SESSION_ACCESS_DENIED) {
+                throw new AmqpRejectAndDontRequeueException("재시도 불가 - " + e.getErrorCode().getCode(), e);
+            }
+            // 그 밖의 예외는 그대로 던짐 -> Redis 읽기 실패 같은 일시 장애는 재시도가 걸리고, 소진되면 DLQ 로 간다
             throw e;
 
         } catch (Exception e) {

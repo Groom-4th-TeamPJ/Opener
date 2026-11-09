@@ -22,6 +22,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
+import reactor.core.publisher.SignalType;
 import reactor.core.scheduler.Schedulers;
 import spring.backend.domain.can.service.spec.CanService;
 import spring.backend.domain.chat.dto.enums.ChatRole;
@@ -150,12 +151,7 @@ public class ChatServiceImpl implements ChatService {
 
             // 재사용 경로도 정리 훅을 갖게 한다 -> 이 경로로 붙은 구독만 훅이 없으면 누수가 남는다
             return existingSink.asFlux()
-                    .doOnCancel(() -> {
-                        if (sinks.remove(sessionId, existingSink)) {
-                            disposeSubscription(sessionId);
-                            stateMachineService.removeMachine(sessionId);
-                        }
-                    });
+                    .doOnCancel(() -> closeSession(sessionId, existingSink, CloseReason.CANCEL, ""));
         }
 
         // 새 SSE 연결 생성
@@ -169,6 +165,13 @@ public class ChatServiceImpl implements ChatService {
             }
 
             log.debug("[SSE] 사용자 조회 완료 - userId: {}, userName: {}", userId, user.getName());
+
+            // 세션 id 는 examResultId -> 요청자 소유가 아니면 Redis 세션을 만들기 전에 끊는다
+            // 대조하지 않으면 먼저 연결한 사용자가 남의 시험 결과 세션의 소유자가 된다
+            if (!examResultRepository.existsByIdAndUserId(sessionId, userId)) {
+                log.warn("[SSE] 시험 결과 소유자 불일치 - sessionId: {}, userId: {}", sessionId, userId);
+                throw new BusinessException(ErrorCode.AUTHORIZATION_FAILED);
+            }
 
             // 세션용 레디스 초기화
             chatRedisService.initializeSession(sessionId, userId);
@@ -197,13 +200,7 @@ public class ChatServiceImpl implements ChatService {
             // doOnCancel 로 정리 -> 클라이언트가 끊으면 Sink/StateMachine 을 비워 메모리 누수 방지
             return sink.asFlux()
                     .doOnCancel(() -> {
-                        // 값 비교 -> 빠른 재연결에서 옛 구독이 방금 등록된 새 Sink 를 지우면
-                        // 이어지는 POST /chat/message 가 SESSION_EXPIRED 로 거부된다
-                        boolean removed = sinks.remove(sessionId, sink);
-                        if (removed) {
-                            disposeSubscription(sessionId);
-                            stateMachineService.removeMachine(sessionId);
-                        }
+                        boolean removed = closeSession(sessionId, sink, CloseReason.CANCEL, "");
                         log.info("[SSE] 클라이언트 연결 해제 (cancel) - sessionId: {}, 제거 여부: {}, 남은 연결 수: {}",
                                 sessionId, removed, sinks.size());
                     });
@@ -241,16 +238,20 @@ public class ChatServiceImpl implements ChatService {
 
             // Sink 완료 → 구독 중인 Flux가 onComplete 수신 → SSE 연결 종료
             sink.tryEmitComplete();
-            sinks.remove(sessionId, sink);
 
-            chatRedisService.deleteSession(sessionId);
-
-            // State Machine: 세션 종료 (→ IDLE) + 제거
+            // State Machine: 세션 종료 (→ IDLE)
             if (!stateMachineService.sendEvent(sessionId, ChatSessionEvent.CLOSE)) {
                 log.warn("[SSE] CLOSE 전이 거부 - sessionId: {}, 현재 상태: {}",
                         sessionId, stateMachineService.getCurrentState(sessionId));
             }
-            stateMachineService.removeMachine(sessionId);
+
+            // 진행 중인 LLM 구독을 끊고 받은 만큼 저장한 뒤 sink · 상태 머신을 걷는다
+            // 구독을 두면 제거된 sink 로 토큰이 계속 흘러 OpenAI 비용이 이어진다
+            closeSession(sessionId, sink, CloseReason.DISCONNECT, "");
+
+            // Redis 세션 키와 메시지 목록은 지우지 않는다 -> 대화 저장 소비자는 이벤트가 도착한 뒤에 목록을 읽고
+            // 소유자 검증도 세션 키로 하므로, 여기서 지우면 방금 저장한 부분 응답과 함께 소비자가 볼 버퍼가 사라진다
+            // 정리는 세션 TTL 과 소비자의 deleteMessage 가 맡는다
 
             log.info("[SSE] 세션 해제 완료 - sessionId: {}, userId: {}, 남은 연결 수: {}",
                     sessionId, userId, sinks.size());
@@ -331,11 +332,14 @@ public class ChatServiceImpl implements ChatService {
                                 .record(System.nanoTime() - ttftStartNanos, java.util.concurrent.TimeUnit.NANOSECONDS);
                     }
 
+                    // 전체 응답 수집 -> 전송보다 먼저 쌓는다
+                    // 전송 중 버퍼 초과로 구독이 끊겨도 그 청크까지 받은 만큼으로 저장된다
+                    synchronized (llmResponseBuilder) {
+                        llmResponseBuilder.append(chunk);
+                    }
+
                     // SSE 청크 전송
                     emitChunk(sessionId, chunk);
-
-                    // 전체 응답 수집
-                    llmResponseBuilder.append(chunk);
                 })
                 .doOnComplete(() -> {
                     // 청크가 0개면 STREAM_START 가 발화되지 않아 상태는 아직 PROCESSING
@@ -345,10 +349,7 @@ public class ChatServiceImpl implements ChatService {
                         emitError(sessionId,
                                 ErrorCode.LLM_RESPONSE_FAIL.getMessage(),
                                 ErrorCode.LLM_RESPONSE_FAIL.getCode());
-                        if (!stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_ERROR)) {
-                            log.warn("[Chat] STREAM_ERROR 전이 거부 - sessionId: {}, 현재 상태: {}",
-                                    sessionId, stateMachineService.getCurrentState(sessionId));
-                        }
+                        closeSession(sessionId, null, CloseReason.EMPTY_COMPLETION, "");
                         return;
                     }
 
@@ -369,13 +370,6 @@ public class ChatServiceImpl implements ChatService {
                 .doOnError(error -> {
                     log.error("[Chat] 메시지 처리 중 예외 발생 - sessionId: {}", sessionId, error);
 
-                    // 화면에는 절반 쓰인 답변이 남는데 히스토리에 없으면 다음 턴에 모델과 사용자가
-                    // 서로 다른 대화를 보게 된다 -> 받은 만큼은 저장한다
-                    String partial = llmResponseBuilder.toString();
-                    if (!partial.isEmpty()) {
-                        chatRedisService.saveMessage(sessionId, redisMessageMapper.toDtoLlm(partial));
-                        meterRegistry.counter("chat.stream.partial.saved").increment();
-                    }
                     // 서킷 OPEN 과 LLM 실패를 클라이언트가 구분할 수 있어야 재시도 안내가 성립한다
                     // error.getMessage() 는 내부 예외 문구라 사용자에게 의미가 없고 코드도 실리지 않는다
                     if (error instanceof BusinessException be) {
@@ -385,9 +379,15 @@ public class ChatServiceImpl implements ChatService {
                                 ErrorCode.LLM_RESPONSE_FAIL.getMessage(),
                                 ErrorCode.LLM_RESPONSE_FAIL.getCode());
                     }
-                    if (!stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_ERROR)) {
-                        log.warn("[Chat] STREAM_ERROR 전이 거부 - sessionId: {}, 현재 상태: {}",
-                                sessionId, stateMachineService.getCurrentState(sessionId));
+                    // 화면에는 절반 쓰인 답변이 남는데 히스토리에 없으면 다음 턴에 모델과 사용자가
+                    // 서로 다른 대화를 보게 된다 -> 받은 만큼 저장하고 상태를 회수한다
+                    closeSession(sessionId, null, CloseReason.STREAM_ERROR, snapshot(llmResponseBuilder));
+                })
+                // 취소로 끝난 턴(버퍼 초과 · disconnect · 클라이언트 취소)은 doOnComplete/doOnError 를 안 탄다
+                // 여기서 받은 만큼 저장하지 않으면 그 턴의 응답이 통째로 사라진다
+                .doFinally(signal -> {
+                    if (signal == SignalType.CANCEL) {
+                        savePartial(sessionId, snapshot(llmResponseBuilder));
                     }
                 })
                 .subscribe();
@@ -410,10 +410,7 @@ public class ChatServiceImpl implements ChatService {
                     ErrorCode.LLM_RESPONSE_FAIL.getCode());
         }
 
-        if (!stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_ERROR)) {
-            log.warn("[Chat] STREAM_ERROR 전이 거부 - sessionId: {}, 현재 상태: {}",
-                    sessionId, stateMachineService.getCurrentState(sessionId));
-        }
+        closeSession(sessionId, null, CloseReason.ASSEMBLY_FAIL, "");
     }
 
     @Override
@@ -443,6 +440,14 @@ public class ChatServiceImpl implements ChatService {
         Long questionId = req.questionId();
         Long questionResultId = req.questionResultId();
 
+        // 소유권 검증은 상태 전이 · 비용 · 생성보다 앞 -> 남의 문항 결과로 내 Can 을 쓰고
+        // 그 결과에 오프너 표식을 남기는 경로를 닫는다. 없는 id 와 남의 id 를 같은 코드로 답해 존재 여부를 노출하지 않는다
+        if (!questionResultRepository.existsByIdAndExamResultUserId(questionResultId, userId)) {
+            log.warn("[OpenerAnalysis] 문항 결과 소유자 불일치 - userId: {}, questionResultId: {}",
+                    userId, questionResultId);
+            throw new BusinessException(ErrorCode.AUTHORIZATION_FAILED);
+        }
+
         // Sink 존재 확인
         if (!sinks.containsKey(sessionId)) {
             throw new BusinessException(ErrorCode.SESSION_EXPIRED);
@@ -456,36 +461,64 @@ public class ChatServiceImpl implements ChatService {
             throw new BusinessException(ErrorCode.SESSION_EXPIRED);
         }
 
-        // 스트리밍 시작 전 Can 선차감 -> 비용 검증 실패를 빨리 끊어 무의미한 LLM 호출 방지
+        // 던질 수 있는 준비(문제 조회 · 지문 조립 · 요청 메시지 저장)를 Can 차감보다 앞에 끝낸다
+        // 순서가 뒤집히면 저장에 실패한 턴에도 Can 이 빠진다 -> 던지면 상태만 회수하고 차감은 일어나지 않는다
+        String problemContext;
+        // 요청 메시지는 Can 부족 때 되돌릴 수 있게 밖에 둔다
+        RedisMessageDto userRequestMessage = RedisMessageDto.builder()
+                .chatRole(ChatRole.USER)
+                .message("오프너 분석을 요청했습니다")
+                .timestamp(java.time.LocalDateTime.now())
+                .build();
+        try {
+            Question question = questionRepository.findById(questionId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.QUESTION_NOT_FOUND));
+            problemContext = buildProblemContext(question);
+
+            // 사용자의 오프너 분석 요청 메시지를 Redis에 저장
+            chatRedisService.saveMessage(sessionId, userRequestMessage);
+        } catch (RuntimeException e) {
+            recoverFromStreamFailure(sessionId, e);
+            throw e;
+        }
+
+        // 스트리밍 시작 전 Can 차감 -> 저장까지 끝난 요청만 과금하고, 부족하면 LLM 호출 전에 끊는다
         try {
             canService.useUserCan(userId, 1);
         } catch (BusinessException e) {
             ErrorCode errorCode = e.getErrorCode();
             log.warn("[OpenerAnalysis] Can 차감 실패 - userId: {}, errorCode: {}", userId, errorCode.getCode());
             emitError(sessionId, errorCode.getMessage(), errorCode.getCode());
+            // 요청 메시지는 차감보다 먼저 저장됐다 -> 답 없이 남으면 다음 턴 문맥과 영구 저장에 섞이므로 되돌린다
+            chatRedisService.removeLastMessage(sessionId, userRequestMessage);
+            // 상태를 되돌리지 않으면 Can 이 부족한 세션은 재연결 전까지 모든 메시지가 SESSION_EXPIRED 로 거부된다
+            closeSession(sessionId, null, CloseReason.ASSEMBLY_FAIL, "");
             return;
         }
 
-        // 사용자의 오프너 분석 요청 메시지를 Redis에 저장
-        RedisMessageDto userRequestMessage = RedisMessageDto.builder()
-                .chatRole(ChatRole.USER)
-                .message("오프너 분석을 요청했습니다")
-                .timestamp(java.time.LocalDateTime.now())
-                .build();
-        chatRedisService.saveMessage(sessionId, userRequestMessage);
-
-        // Question 조회
-        Question question = questionRepository.findById(questionId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.QUESTION_NOT_FOUND));
-
-        String problemContext = buildProblemContext(question);
+        // 스트림 조립도 차감 뒤에 한다 -> 조립 시점 예외(벡터 검색 등)는 아래 doOnError 를 타지 않으므로
+        // 여기서 환불과 상태 회수를 직접 한다. 조립을 차감 앞에 두면 Can 이 없는 사용자도 벡터 검색 비용을 낸다
+        Flux<String> ragStream;
+        try {
+            ragStream = ragService.generateSimilarProblemStream(problemContext);
+        } catch (RuntimeException e) {
+            // 상태 회수가 먼저 -> 환불이 던져도 세션이 PROCESSING 에 남지 않는다
+            recoverFromStreamFailure(sessionId, e);
+            try {
+                canService.recoverUserCan(userId, 1);
+            } catch (RuntimeException refundFailure) {
+                log.error("[OpenerAnalysis] Can 환불 실패 - userId: {}", userId, refundFailure);
+                e.addSuppressed(refundFailure);
+            }
+            throw e;
+        }
 
         // RAG 응답 수집용
         StringBuilder ragResponseBuilder = new StringBuilder();
         AtomicBoolean ragStreamStarted = new AtomicBoolean(false);
 
         // RAG Flux를 non-blocking subscribe
-        Disposable ragSubscription = ragService.generateSimilarProblemStream(problemContext)
+        Disposable ragSubscription = ragStream
                 // publishOn -> 이후 콜백을 boundedElastic 으로 옮김
                 // 여기 doOnComplete 는 JDBC 트랜잭션까지 돌리므로 이벤트 루프에서 실행되면 영향이 가장 큼
                 .publishOn(Schedulers.boundedElastic())
@@ -502,11 +535,13 @@ public class ChatServiceImpl implements ChatService {
                         }
                     }
 
+                    // 전체 응답 수집 -> 전송보다 먼저 쌓아 버퍼 초과로 끊겨도 받은 만큼 저장된다
+                    synchronized (ragResponseBuilder) {
+                        ragResponseBuilder.append(chunk);
+                    }
+
                     // SSE 청크 전송
                     emitChunk(sessionId, chunk);
-
-                    // 전체 응답 수집
-                    ragResponseBuilder.append(chunk);
                 })
                 .doOnComplete(() -> {
                     // 청크가 0개면 STREAM_START 미발화 -> STREAM_COMPLETE 가 거부되어 PROCESSING 고착
@@ -516,10 +551,7 @@ public class ChatServiceImpl implements ChatService {
                         emitError(sessionId,
                                 ErrorCode.LLM_RESPONSE_FAIL.getMessage(),
                                 ErrorCode.LLM_RESPONSE_FAIL.getCode());
-                        if (!stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_ERROR)) {
-                            log.warn("[OpenerAnalysis] STREAM_ERROR 전이 거부 - sessionId: {}, 현재 상태: {}",
-                                    sessionId, stateMachineService.getCurrentState(sessionId));
-                        }
+                        closeSession(sessionId, null, CloseReason.EMPTY_COMPLETION, "");
                         canService.recoverUserCan(userId, 1);
                         return;
                     }
@@ -553,13 +585,6 @@ public class ChatServiceImpl implements ChatService {
                     }
                 })
                 .doOnError(error -> {
-                    // 부분 응답 저장 - 화면에 보인 것과 저장된 것이 어긋나지 않게 한다
-                    String ragPartial = ragResponseBuilder.toString();
-                    if (!ragPartial.isEmpty()) {
-                        chatRedisService.saveMessage(sessionId, redisMessageMapper.toDtoLlm(ragPartial));
-                        meterRegistry.counter("chat.stream.partial.saved").increment();
-                    }
-
                     if (error instanceof BusinessException be) {
                         ErrorCode errorCode = be.getErrorCode();
                         log.error("[OpenerAnalysis] 비즈니스 예외 - userId: {}, errorCode: {}",
@@ -571,12 +596,16 @@ public class ChatServiceImpl implements ChatService {
                                 ErrorCode.INTERNAL_SERVER_ERROR.getMessage(),
                                 ErrorCode.INTERNAL_SERVER_ERROR.getCode());
                     }
-                    if (!stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_ERROR)) {
-                        log.warn("[OpenerAnalysis] STREAM_ERROR 전이 거부 - sessionId: {}, 현재 상태: {}",
-                                sessionId, stateMachineService.getCurrentState(sessionId));
-                    }
+                    // 부분 응답 저장 - 화면에 보인 것과 저장된 것이 어긋나지 않게 하고 상태를 회수한다
+                    closeSession(sessionId, null, CloseReason.STREAM_ERROR, snapshot(ragResponseBuilder));
                     // 실패 시 Can 복구 -> 응답을 못 받았는데 비용만 차감되는 불공정 방지
                     canService.recoverUserCan(userId, 1);
+                })
+                // 취소로 끝난 턴은 doOnError 를 안 타므로 받은 만큼을 여기서 저장한다
+                .doFinally(signal -> {
+                    if (signal == SignalType.CANCEL) {
+                        savePartial(sessionId, snapshot(ragResponseBuilder));
+                    }
                 })
                 .subscribe();
 
@@ -620,6 +649,77 @@ public class ChatServiceImpl implements ChatService {
                         .build());
     }
 
+    // 세션 종료 사유 -> 정리 절차는 같고 연결을 끝내는지(세션 제거) 세션을 살리는지만 갈린다
+    private enum CloseReason {
+        // 세션 유지: 상태만 회수하고 같은 연결로 다음 질문을 받는다
+        ASSEMBLY_FAIL(false),
+        EMPTY_COMPLETION(false),
+        STREAM_ERROR(false),
+        // 연결 종료: sink · LLM 구독 · 상태 머신을 모두 걷는다
+        CANCEL(true),
+        OVERFLOW(true),
+        DISCONNECT(true);
+
+        private final boolean endsConnection;
+
+        CloseReason(boolean endsConnection) {
+            this.endsConnection = endsConnection;
+        }
+    }
+
+    // 종료 경로 단일 구현 -> 경로마다 정리 항목을 따로 들고 있으면 한 경로에서만 구독이나 상태 머신이 남는다
+    // partialText 는 호출부가 이미 가진 받은 만큼의 응답(없으면 빈 문자열)
+    // 연결 종료 사유는 구독 취소(doFinally CANCEL)가 받은 만큼 저장하므로 빈 문자열을 넘긴다
+    // 반환값 false = 이미 다른 경로가 sink 를 걷었거나 같은 세션에 새 sink 가 등록돼 건드리지 않았다
+    private boolean closeSession(Long sessionId, Sinks.Many<ServerSentEvent<String>> sink,
+                                 CloseReason reason, String partialText) {
+        savePartial(sessionId, partialText);
+
+        if (!reason.endsConnection) {
+            if (!stateMachineService.sendEvent(sessionId, ChatSessionEvent.STREAM_ERROR)) {
+                log.warn("[Chat] STREAM_ERROR 전이 거부 - sessionId: {}, 현재 상태: {}",
+                        sessionId, stateMachineService.getCurrentState(sessionId));
+            }
+            return true;
+        }
+
+        // 값 비교 -> 빠른 재연결에서 옛 연결의 정리가 방금 등록된 새 Sink 를 지우면
+        // 이어지는 POST /chat/message 가 SESSION_EXPIRED 로 거부된다
+        if (!sinks.remove(sessionId, sink)) {
+            return false;
+        }
+        disposeSubscription(sessionId);
+        stateMachineService.removeMachine(sessionId);
+        return true;
+    }
+
+    // 받은 만큼 저장 -> 화면에는 절반 쓰인 답변이 남는데 히스토리에 없으면 모델과 사용자가 서로 다른 대화를 본다
+    // partial 표식 -> 대화 저장 소비자가 잘린 응답을 완결 답변으로 영구 저장하지 않게 한다
+    // 예외는 삼킨다 -> 저장 실패가 구독 해제와 상태 머신 제거를 건너뛰게 하면 세션이 영구히 막힌다
+    private void savePartial(Long sessionId, String partialText) {
+        if (partialText == null || partialText.isEmpty()) {
+            return;
+        }
+        try {
+            chatRedisService.saveMessage(sessionId, RedisMessageDto.builder()
+                    .chatRole(ChatRole.LLM)
+                    .message(partialText)
+                    .timestamp(java.time.LocalDateTime.now())
+                    .partial(true)
+                    .build());
+            meterRegistry.counter("chat.stream.partial.saved").increment();
+        } catch (RuntimeException e) {
+            log.error("[Chat] 부분 응답 저장 실패 - sessionId: {}", sessionId, e);
+        }
+    }
+
+    // 취소는 다른 스레드에서 오므로 읽는 쪽도 같은 락 -> StringBuilder 는 스레드 안전하지 않다
+    private String snapshot(StringBuilder builder) {
+        synchronized (builder) {
+            return builder.toString();
+        }
+    }
+
     // Sink에 ServerSentEvent 발행
     // 구독 보관 -> 이전 구독이 남아 있으면 함께 정리해 같은 세션에 스트림이 겹치지 않게 한다
     private void rememberSubscription(Long sessionId, Disposable subscription) {
@@ -658,8 +758,9 @@ public class ChatServiceImpl implements ChatService {
                 log.warn("[SSE] 버퍼 초과로 연결 종료 - sessionId: {}, event: {}", sessionId, eventName);
                 meterRegistry.counter("chat.sse.overflow").increment();
                 sink.tryEmitError(new BusinessException(ErrorCode.SSE_BUFFER_OVERFLOW));
-                disposeSubscription(sessionId);
-                sinks.remove(sessionId, sink);
+                // 구독 해제 · 부분 응답 저장 · 상태 머신 제거까지 한 경로로 -> sink 만 걷으면 상태가 STREAMING 에 남아
+                // 재연결의 CONNECT_SUCCESS 가 거부되고 그 턴의 응답은 저장되지 않는다
+                closeSession(sessionId, sink, CloseReason.OVERFLOW, "");
             } else if (result.isFailure()) {
                 log.warn("[SSE] emit 실패 - sessionId: {}, event: {}, result: {}",
                         sessionId, eventName, result);

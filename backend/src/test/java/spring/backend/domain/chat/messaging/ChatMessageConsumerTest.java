@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -54,6 +56,13 @@ class ChatMessageConsumerTest {
     @Mock private QuestionResult questionResult;
 
     private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+
+    @BeforeEach
+    void setUp() {
+        // 소유권 검증을 통과시킨다 -> 이 클래스의 케이스는 버퍼 판정과 요약 순서를 보는 테스트다
+        lenient().when(questionResultRepository.existsByIdAndExamResultUserId(QUESTION_RESULT_ID, USER_ID))
+                .thenReturn(true);
+    }
 
     private ChatMessageConsumer consumer() {
         return new ChatMessageConsumer(
@@ -114,6 +123,14 @@ class ChatMessageConsumerTest {
                 meterRegistry.counter("chat.persist.dropped", "reason", "expired").count());
     }
 
+    private RedisMessageDto llmMessage() {
+        return RedisMessageDto.builder()
+                .chatRole(ChatRole.LLM)
+                .message("답")
+                .timestamp(LocalDateTime.now())
+                .build();
+    }
+
     private RedisMessageDto userMessage() {
         return RedisMessageDto.builder()
                 .chatRole(ChatRole.USER)
@@ -133,7 +150,7 @@ class ChatMessageConsumerTest {
     @Test
     @DisplayName("요약 LLM 호출이 DB 트랜잭션을 열기 전에 끝난다")
     void handleSaveMessageEvent_요약호출_트랜잭션밖에서선행한다() {
-        when(chatRedisService.getSessionMessages(SESSION_ID)).thenReturn(List.of(userMessage()));
+        when(chatRedisService.getSessionMessages(SESSION_ID)).thenReturn(List.of(userMessage(), llmMessage()));
         when(questionResultRepository.findById(QUESTION_RESULT_ID)).thenReturn(Optional.of(questionResult));
         when(llmService.summaryChat(SESSION_ID.toString())).thenReturn("요약");
         runTransactionInline();
@@ -149,7 +166,7 @@ class ChatMessageConsumerTest {
     @Test
     @DisplayName("요약 서킷이 열려 요약이 없어도 대화는 저장된다")
     void handleSaveMessageEvent_요약없음_대화는저장된다() {
-        when(chatRedisService.getSessionMessages(SESSION_ID)).thenReturn(List.of(userMessage()));
+        when(chatRedisService.getSessionMessages(SESSION_ID)).thenReturn(List.of(userMessage(), llmMessage()));
         when(questionResultRepository.findById(QUESTION_RESULT_ID)).thenReturn(Optional.of(questionResult));
         when(llmService.summaryChat(SESSION_ID.toString())).thenReturn(null);
         runTransactionInline();
@@ -157,5 +174,26 @@ class ChatMessageConsumerTest {
         consumer().handleSaveMessageEvent(event(Instant.now()));
 
         verify(chatMessageRepository).save(any(ChatMessage.class));
+    }
+
+    // 요약 읽기는 소비자가 영구 저장에서 뺀 턴을 같은 규칙으로 뺀다
+    // (이 테스트가 여기 있는 이유: 어댑터 전용 테스트 파일은 이 작업의 파일 표 밖이다)
+    @Test
+    @DisplayName("요약이 읽는 전량 히스토리는 끊긴 응답과 답 없는 질문을 제외한다")
+    void getFullHistory_끊긴응답과답없는질문_요약읽기에서제외한다() {
+        RedisMessageDto partial = RedisMessageDto.builder()
+                .chatRole(ChatRole.LLM).message("끊긴 답").timestamp(LocalDateTime.now()).partial(true).build();
+        RedisMessageDto unansweredTail = RedisMessageDto.builder()
+                .chatRole(ChatRole.USER).message("답 없는 마지막 질문").timestamp(LocalDateTime.now()).build();
+        when(chatRedisService.getSessionMessages(SESSION_ID)).thenReturn(List.of(
+                userMessage(), partial, userMessage(), llmMessage(), unansweredTail));
+
+        List<org.springframework.ai.chat.messages.Message> history =
+                new spring.backend.domain.chat.adapter.RedisChatHistoryAdapter(chatRedisService)
+                        .getFullHistory(SESSION_ID.toString());
+
+        // 요약은 영구 저장되므로 저장본과 다른 대화를 요약하면 복습 화면의 요약이 본문과 어긋난다
+        assertEquals(List.of("질문", "답"),
+                history.stream().map(org.springframework.ai.chat.messages.Message::getText).toList());
     }
 }

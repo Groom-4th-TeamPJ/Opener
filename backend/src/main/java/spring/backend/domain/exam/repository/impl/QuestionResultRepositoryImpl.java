@@ -9,6 +9,7 @@ import spring.backend.domain.exam.repository.spec.QuestionResultRepository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
 public class QuestionResultRepositoryImpl implements QuestionResultRepository {
@@ -32,6 +33,11 @@ public class QuestionResultRepositoryImpl implements QuestionResultRepository {
     @Override
     public boolean existsByExamResultIdAndQuestionId(Long examResultId, Long questionId) {
         return jpaQuestionResultRepository.existsByExamResultIdAndQuestionId(examResultId, questionId);
+    }
+
+    @Override
+    public boolean existsByIdAndExamResultUserId(Long id, UUID userId) {
+        return jpaQuestionResultRepository.existsByIdAndExamResultUserId(id, userId);
     }
 
     @Override

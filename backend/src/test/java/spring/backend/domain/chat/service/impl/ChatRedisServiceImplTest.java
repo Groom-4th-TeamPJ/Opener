@@ -15,6 +15,8 @@ import java.util.List;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.ListOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import spring.backend.domain.chat.dto.enums.ChatRole;
+import spring.backend.domain.chat.dto.redis_dto.RedisMessageDto;
 import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
 
@@ -54,73 +56,7 @@ class ChatRedisServiceImplTest {
         service = new ChatRedisServiceImpl(new ObjectMapper(), redisTemplate, 20, meterRegistry, masterRedisTemplate);
     }
 
-    @Test
-    @DisplayName("기존 세션 키의 소유자가 다르면 SESSION_ACCESS_DENIED 로 재사용을 거부한다")
-    void initializeSession_ownerMismatch_throw() {
-        UUID owner = UUID.randomUUID();
-        UUID attacker = UUID.randomUUID();
-
-        when(redisTemplate.hasKey(SESSION_KEY)).thenReturn(true);
-        doReturn(hashOperations).when(redisTemplate).opsForHash();
-        when(hashOperations.get(SESSION_KEY, "userId")).thenReturn(owner.toString());
-
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.initializeSession(SESSION_ID, attacker));
-
-        assertEquals(ErrorCode.SESSION_ACCESS_DENIED, ex.getErrorCode());
-
-        // 거부된 요청이 기존 세션 메타데이터/TTL 을 건드리면 안 됨
-        verify(hashOperations, never()).put(anyString(), any(), any());
-        verify(redisTemplate, never()).expire(anyString(), any(Duration.class));
-    }
-
-    @Test
-    @DisplayName("세션 키에 userId 가 없으면 소유자를 확인할 수 없으므로 거부한다")
-    void initializeSession_missingOwner_throw() {
-        when(redisTemplate.hasKey(SESSION_KEY)).thenReturn(true);
-        doReturn(hashOperations).when(redisTemplate).opsForHash();
-        when(hashOperations.get(SESSION_KEY, "userId")).thenReturn(null);
-        doReturn(masterHashOperations).when(masterRedisTemplate).opsForHash();
-        when(masterHashOperations.get(SESSION_KEY, "userId")).thenReturn(null);
-
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.initializeSession(SESSION_ID, UUID.randomUUID()));
-
-        assertEquals(ErrorCode.SESSION_NOT_FOUND, ex.getErrorCode());
-    }
-
-    @Test
-    @DisplayName("소유자가 같으면 기존 세션을 덮어쓰지 않고 그대로 재사용한다")
-    void initializeSession_sameOwner_reuse() {
-        UUID owner = UUID.randomUUID();
-
-        when(redisTemplate.hasKey(SESSION_KEY)).thenReturn(true);
-        doReturn(hashOperations).when(redisTemplate).opsForHash();
-        when(hashOperations.get(SESSION_KEY, "userId")).thenReturn(owner.toString());
-
-        assertDoesNotThrow(() -> service.initializeSession(SESSION_ID, owner));
-
-        // 재연결 시 기존 TTL 을 초기화하면 대화 중 세션이 예상보다 길어지거나 짧아짐
-        verify(hashOperations, never()).put(anyString(), any(), any());
-        verify(redisTemplate, never()).expire(anyString(), any(Duration.class));
-    }
-
-    @Test
-    @DisplayName("세션 키가 없으면 소유자와 생성시각을 새로 기록한다")
-    void initializeSession_newSession_writesMetadata() {
-        UUID owner = UUID.randomUUID();
-
-        when(redisTemplate.hasKey(SESSION_KEY)).thenReturn(false);
-        doReturn(hashOperations).when(redisTemplate).opsForHash();
-        when(redisTemplate.expire(anyString(), any(Duration.class))).thenReturn(true);
-
-        service.initializeSession(SESSION_ID, owner);
-
-        verify(hashOperations).put(SESSION_KEY, "userId", owner.toString());
-        verify(redisTemplate).expire(SESSION_KEY, Duration.ofHours(1));
-    }
-
-    // 방어선이 두 곳이라 각각 테스트한다 -> initializeSession(신규 연결 경로)과
+    // 방어선이 두 곳이라 각각 테스트한다 -> initializeSession(신규 연결 경로, ChatSessionClaimTest)과
     // validateSessionOwner(메시지 전송·저장·오프너 분석 등 6개 지점)가 같은 규칙을 지켜야 한다
     @Test
     @DisplayName("남의 세션에 접근하면 소유자 검증이 SESSION_ACCESS_DENIED 로 거부한다")
@@ -242,5 +178,78 @@ class ChatRedisServiceImplTest {
         assertDoesNotThrow(() -> service.validateSessionOwner(SESSION_ID, USER_ID));
 
         verify(masterHashOperations).get(SESSION_KEY, "userId");
+    }
+
+    private static final String USER_JSON = "{\"role\":\"USER\",\"message\":\"요청\",\"timestamp\":null,\"partial\":false}";
+    private static final String LLM_JSON = "{\"role\":\"LLM\",\"message\":\"앞선 답\",\"timestamp\":null,\"partial\":false}";
+    private static final String PARTIAL_JSON = "{\"role\":\"LLM\",\"message\":\"끊긴 답\",\"timestamp\":null,\"partial\":true}";
+
+    private RedisMessageDto requestMessage() {
+        return RedisMessageDto.builder().chatRole(ChatRole.USER).message("요청").build();
+    }
+
+    @Test
+    @DisplayName("마지막 항목이 방금 저장하려던 USER 메시지면 그 하나만 꺼낸다")
+    void removeLastMessage_마지막이같은USER메시지_꺼낸다() {
+        doReturn(masterListOperations).when(masterRedisTemplate).opsForList();
+        when(masterListOperations.index(MESSAGE_KEY, -1L)).thenReturn(USER_JSON);
+
+        service.removeLastMessage(SESSION_ID, requestMessage());
+
+        // 세션 해시나 목록 전체를 지우면 같은 세션의 앞선 대화까지 사라진다
+        verify(masterListOperations).rightPop(MESSAGE_KEY);
+        verify(masterRedisTemplate, never()).delete(anyString());
+        // 방금 쓴 항목을 읽는 경로라 복제 지연이 있으면 replica 가 앞 턴의 꼬리를 돌려준다 -> replica 는 건드리지 않는다
+        verify(redisTemplate, never()).opsForList();
+    }
+
+    @Test
+    @DisplayName("마지막 항목이 LLM 답이면 아무것도 꺼내지 않는다")
+    void removeLastMessage_마지막이LLM답_꺼내지않는다() {
+        doReturn(masterListOperations).when(masterRedisTemplate).opsForList();
+        // 요청 메시지 저장이 saveMessageFallback 에서 버려졌다면 마지막은 앞 턴의 답이다
+        when(masterListOperations.index(MESSAGE_KEY, -1L)).thenReturn(LLM_JSON);
+
+        service.removeLastMessage(SESSION_ID, requestMessage());
+
+        verify(masterListOperations, never()).rightPop(anyString());
+    }
+
+    @Test
+    @DisplayName("마지막 항목의 USER 내용이 다르거나 목록이 비면 아무것도 꺼내지 않는다")
+    void removeLastMessage_내용이다르거나빈목록_꺼내지않는다() {
+        doReturn(masterListOperations).when(masterRedisTemplate).opsForList();
+        when(masterListOperations.index(MESSAGE_KEY, -1L)).thenReturn(
+                "{\"role\":\"USER\",\"message\":\"다른 질문\",\"timestamp\":null,\"partial\":false}", (String) null);
+
+        service.removeLastMessage(SESSION_ID, requestMessage());
+        service.removeLastMessage(SESSION_ID, requestMessage());
+
+        verify(masterListOperations, never()).rightPop(anyString());
+    }
+
+    @Test
+    @DisplayName("프롬프트용 최근 히스토리는 partial 표식 메시지를 제외한다")
+    void getRecentSessionMessages_partial표식_프롬프트에서제외한다() {
+        doReturn(masterListOperations).when(masterRedisTemplate).opsForList();
+        when(masterListOperations.range(MESSAGE_KEY, -20L, -1L)).thenReturn(List.of(USER_JSON, PARTIAL_JSON));
+
+        List<RedisMessageDto> history = service.getRecentSessionMessages(SESSION_ID);
+
+        // 끊긴 답이 다음 턴 프롬프트에 들어가면 모델이 끝나지 않은 문장을 자기 답으로 이어 쓴다
+        assertEquals(List.of("요청"), history.stream().map(RedisMessageDto::message).toList());
+    }
+
+    @Test
+    @DisplayName("영속화용 전량 조회는 partial 표식 메시지를 그대로 돌려준다")
+    void getSessionMessages_partial표식_영속화읽기에는남는다() {
+        doReturn(listOperations).when(redisTemplate).opsForList();
+        when(listOperations.range(MESSAGE_KEY, 0L, -1L)).thenReturn(List.of(USER_JSON, PARTIAL_JSON));
+
+        List<RedisMessageDto> all = service.getSessionMessages(SESSION_ID);
+
+        // 소비자가 표식을 보고 직접 제외한다 -> 여기서 빼면 제외한 사실을 메트릭으로 남길 수 없다
+        assertEquals(2, all.size());
+        assertEquals(true, all.get(1).partial());
     }
 }

@@ -7,11 +7,15 @@ import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import java.time.Duration;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 import spring.backend.domain.chat.dto.redis_dto.RedisMessageDto;
 import spring.backend.domain.chat.service.spec.ChatRedisService;
@@ -39,6 +43,9 @@ public class ChatRedisServiceImpl implements ChatRedisService {
     // SSE/async 타임아웃(30분)과는 다른 값이다
     private static final Duration SESSION_TTL = Duration.ofHours(1);
 
+    // 세션 선점 스크립트 -> 소유자 기록(HSETNX)과 TTL(EXPIRE)이 한 왕복
+    private static final RedisScript<Long> SESSION_CLAIM_SCRIPT = loadSessionClaimScript();
+
     private final ObjectMapper objectMapper;
     private final StringRedisTemplate redisTemplate;
 
@@ -65,6 +72,13 @@ public class ChatRedisServiceImpl implements ChatRedisService {
         this.masterRedisTemplate = masterRedisTemplate;
     }
 
+    private static RedisScript<Long> loadSessionClaimScript() {
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+        script.setLocation(new ClassPathResource("scripts/chat-session-claim.lua"));
+        script.setResultType(Long.class);
+        return script;
+    }
+
     /**
      * 세션 키 생성 (Hash Tag 포함)
      * 예: chat:{123}:session
@@ -81,41 +95,38 @@ public class ChatRedisServiceImpl implements ChatRedisService {
         return String.format(MESSAGE_KEY_FORMAT, sessionId);
     }
 
+    // 소유자 기록과 TTL 을 마스터에서 스크립트 한 번으로 처리
+    // 복제본 hasKey + HSET + EXPIRE 로 나누면 (1) 복제 지연 창에서 동시 connect 2건이 모두 "세션 없음" 을 보고 나중 쪽이 소유자가 되고
+    // (2) HSET 과 EXPIRE 사이에서 끊기면 만료 없는 키가 남는다
+    // DataAccessException 은 감싸지 않고 전파 -> 서킷이 인프라 장애만 실패로 세게 한다
     @Override
+    @CircuitBreaker(name = "redis-chat", fallbackMethod = "initializeSessionFallback")
     public void initializeSession(Long sessionId, UUID userId) {
         String sessionKey = getSessionKey(sessionId);
 
-        // 존재 확인 후 생성 -> 재연결 시 기존 세션 메타데이터/TTL 을 덮어쓰지 않도록 보호
-        Boolean sessionExists = redisTemplate.hasKey(sessionKey);
+        Long claimed = masterRedisTemplate.execute(
+                SESSION_CLAIM_SCRIPT,
+                List.of(sessionKey),
+                userId.toString(),
+                String.valueOf(SESSION_TTL.toSeconds()),
+                String.valueOf(System.currentTimeMillis()));
 
-        if (Boolean.TRUE.equals(sessionExists)) {
-            // 기존 키 재사용 전 소유자 대조 -> 검증 없이 return 하면 TTL 이 남은 남의 세션에 그대로 올라타게 됨
-            // 호출부 분기가 아니라 여기서 막는 이유 -> 분기가 늘어도 방어선이 새지 않음
-            // validateSessionOwner 를 직접 부르지 않고 헬퍼를 쓰는 이유 -> 같은 클래스 내부 호출은
-            // Spring AOP 프록시를 우회해 @CircuitBreaker 가 적용되지 않는다
-            assertSessionOwner(sessionId, userId, "세션 재사용");
-
-            log.debug("Session already exists: {}", sessionId);
-            return;
-        }
-
-        try {
-            // 세션 메타데이터 저장 (HASH)
-            redisTemplate.opsForHash().put(sessionKey, "userId", userId.toString());
-            redisTemplate.opsForHash().put(sessionKey, "createdAt", String.valueOf(System.currentTimeMillis()));
-
-            // TTL 설정 및 검증
-            Boolean ttlSet = redisTemplate.expire(sessionKey, SESSION_TTL);
-            if (!Boolean.TRUE.equals(ttlSet)) {
-                log.warn("Failed to set TTL for session: {}", sessionId);
-            } else {
-                log.debug("Session initialized successfully: {} with TTL: {}", sessionId, SESSION_TTL);
-            }
-
-        } catch (Exception e) {
-            log.error("Failed to initialize session: {}", sessionId, e);
+        if (claimed == null) {
+            log.error("[Redis Cluster] 세션 선점 결과 없음 - sessionId: {}", sessionId);
             throw new BusinessException(ErrorCode.SESSION_INITIALIZE_FAIL);
         }
+        // 키는 있는데 userId 가 없으면 소유자를 확인할 수 없다 -> 재사용 검증과 같은 SESSION_NOT_FOUND 로 거부
+        if (claimed == 2L) {
+            log.warn("[Redis Cluster] 세션 선점 실패 - 소유자 기록이 없는 키 - sessionId: {}, userId: {}",
+                    sessionId, userId);
+            throw new BusinessException(ErrorCode.SESSION_NOT_FOUND);
+        }
+        if (claimed == 0L) {
+            log.warn("[Redis Cluster] 세션 선점 실패 - 소유자 불일치 - sessionId: {}, requestUserId: {}",
+                    sessionId, userId);
+            throw new BusinessException(ErrorCode.SESSION_ACCESS_DENIED);
+        }
+        log.debug("Session claimed: {} with TTL: {}", sessionId, SESSION_TTL);
     }
 
     // @CircuitBreaker -> Redis 장애가 길어지면 호출을 즉시 차단, 스레드가 타임아웃 대기에 묶여 전체 지연되는 것 방지
@@ -165,8 +176,12 @@ public class ChatRedisServiceImpl implements ChatRedisService {
         // 설정값이 0 이하면 윈도우 비활성으로 보고 전체 반환
         long start = historyWindow > 0 ? -historyWindow : 0;
         // 같은 요청 안에서 saveMessage 직후에 읽는다 -> 복제 지연 창이 항상 열려 있어 master 고정
+        // partial 표식 메시지는 프롬프트에서 뺀다 -> 끊긴 문장을 모델이 자기 답으로 이어 쓰지 않게 한다
+        // 영속화 읽기(getSessionMessages)는 그대로 둬 소비자가 표식을 보고 직접 제외한다
         return meterRegistry.timer("chat.redis.read", "route", "master")
-                .record(() -> fetchMessages(masterRedisTemplate, sessionId, start, -1));
+                .record(() -> fetchMessages(masterRedisTemplate, sessionId, start, -1).stream()
+                        .filter(message -> !message.partial())
+                        .toList());
     }
 
     // 조회 범위만 다르고 역직렬화/예외 처리는 동일 -> 중복 대신 범위를 인자로 받아 한 곳에서 처리
@@ -219,6 +234,34 @@ public class ChatRedisServiceImpl implements ChatRedisService {
             log.info("[Redis Cluster] 세션 삭제 완료 - sessionId: {}", sessionId);
         } catch (Exception e) {
             log.error("[Redis Cluster] 세션 삭제 실패 - sessionId: {}", sessionId, e);
+        }
+    }
+
+    // 방금 저장하려던 USER 메시지를 되돌린다 -> 마지막 항목이 그 메시지일 때만 꺼낸다
+    // 무조건 꺼내면 그 저장이 saveMessageFallback 에서 버려졌을 때 앞 턴의 LLM 답이 지워진다
+    // 목록 전체를 지워도 같은 세션의 앞선 대화가 사라진다
+    @Override
+    public void removeLastMessage(Long sessionId, RedisMessageDto expected) {
+        String messageKey = getMessageKey(sessionId);
+
+        try {
+            // saveMessage 직후에 도는 경로 -> replica 는 복제 지연 창에서 방금 쓴 항목 대신 앞 턴의 꼬리를 돌려준다
+            String lastJson = masterRedisTemplate.opsForList().index(messageKey, -1);
+            if (lastJson == null) {
+                log.warn("[Redis Cluster] 마지막 메시지 제거 생략 - 목록이 비어 있음 - sessionId: {}", sessionId);
+                return;
+            }
+            RedisMessageDto last = objectMapper.readValue(lastJson, RedisMessageDto.class);
+            if (last.chatRole() != expected.chatRole() || !Objects.equals(last.message(), expected.message())) {
+                log.warn("[Redis Cluster] 마지막 메시지 제거 생략 - 마지막 항목이 되돌릴 메시지가 아님 - sessionId: {}, lastRole: {}",
+                        sessionId, last.chatRole());
+                return;
+            }
+            masterRedisTemplate.opsForList().rightPop(messageKey);
+            log.debug("[Redis Cluster] 마지막 메시지 제거 - sessionId: {}", sessionId);
+        } catch (Exception e) {
+            // 제거 실패는 이미 시작한 정리를 막을 사유가 아니다 -> 남는 메시지는 소비자의 답 없는 턴 제외가 거른다
+            log.error("[Redis Cluster] 마지막 메시지 제거 실패 - sessionId: {}", sessionId, e);
         }
     }
 
@@ -295,6 +338,23 @@ public class ChatRedisServiceImpl implements ChatRedisService {
         log.error("[Redis Cluster] 메시지 저장 실패(CB 카운트됨) - sessionId: {}, cause: {}",
                 sessionId, t.getMessage());
         meterRegistry.counter("chat.redis.save.dropped", "reason", "io_error").increment();
+    }
+
+    // 선점도 인가 게이트라 fail-close -> 못 만든 세션을 만든 것처럼 통과시키지 않는다
+    @SuppressWarnings("unused")
+    private void initializeSessionFallback(Long sessionId, UUID userId, CallNotPermittedException ex) {
+        log.warn("[Redis Cluster] Circuit OPEN - 세션 선점 차단 - sessionId: {}", sessionId);
+        throw new BusinessException(ErrorCode.REDIS_CIRCUIT_OPEN);
+    }
+
+    @SuppressWarnings("unused")
+    private void initializeSessionFallback(Long sessionId, UUID userId, Throwable t) {
+        if (t instanceof BusinessException be) {
+            throw be;
+        }
+        log.error("[Redis Cluster] 세션 선점 실패(CB 카운트됨) - sessionId: {}, cause: {}",
+                sessionId, t.getMessage());
+        throw new BusinessException(ErrorCode.SESSION_INITIALIZE_FAIL);
     }
 
     // 소유자 검증은 인가 게이트라 fail-close 유지 -> 못 읽는 상태에서 통과시키면 그 자체가 인가 우회
