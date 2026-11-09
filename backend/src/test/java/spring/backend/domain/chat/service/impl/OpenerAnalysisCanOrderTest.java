@@ -291,7 +291,10 @@ class OpenerAnalysisCanOrderTest {
         // 페이로드가 잘못된 메시지는 몇 번을 다시 읽어도 같은 결과다
         assertThrows(AmqpRejectAndDontRequeueException.class, () -> consumer().handleSaveMessageEvent(broken));
 
+        // 필드 검사를 건너뛰면 소유권 조회가 같은 거절 예외로 우연히 끝난다 -> 조회와 읽기가 모두 일어나지 않았음을 본다
+        verify(questionResultRepository, never()).existsByIdAndExamResultUserId(any(), any());
         verify(chatRedisService, never()).getSessionMessages(any());
+        assertEquals(1.0, meterRegistry.counter("chat.persist.dropped", "reason", "invalid").count());
     }
 
     @Test
