@@ -66,16 +66,14 @@ jobs:
             # Docker Hub 로그인
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
             
-            # 기존 컨테이너 중지 및 제거
             cd /home/ubuntu/team2  # 실제 프로젝트 경로로 변경
-            docker-compose -f docker-compose.dev.yml down
             
             # 최신 이미지 pull
             export DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
-            docker-compose -f docker-compose.dev.yml pull
+            docker-compose -f docker-compose.dev.yml pull backend
             
-            # 컨테이너 실행
-            docker-compose -f docker-compose.dev.yml up -d
+            # backend 만 재생성 -> down 으로 스택 전체를 내리면 Redis 가 같이 죽어 진행 중인 채팅 세션이 사라진다
+            docker-compose -f docker-compose.dev.yml up -d --no-deps --build backend
             
             # 사용하지 않는 이미지 정리
             docker image prune -af
