@@ -245,7 +245,8 @@ public class ChatRedisServiceImpl implements ChatRedisService {
         String messageKey = getMessageKey(sessionId);
 
         try {
-            String lastJson = redisTemplate.opsForList().index(messageKey, -1);
+            // saveMessage 직후에 도는 경로 -> replica 는 복제 지연 창에서 방금 쓴 항목 대신 앞 턴의 꼬리를 돌려준다
+            String lastJson = masterRedisTemplate.opsForList().index(messageKey, -1);
             if (lastJson == null) {
                 log.warn("[Redis Cluster] 마지막 메시지 제거 생략 - 목록이 비어 있음 - sessionId: {}", sessionId);
                 return;
@@ -256,7 +257,7 @@ public class ChatRedisServiceImpl implements ChatRedisService {
                         sessionId, last.chatRole());
                 return;
             }
-            redisTemplate.opsForList().rightPop(messageKey);
+            masterRedisTemplate.opsForList().rightPop(messageKey);
             log.debug("[Redis Cluster] 마지막 메시지 제거 - sessionId: {}", sessionId);
         } catch (Exception e) {
             // 제거 실패는 이미 시작한 정리를 막을 사유가 아니다 -> 남는 메시지는 소비자의 답 없는 턴 제외가 거른다
