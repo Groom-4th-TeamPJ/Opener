@@ -56,7 +56,7 @@ class RoundTripRuleTest(unittest.TestCase):
     def test_마스터는_스크립트_안에서_실행된_명령을_뺀다(self):
         # 세션 선점 스크립트 10번(내부: exists·hsetnx·hset·expire 각 1) + 앱이 직접 보낸 rpush 20·expire 40
         calls = {"evalsha": 10, "exists": 10, "hsetnx": 10, "hset": 10, "expire": 50, "rpush": 20, "info": 4}
-        self.assertEqual(10 + 10 + 40 + 20, collect_s1.client_round_trips("master", calls, self.WRITES))
+        self.assertEqual(10 + 40 + 20, collect_s1.client_round_trips("master", calls, self.WRITES))
 
     def test_저장_스크립트가_더_있으면_내부_rpush와_expire_2개를_뺀다(self):
         # 선점 10번 + 저장 30번 (저장 내부: rpush 1 · expire 2)

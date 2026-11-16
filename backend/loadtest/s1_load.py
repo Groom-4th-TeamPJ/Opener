@@ -289,6 +289,7 @@ async def run_session(spec, rec, cookie, sess, rng):
     finally:
         task.cancel()
         writer.close()
+        info["t_end"] = time.time()
         rec.sessions.append(info)
 
 

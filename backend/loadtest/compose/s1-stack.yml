@@ -1,0 +1,205 @@
+# S1 측정 스택 (compose 프로젝트 r125-s1) - docker-compose.local.yml 에서 복사, 포트·컨테이너 이름만 다르다
+# 포트 값은 s1/scenario.json 이 정하고 stack.sh 가 환경 변수로 넘긴다
+# 클러스터 노드는 호스트 이름 redis-chat-N (이 Mac 의 /etc/hosts 가 127.0.0.1 로 풀이) 과 자기 포트로 자신을 알린다
+x-redis-node: &redis-node
+  image: redis:7-alpine
+  restart: "no"
+  environment:
+    - TZ=Asia/Seoul
+  networks:
+    - s1-network
+
+services:
+  db:
+    image: pgvector/pgvector:pg15
+    container_name: r125s1-db
+    environment:
+      - TZ=Asia/Seoul
+      - POSTGRES_USER=dev
+      - POSTGRES_PASSWORD=dev123
+      - POSTGRES_DB=postgres
+    ports:
+      - "${PG_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - s1-network
+    command: postgres -c shared_preload_libraries=vector
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U dev -d postgres" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis-auth:
+    image: redis:7-alpine
+    container_name: r125s1-redis-auth
+    command: redis-server --appendonly yes --appendfsync everysec --maxmemory-policy noeviction
+    environment:
+      - TZ=Asia/Seoul
+    ports:
+      - "${AUTH_PORT}:6379"
+    volumes:
+      - redis_auth_data:/data
+    networks:
+      - s1-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-chat-1:
+    <<: *redis-node
+    container_name: r125s1-redis-chat-1
+    command: redis-server /etc/redis/redis.conf --port ${CHAT_PORT_1} --cluster-announce-hostname redis-chat-1 --cluster-announce-port ${CHAT_PORT_1} --cluster-announce-bus-port ${CHAT_BUS_1} --appendonly yes --appendfsync everysec
+    ports:
+      - "${CHAT_PORT_1}:${CHAT_PORT_1}"
+      - "${CHAT_BUS_1}:${CHAT_BUS_1}"
+    volumes:
+      - ../../../redis-cluster/redis-node.conf:/etc/redis/redis.conf
+      - redis_chat_1_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-p", "${CHAT_PORT_1}", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-chat-2:
+    <<: *redis-node
+    container_name: r125s1-redis-chat-2
+    command: redis-server /etc/redis/redis.conf --port ${CHAT_PORT_2} --cluster-announce-hostname redis-chat-2 --cluster-announce-port ${CHAT_PORT_2} --cluster-announce-bus-port ${CHAT_BUS_2} --appendonly yes --appendfsync everysec
+    ports:
+      - "${CHAT_PORT_2}:${CHAT_PORT_2}"
+      - "${CHAT_BUS_2}:${CHAT_BUS_2}"
+    volumes:
+      - ../../../redis-cluster/redis-node.conf:/etc/redis/redis.conf
+      - redis_chat_2_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-p", "${CHAT_PORT_2}", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-chat-3:
+    <<: *redis-node
+    container_name: r125s1-redis-chat-3
+    command: redis-server /etc/redis/redis.conf --port ${CHAT_PORT_3} --cluster-announce-hostname redis-chat-3 --cluster-announce-port ${CHAT_PORT_3} --cluster-announce-bus-port ${CHAT_BUS_3} --appendonly yes --appendfsync everysec
+    ports:
+      - "${CHAT_PORT_3}:${CHAT_PORT_3}"
+      - "${CHAT_BUS_3}:${CHAT_BUS_3}"
+    volumes:
+      - ../../../redis-cluster/redis-node.conf:/etc/redis/redis.conf
+      - redis_chat_3_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-p", "${CHAT_PORT_3}", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-chat-4:
+    <<: *redis-node
+    container_name: r125s1-redis-chat-4
+    command: redis-server /etc/redis/redis.conf --port ${CHAT_PORT_4} --cluster-announce-hostname redis-chat-4 --cluster-announce-port ${CHAT_PORT_4} --cluster-announce-bus-port ${CHAT_BUS_4} --appendonly yes --appendfsync everysec
+    ports:
+      - "${CHAT_PORT_4}:${CHAT_PORT_4}"
+      - "${CHAT_BUS_4}:${CHAT_BUS_4}"
+    volumes:
+      - ../../../redis-cluster/redis-node.conf:/etc/redis/redis.conf
+      - redis_chat_4_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-p", "${CHAT_PORT_4}", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-chat-5:
+    <<: *redis-node
+    container_name: r125s1-redis-chat-5
+    command: redis-server /etc/redis/redis.conf --port ${CHAT_PORT_5} --cluster-announce-hostname redis-chat-5 --cluster-announce-port ${CHAT_PORT_5} --cluster-announce-bus-port ${CHAT_BUS_5} --appendonly yes --appendfsync everysec
+    ports:
+      - "${CHAT_PORT_5}:${CHAT_PORT_5}"
+      - "${CHAT_BUS_5}:${CHAT_BUS_5}"
+    volumes:
+      - ../../../redis-cluster/redis-node.conf:/etc/redis/redis.conf
+      - redis_chat_5_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-p", "${CHAT_PORT_5}", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-chat-6:
+    <<: *redis-node
+    container_name: r125s1-redis-chat-6
+    command: redis-server /etc/redis/redis.conf --port ${CHAT_PORT_6} --cluster-announce-hostname redis-chat-6 --cluster-announce-port ${CHAT_PORT_6} --cluster-announce-bus-port ${CHAT_BUS_6} --appendonly yes --appendfsync everysec
+    ports:
+      - "${CHAT_PORT_6}:${CHAT_PORT_6}"
+      - "${CHAT_BUS_6}:${CHAT_BUS_6}"
+    volumes:
+      - ../../../redis-cluster/redis-node.conf:/etc/redis/redis.conf
+      - redis_chat_6_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-p", "${CHAT_PORT_6}", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-cluster-init:
+    image: redis:7-alpine
+    container_name: r125s1-redis-cluster-init
+    depends_on:
+      redis-chat-1:
+        condition: service_healthy
+      redis-chat-2:
+        condition: service_healthy
+      redis-chat-3:
+        condition: service_healthy
+      redis-chat-4:
+        condition: service_healthy
+      redis-chat-5:
+        condition: service_healthy
+      redis-chat-6:
+        condition: service_healthy
+    environment:
+      - CHAT_PORTS=${CHAT_PORT_1} ${CHAT_PORT_2} ${CHAT_PORT_3} ${CHAT_PORT_4} ${CHAT_PORT_5} ${CHAT_PORT_6}
+    volumes:
+      - ./create-cluster.sh:/scripts/create-cluster.sh
+    entrypoint: [ "/bin/sh", "/scripts/create-cluster.sh" ]
+    networks:
+      - s1-network
+    restart: "no"
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: r125s1-rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    ports:
+      - "${RABBIT_PORT}:5672"
+      - "${RABBIT_MGMT_PORT}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - s1-network
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+networks:
+  s1-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_auth_data:
+  redis_chat_1_data:
+  redis_chat_2_data:
+  redis_chat_3_data:
+  redis_chat_4_data:
+  redis_chat_5_data:
+  redis_chat_6_data:
+  rabbitmq_data:
