@@ -236,10 +236,18 @@ public class ChatRedisServiceImpl implements ChatRedisService {
                 .record(() -> readRange(template, sessionId, start, end));
     }
 
-    // replica 읽기 -> Redis 오류를 BusinessException 으로 감싸지 않고 올려 보낸다, 아래 도우미가 master 읽기로 넘기려면 원래 타입이 필요하다
+    // replica 읽기 -> Redis 오류는 감싸지 않고 올려 보낸다, 아래 도우미가 master 읽기로 넘기려면 원래 타입이 필요하다
+    // 그 밖의 예외는 readRange 와 같이 MESSAGE_INPUT_FAIL 로 바꾼다 -> 범위 읽기의 예외 계약을 r128 이전과 같게 두고 master 도 읽지 않는다
     private List<String> replicaRange(Long sessionId, long start, long end) {
-        return meterRegistry.timer("chat.redis.read", "route", "replica")
-                .record(() -> rangeOf(redisTemplate, sessionId, start, end));
+        try {
+            return meterRegistry.timer("chat.redis.read", "route", "replica")
+                    .record(() -> rangeOf(redisTemplate, sessionId, start, end));
+        } catch (DataAccessException | RedisException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("[Redis Cluster] 세션 메시지 조회 중 예외 발생 - sessionId: {}, key: {}", sessionId, getMessageKey(sessionId), e);
+            throw new BusinessException(ErrorCode.MESSAGE_INPUT_FAIL);
+        }
     }
 
     // replica 읽기가 Redis 오류로 실패하면 요청을 실패시키지 않고 같은 읽기를 master 에서 한 번 한다
