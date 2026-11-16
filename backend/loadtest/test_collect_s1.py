@@ -18,7 +18,7 @@ cmdstat_evalsha:calls=10,usec=900,usec_per_call=90.00,rejected_calls=0,failed_ca
 class ParseTest(unittest.TestCase):
     def test_commandstats_는_명령별_횟수와_마이크로초를_돌려준다(self):
         stats = collect_s1.parse_commandstats(COMMANDSTATS)
-        self.assertEqual({"calls": 20, "usec": 60}, stats["rpush"])
+        self.assertEqual({"calls": 20, "usec": 60, "failed": 0}, stats["rpush"])
         self.assertEqual(7, stats["cluster|nodes"]["calls"])
         self.assertEqual(3, len(stats))
 
@@ -62,6 +62,15 @@ class RoundTripRuleTest(unittest.TestCase):
         # 선점 10번 + 저장 30번 (저장 내부: rpush 1 · expire 2)
         calls = {"evalsha": 40, "exists": 10, "hsetnx": 10, "hset": 10, "expire": 10 + 60, "rpush": 30}
         self.assertEqual(40, collect_s1.client_round_trips("master", calls, self.WRITES))
+
+    def test_EVALSHA_가_NOSCRIPT_로_실패해_EVAL_로_다시_보낸_호출은_스크립트_한_번으로_센다(self):
+        # 선점 2번: 호출마다 evalsha(실패) + eval(성공) -> 왕복 4, 내부 명령은 2번 분량만 뺀다
+        calls = {"evalsha": 2, "eval": 2, "exists": 2, "hsetnx": 2, "hset": 2, "expire": 2}
+        self.assertEqual(4, collect_s1.client_round_trips("master", calls, self.WRITES, {"evalsha": 2}))
+
+    def test_복제본은_스크립트_효과를_감싼_multi_exec_도_제외한다(self):
+        calls = {"multi": 3, "exec": 3, "hsetnx": 3, "hget": 13}
+        self.assertEqual(13, collect_s1.client_round_trips("slave", calls, self.WRITES))
 
     def test_복제본은_쓰기_명령을_제외한_나머지만_센다(self):
         calls = {"rpush": 20, "pexpireat": 10, "lrange": 10, "readonly": 10, "ping": 2, "info": 6, "replconf": 5}

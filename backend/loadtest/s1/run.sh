@@ -26,6 +26,11 @@ sleep 5
 curl -s -X POST "http://localhost:$MOCK_PORT/stats/reset" >/dev/null
 rm -f "$OUT"/turns-*.jsonl "$OUT"/sessions-*.jsonl "$OUT"/errors-*.jsonl "$OUT/window.json" "$OUT/collector.json" "$OUT/gen-pids.txt"
 
+# 부하 없는 Redis CPU 바탕값 20초 (앱이 떠 있는 상태, 연결 풀 생성이 끝난 뒤)
+rm -f "$OUT/idle.json"
+python3 "$LOADTEST_DIR/collect_s1.py" idle --out "$OUT" --seconds 20 || echo "[run] idle baseline failed" >&2
+curl -s -X POST "http://localhost:$MOCK_PORT/stats/reset" >/dev/null
+
 ulimit -n 65536 2>/dev/null || ulimit -n "$(ulimit -Hn)"
 python3 "$LOADTEST_DIR/s1_load.py" --users "$OUT/users.json" --out "$OUT" $TINY_FLAG > "$OUT/loadgen.log" 2>&1 &
 GEN=$!

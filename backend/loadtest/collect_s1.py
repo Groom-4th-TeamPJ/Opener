@@ -25,7 +25,9 @@ from s1_load import percentile  # noqa: E402
 SAMPLE_S = 5
 HOST = "127.0.0.1"
 # 클라이언트 왕복으로 세지 않는 명령 - info 는 수집기 자신, replconf·psync·sync 는 복제 연결
+# 복제본은 마스터 스크립트의 효과를 MULTI ... EXEC 로 감싸 받으므로 multi·exec 도 뺀다 (시험 실측)
 NOT_CLIENT = {"info", "replconf", "psync", "sync"}
+REPLICA_ONLY_NOT_CLIENT = {"multi", "exec"}
 # 스크립트 한 번이 Redis 안에서 실행하는 명령 수 - Redis 는 이것도 commandstats 에 센다 (시험 실측: EVAL 1회 -> eval 1 + 내부 명령 각 1)
 # calls_from: 스크립트 호출 횟수를 읽을 곳 - claim 은 호출마다 HSETNX 를 1번 실행하고 앱이 직접 보내지 않는다
 # save(RPUSH + EXPIRE 2번)는 evalsha 호출 중 claim 이 아닌 나머지
@@ -43,9 +45,9 @@ RULE_TEXT = ("왕복 = commandstats calls 합 - info·replconf·psync·sync - �
 def parse_commandstats(text):
     out = {}
     for line in text.splitlines():
-        m = re.match(r"cmdstat_(\S+?):calls=(\d+),usec=(\d+)", line)
+        m = re.match(r"cmdstat_(\S+?):calls=(\d+),usec=(\d+)(?:.*failed_calls=(\d+))?", line)
         if m:
-            out[m.group(1)] = {"calls": int(m.group(2)), "usec": int(m.group(3))}
+            out[m.group(1)] = {"calls": int(m.group(2)), "usec": int(m.group(3)), "failed": int(m.group(4) or 0)}
     return out
 
 
@@ -114,12 +116,14 @@ def quantile_from_buckets(buckets, q):
     return prev_le
 
 
-def client_round_trips(role, calls, write_cmds):
+def client_round_trips(role, calls, write_cmds, failed=None):
+    """failed: 명령별 실패 횟수 - EVALSHA 가 NOSCRIPT 로 실패하면 앱이 EVAL 로 다시 보내므로 실행 횟수에서 뺀다"""
+    failed = failed or {}
     cmds = {c: n for c, n in calls.items() if c not in NOT_CLIENT}
     if role != "master":
-        return sum(n for c, n in cmds.items() if c not in write_cmds)
+        return sum(n for c, n in cmds.items() if c not in write_cmds and c not in REPLICA_ONLY_NOT_CLIENT)
     total = sum(cmds.values())
-    evals = calls.get("evalsha", 0) + calls.get("eval", 0)
+    evals = calls.get("evalsha", 0) - failed.get("evalsha", 0) + calls.get("eval", 0)
     claim = min(calls.get("hsetnx", 0), evals)
     for script, n in ((SCRIPTS[0], claim), (SCRIPTS[1], evals - claim)):
         for cmd, k in script["internal"].items():
@@ -180,7 +184,7 @@ def node_snapshot(port):
     cpu = info_fields(redis_cmd(port, "INFO", "cpu"))
     stats = info_fields(redis_cmd(port, "INFO", "stats"))
     return {
-        "role": rep.get("role"),
+        "t": time.time(), "role": rep.get("role"),
         "commandstats": parse_commandstats(redis_cmd(port, "INFO", "commandstats")),
         "cpu_sys": float(cpu["used_cpu_sys"]), "cpu_user": float(cpu["used_cpu_user"]),
         "total_commands": int(stats["total_commands_processed"]),
@@ -294,12 +298,14 @@ def delta_calls(a, b):
     return {c: v["calls"] - a.get(c, {}).get("calls", 0) for c, v in b.items() if v["calls"] - a.get(c, {}).get("calls", 0)}
 
 
-def node_summary(s0, s1, write_cmds):
+def node_summary(s0, s1, write_cmds, idle_us_per_s=0.0):
     calls = delta_calls(s0["commandstats"], s1["commandstats"])
+    failed = {c: v.get("failed", 0) - s0["commandstats"].get(c, {}).get("failed", 0) for c, v in s1["commandstats"].items()}
+    cpu_us = round((s1["cpu_sys"] + s1["cpu_user"] - s0["cpu_sys"] - s0["cpu_user"]) * 1e6)
     return {
         "role": s1["role"], "calls": calls,
-        "client_round_trips": client_round_trips("master" if s1["role"] == "master" else "slave", calls, set(write_cmds)),
-        "cpu_us": round((s1["cpu_sys"] + s1["cpu_user"] - s0["cpu_sys"] - s0["cpu_user"]) * 1e6),
+        "client_round_trips": client_round_trips("master" if s1["role"] == "master" else "slave", calls, set(write_cmds), failed),
+        "cpu_us": cpu_us, "cpu_us_net": round(cpu_us - idle_us_per_s * (s1["t"] - s0["t"])),
     }
 
 
@@ -322,6 +328,17 @@ def timer_delta(p0, p1, base, **labels):
     q = quantile_from_buckets({le: v - b0.get(le, 0) for le, v in b1.items()}, 0.95)
     out["p95_ms"] = q * 1000 if q is not None else None
     return out
+
+
+def idle_baseline(out, sc, seconds):
+    """부하 없이 노드가 쓰는 CPU(AOF·클러스터 버스·복제 핑) - 부하 CPU 에서 빼는 값"""
+    ports = [*sc["ports"]["redis_chat"], sc["ports"]["redis_auth"]]
+    a = {p: node_snapshot(p) for p in ports}
+    time.sleep(seconds)
+    b = {p: node_snapshot(p) for p in ports}
+    res = {str(p): ((b[p]["cpu_sys"] + b[p]["cpu_user"] - a[p]["cpu_sys"] - a[p]["cpu_user"]) * 1e6) / (b[p]["t"] - a[p]["t"])
+           for p in ports}
+    json.dump(res, open(os.path.join(out, "idle.json"), "w"))
 
 
 def host_info():
@@ -351,13 +368,15 @@ def summarize(out, code, commit, sc):
     by_kind = {}
     for e in errors:
         by_kind[e["kind"]] = by_kind.get(e["kind"], 0) + 1
-    nodes = {p: node_summary(s0["chat"][p], s1["chat"][p], col["write_cmds"]) for p in s1["chat"]}
+    idle_path = os.path.join(out, "idle.json")
+    idle = json.load(open(idle_path)) if os.path.exists(idle_path) else {}
+    nodes = {p: node_summary(s0["chat"][p], s1["chat"][p], col["write_cmds"], idle.get(p, 0.0)) for p in s1["chat"]}
     agg = {r: [n for n in nodes.values() if (n["role"] == "master") == (r == "master")] for r in ("master", "replica")}
 
     def per_turn(key, role):
         return sum(n[key] for n in agg[role]) / n_turns if n_turns else None
 
-    auth = node_summary(s0["auth"], s1["auth"], col["write_cmds"])
+    auth = node_summary(s0["auth"], s1["auth"], col["write_cmds"], idle.get(str(sc["ports"]["redis_auth"]), 0.0))
     p0, p1 = prom_from_snapshot(s0["prom"]), prom_from_snapshot(s1["prom"])
     fb1 = prom_sum(p1, "chat_redis_history_fallback_total")
     routes = {}
@@ -388,6 +407,9 @@ def summarize(out, code, commit, sc):
             "replica_round_trips_per_turn": per_turn("client_round_trips", "replica"),
             "master_cpu_us_per_turn": per_turn("cpu_us", "master"),
             "replica_cpu_us_per_turn": per_turn("cpu_us", "replica"),
+            "master_cpu_us_per_turn_net": per_turn("cpu_us_net", "master"),
+            "replica_cpu_us_per_turn_net": per_turn("cpu_us_net", "replica"),
+            "idle_cpu_us_per_s": idle,
             "master_ops_per_s": sum(n["client_round_trips"] for n in agg["master"]) / dur,
             "replica_ops_per_s": sum(n["client_round_trips"] for n in agg["replica"]) / dur,
             "nodes": nodes, "auth": auth, "rule": RULE_TEXT,
@@ -431,7 +453,8 @@ def summarize(out, code, commit, sc):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("mode", choices=["watch", "summarize"])
+    ap.add_argument("mode", choices=["watch", "summarize", "idle"])
+    ap.add_argument("--seconds", type=float, default=20)
     ap.add_argument("--out", required=True)
     ap.add_argument("--scenario", default=os.path.join(HERE, "s1", "scenario.json"))
     ap.add_argument("--code")
@@ -440,6 +463,8 @@ def main():
     sc = json.load(open(args.scenario, encoding="utf-8"))
     if args.mode == "watch":
         watch(args.out, sc)
+    elif args.mode == "idle":
+        idle_baseline(args.out, sc, args.seconds)
     else:
         summarize(args.out, args.code, args.commit, sc)
 
