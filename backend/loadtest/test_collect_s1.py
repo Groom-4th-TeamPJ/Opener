@@ -91,6 +91,23 @@ class VusPeakTest(unittest.TestCase):
         self.assertEqual(0, collect_s1.vus_peak([{"sse_active": None}]))
 
 
+class HistoryFallbackTest(unittest.TestCase):
+    def prom(self, **metrics):
+        return {(n, ()): v for n, v in metrics.items()}
+
+    def test_카운터가_있으면_구간_증가분(self):
+        p0 = self.prom(chat_redis_history_fallback_total=2.0)
+        p1 = self.prom(chat_redis_history_fallback_total=7.0)
+        self.assertEqual(5, collect_s1.history_fallback(p0, p1, "new"))
+
+    def test_새_코드에서_카운터가_없으면_한_번도_안_늘어난_0(self):
+        # Micrometer 카운터는 처음 증가할 때 등록된다
+        self.assertEqual(0, collect_s1.history_fallback({}, {}, "new"))
+
+    def test_옛_코드에서_카운터가_없으면_null(self):
+        self.assertIsNone(collect_s1.history_fallback({}, {}, "base"))
+
+
 class TurnStatsTest(unittest.TestCase):
     def test_측정_구간의_성공_턴만_집계한다(self):
         turns = [
