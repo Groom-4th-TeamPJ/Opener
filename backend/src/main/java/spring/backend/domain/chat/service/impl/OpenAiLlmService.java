@@ -39,7 +39,7 @@ import spring.backend.domain.chat.util.ChatPromptAssembler;
 public class OpenAiLlmService implements LlmService {
 
     private final ChatClient.Builder chatClientBuilder;
-    // 대화 이력 조회 -> 프롬프트용(getHistoryBefore)과 요약용(getFullHistory)을 메서드로 구분
+    // 대화 이력 조회 -> 프롬프트용 최근 메시지(getHistoryBefore)만 읽는다
     private final ChatHistoryProvider chatHistoryProvider;
     private final VectorStore vectorStore; // RAG 검색용 -> 시험 문제 맥락에 맞는 근거 자료 확보
     private final spring.backend.domain.chat.util.PromptLoader promptLoader;

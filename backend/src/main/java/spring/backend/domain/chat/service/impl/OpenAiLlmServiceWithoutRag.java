@@ -32,7 +32,7 @@ import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 public class OpenAiLlmServiceWithoutRag implements LlmService {
 
     private final ChatClient.Builder chatClientBuilder;
-    // 대화 이력 조회 -> 프롬프트용(getHistoryBefore)과 요약용(getFullHistory)을 메서드로 구분
+    // 대화 이력 조회 -> 프롬프트용 최근 메시지(getHistoryBefore)만 읽는다
     private final ChatHistoryProvider chatHistoryProvider;
     private final PromptLoader promptLoader;
 
