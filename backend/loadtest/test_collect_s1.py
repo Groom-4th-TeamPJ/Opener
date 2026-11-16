@@ -227,5 +227,379 @@ class SaveSummaryBlocksTest(unittest.TestCase):
         self.assertEqual(1, save["not_durable"])
 
 
+def prom_of(**metrics):
+    """이름 -> 값 (라벨 없음) 형태의 프로메테우스 스냅샷"""
+    return {(n, ()): v for n, v in metrics.items()}
+
+
+class HikariBlockTest(unittest.TestCase):
+    P0 = prom_of(hikaricp_connections_acquire_seconds_count=100.0, hikaricp_connections_acquire_seconds_sum=1.0,
+                 hikaricp_connections_usage_seconds_count=100.0, hikaricp_connections_usage_seconds_sum=10.0,
+                 hikaricp_connections_timeout_total=2.0)
+    P1 = prom_of(hikaricp_connections_acquire_seconds_count=300.0, hikaricp_connections_acquire_seconds_sum=5.0,
+                 hikaricp_connections_usage_seconds_count=300.0, hikaricp_connections_usage_seconds_sum=50.0,
+                 hikaricp_connections_timeout_total=5.0)
+    SAMPLES = [{"hikari_pending": 0.0, "hikari_acquire_max_s": 0.010, "hikari_usage_max_s": 0.5},
+               {"hikari_pending": 7.0, "hikari_acquire_max_s": 0.250, "hikari_usage_max_s": 1.5},
+               {"hikari_pending": 3.0, "hikari_acquire_max_s": 0.020, "hikari_usage_max_s": 0.7}]
+
+    def test_대기_수_최댓값은_표본_중_가장_큰_값(self):
+        # 첫 표본(0)이나 마지막 표본(3)이 아니라 가운데 7
+        self.assertEqual(7, collect_s1.hikari_block(self.P0, self.P1, self.SAMPLES)["pending_peak"])
+
+    def test_획득_사용_평균은_구간_합_증가분을_개수_증가분으로_나눈_밀리초(self):
+        b = collect_s1.hikari_block(self.P0, self.P1, self.SAMPLES)
+        self.assertAlmostEqual(20.0, b["acquire_ms"]["mean"])   # (5-1)/200 s
+        self.assertAlmostEqual(200.0, b["usage_ms"]["mean"])    # (50-10)/200 s
+
+    def test_획득_사용_최댓값은_표집한_max_게이지_중_가장_큰_값의_밀리초(self):
+        b = collect_s1.hikari_block(self.P0, self.P1, self.SAMPLES)
+        self.assertAlmostEqual(250.0, b["acquire_ms"]["max"])
+        self.assertAlmostEqual(1500.0, b["usage_ms"]["max"])
+
+    def test_타임아웃은_구간_증가분(self):
+        self.assertEqual(3, collect_s1.hikari_block(self.P0, self.P1, self.SAMPLES)["timeouts"])
+
+    def test_구간_안_개수가_안_늘었으면_평균은_null(self):
+        b = collect_s1.hikari_block(self.P0, self.P0, [])
+        self.assertIsNone(b["acquire_ms"]["mean"])
+        self.assertIsNone(b["usage_ms"]["mean"])
+
+    def test_표본이_없으면_대기_수와_최댓값은_null(self):
+        b = collect_s1.hikari_block(self.P0, self.P1, [{"hikari_pending": None, "hikari_acquire_max_s": None, "hikari_usage_max_s": None}])
+        self.assertIsNone(b["pending_peak"])
+        self.assertIsNone(b["acquire_ms"]["max"])
+        self.assertIsNone(b["usage_ms"]["max"])
+
+    def test_지표가_아예_없으면_타임아웃도_null(self):
+        self.assertIsNone(collect_s1.hikari_block({}, {}, [])["timeouts"])
+
+
+class EmbeddingBlockTest(unittest.TestCase):
+    OK = 'application="backend",error="none",gen_ai_operation_name="embedding",gen_ai_request_model="m",gen_ai_system="openai"'
+    ERR = 'application="backend",error="WebClientRequestException",gen_ai_operation_name="embedding",gen_ai_request_model="m",gen_ai_system="openai"'
+    CHAT = 'application="backend",error="none",gen_ai_operation_name="chat",gen_ai_request_model="m",gen_ai_system="openai"'
+
+    def prom(self, ok_count, ok_sum, err_count=0, chat_count=500, chat_sum=900.0):
+        text = (f"gen_ai_client_operation_seconds_count{{{self.OK}}} {ok_count}\ngen_ai_client_operation_seconds_sum{{{self.OK}}} {ok_sum}\n"
+                f"gen_ai_client_operation_seconds_count{{{self.ERR}}} {err_count}\ngen_ai_client_operation_seconds_sum{{{self.ERR}}} 0.5\n"
+                f"gen_ai_client_operation_seconds_count{{{self.CHAT}}} {chat_count}\ngen_ai_client_operation_seconds_sum{{{self.CHAT}}} {chat_sum}\n")
+        return collect_s1.parse_prom(text)
+
+    def test_평균은_구간_합_증가분을_개수_증가분으로_나눈_밀리초이고_채팅_호출은_섞지_않는다(self):
+        b = collect_s1.embedding_block(self.prom(100, 15.0), self.prom(300, 75.0, chat_count=9999, chat_sum=1e6), [])
+        self.assertEqual(200, b["count"])
+        self.assertAlmostEqual(300.0, b["mean_ms"])    # (75-15)/200 s
+
+    def test_최댓값은_표집한_embed_max_s_중_가장_큰_값의_밀리초(self):
+        b = collect_s1.embedding_block(self.prom(1, 1.0), self.prom(2, 2.0), [{"embed_max_s": 0.4}, {"embed_max_s": 6.85}, {"embed_max_s": None}])
+        self.assertAlmostEqual(6850.0, b["max_ms"])
+
+    def test_오류로_끝난_임베딩_호출은_평균에_넣지_않고_개수만_센다(self):
+        b = collect_s1.embedding_block(self.prom(10, 1.0, err_count=1), self.prom(20, 3.0, err_count=5), [])
+        self.assertEqual(10, b["count"])
+        self.assertAlmostEqual(200.0, b["mean_ms"])
+        self.assertEqual(4, b["failed_count"])
+
+    def test_지표가_없으면_모두_null(self):
+        b = collect_s1.embedding_block({}, {}, [])
+        self.assertEqual({"count": None, "mean_ms": None, "max_ms": None, "failed_count": None}, b)
+
+
+class ActivityTest(unittest.TestCase):
+    # psql -At 행 '상태|상태_경과초|질의문(한 줄)'
+    TEXT = ("active|0.5|select v1_0.id from vector_store v1_0 order by v1_0.embedding <=> ?\n"
+            "active|0.1|INSERT INTO chat_messages (a,b) values (?,?)\n"
+            "active|0.2|update chat_messages set summary=? where id=?\n"
+            "idle in transaction|3.5|select c1_0.id from chat_messages c1_0 where c1_0.id=?\n"
+            "idle in transaction|9.25|select 1\n"
+            "active|0.3|select * from users where id=?\n")
+
+    def test_질의문_규칙으로_종류를_나누고_대소문자는_가리지_않는다(self):
+        self.assertEqual("vector", collect_s1.query_class("SELECT * FROM Vector_Store"))
+        self.assertEqual("chat_insert", collect_s1.query_class("INSERT INTO chat_messages (a) values (?)"))
+        self.assertEqual("chat_update", collect_s1.query_class("update chat_messages set x=1"))
+        self.assertEqual("chat_select", collect_s1.query_class("select * from chat_messages where id=1"))
+        self.assertEqual("other", collect_s1.query_class("select * from users"))
+
+    def test_여러_규칙에_맞으면_먼저_나열한_규칙을_따른다(self):
+        # vector_store 가 chat_messages 보다 앞
+        self.assertEqual("vector", collect_s1.query_class("select m.id from chat_messages m join vector_store v on true"))
+        # insert 는 from chat_messages 보다 앞
+        self.assertEqual("chat_insert", collect_s1.query_class("insert into chat_messages select * from chat_messages"))
+
+    def test_표본_한_번을_상태_x_종류_개수로_푼다(self):
+        s = collect_s1.parse_activity(self.TEXT)
+        self.assertEqual({"vector": 1, "chat_insert": 1, "chat_update": 1, "chat_select": 0, "other": 1}, s["active"])
+        self.assertEqual({"vector": 0, "chat_insert": 0, "chat_update": 0, "chat_select": 1, "other": 1}, s["idle_in_transaction"])
+
+    def test_트랜잭션_안에서_논_시간은_그_상태_연결_중_가장_긴_값(self):
+        self.assertEqual(9.25, collect_s1.parse_activity(self.TEXT)["idle_in_tx_max_s"])
+
+    def test_출력이_비면_모든_개수가_0이고_논_시간은_null(self):
+        s = collect_s1.parse_activity("")
+        self.assertEqual(0, sum(s["active"].values()))
+        self.assertEqual(0, sum(s["idle_in_transaction"].values()))
+        self.assertIsNone(s["idle_in_tx_max_s"])
+
+    def test_상태가_둘_밖이면_세지_않는다(self):
+        s = collect_s1.parse_activity("idle|1.0|select 1\nfastpath function call|0.1|select 2\n")
+        self.assertEqual(0, sum(s["active"].values()) + sum(s["idle_in_transaction"].values()))
+
+    def test_구간_값은_상태_x_종류별_표본_최댓값과_합계_최댓값(self):
+        a = collect_s1.parse_activity("active|0|select from vector_store\nactive|0|select from vector_store\nactive|0|select 1\n")
+        b = collect_s1.parse_activity("active|0|select from vector_store\nactive|0|insert into chat_messages x\n"
+                                      "idle in transaction|4.0|select 1\n")
+        blk = collect_s1.activity_block([a, None, b])
+        self.assertEqual(2, blk["peak"]["active"]["vector"])
+        self.assertEqual(1, blk["peak"]["active"]["chat_insert"])
+        self.assertEqual(1, blk["peak"]["active"]["other"])
+        self.assertEqual(3, blk["peak_total"]["active"])     # 표본 a 한 번에 3개
+        self.assertEqual(1, blk["peak_total"]["idle_in_transaction"])
+        self.assertEqual(4.0, blk["idle_in_tx_max_s"])
+        self.assertEqual(2, blk["samples"])                  # None(읽기 실패) 은 뺀다
+        self.assertEqual(1, blk["samples_failed"])
+
+    def test_읽은_표본이_없으면_구간_값은_null(self):
+        blk = collect_s1.activity_block([None, None])
+        self.assertEqual(0, blk["samples"])
+        self.assertIsNone(blk["peak"])
+        self.assertIsNone(blk["idle_in_tx_max_s"])
+
+
+class RawBlocksTest(unittest.TestCase):
+    def setUp(self):
+        import json
+        import tempfile
+        self.json = json
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        self.out = self.dir.name
+        # 행 둘 - 1번은 요약 있음, 2번은 요약 누락
+        json.dump({"rows_raw": "1|2.0|2.003|f\n2|3.0|3.0|t\n", "host_gmtoff_s": 0, "clock_offset_ms": 12},
+                  open(os.path.join(self.out, "drain.json"), "w"))
+        self.sessions = [{"save_code": 200, "save_sent_ms": 1500.0, "question_result_id": 1},
+                         {"save_code": 200, "save_sent_ms": 2500.0, "question_result_id": 2},
+                         {"save_code": 500, "save_sent_ms": 2600.0, "question_result_id": 3},   # 실패 응답은 제외
+                         {"save_code": 200, "save_sent_ms": 9000.0, "question_result_id": 4}]  # 행 없음
+
+    def test_저장_요약_블록을_원자료로_만들고_실패한_저장_요청은_뺀다(self):
+        _, save, summary = collect_s1.raw_blocks(self.out, self.sessions, (1.0, 3.0))
+        self.assertEqual(3, save["posts"])
+        self.assertEqual(2, save["rows"])
+        self.assertEqual(1, save["not_durable"])
+        self.assertEqual(12, save["clock_offset_ms"])
+        self.assertEqual(1, summary["missing_at_end"])
+        self.assertEqual(2, summary["missing_incl_unsaved"])
+
+    def test_측정_구간은_초_단위_인자를_밀리초로_바꿔_쓴다(self):
+        _, save, _ = collect_s1.raw_blocks(self.out, self.sessions, (1.0, 2.0))
+        self.assertEqual(1, save["durable_ms_hold"]["count"])   # 보낸 시각 1500 만 [1000, 2000] 안
+        self.assertEqual(500.0, save["durable_ms_hold"]["p50"])
+
+    def test_같은_결과_id_저장이_둘이면_먼저_보낸_것만_센다(self):
+        sess = [{"save_code": 200, "save_sent_ms": 1800.0, "question_result_id": 1},
+                {"save_code": 200, "save_sent_ms": 1500.0, "question_result_id": 1}]
+        _, save, _ = collect_s1.raw_blocks(self.out, sess, (1.0, 3.0))
+        self.assertEqual(1, save["posts"])
+        self.assertEqual(500.0, save["durable_ms"]["p50"])
+
+    def test_drain_json_이_없으면_행_0_오프셋_null(self):
+        os.remove(os.path.join(self.out, "drain.json"))
+        dr, save, summary = collect_s1.raw_blocks(self.out, self.sessions, (1.0, 3.0))
+        self.assertIsNone(dr)
+        self.assertEqual(0, save["rows"])
+        self.assertIsNone(save["clock_offset_ms"])
+        self.assertEqual(3, summary["missing_incl_unsaved"])
+
+
+class ResummarizeTest(unittest.TestCase):
+    def setUp(self):
+        import json
+        import tempfile
+        self.json = json
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        self.out = self.dir.name
+        self.old = {"code": "AB", "ttft_ms": {"p50": 1}, "save": {"rows": 0}, "summary": {"queue_published": 5, "queue_consumed": 4, "lag_ms": None}}
+        json.dump(self.old, open(os.path.join(self.out, "summary.json"), "w"))
+        json.dump({"hold_start": 1.0, "hold_end": 3.0}, open(os.path.join(self.out, "window.json"), "w"))
+        json.dump({"rows_raw": "1|2.0|2.003|f\n", "host_gmtoff_s": 0, "clock_offset_ms": 12}, open(os.path.join(self.out, "drain.json"), "w"))
+        with open(os.path.join(self.out, "sessions-0.jsonl"), "w") as f:
+            f.write(json.dumps({"save_code": 200, "save_sent_ms": 1500.0, "question_result_id": 1}) + "\n")
+
+    def read(self, name):
+        return self.json.load(open(os.path.join(self.out, name)))
+
+    def test_저장_요약_블록만_다시_쓰고_나머지는_그대로_둔다(self):
+        collect_s1.resummarize(self.out)
+        new = self.read("summary.json")
+        self.assertEqual(1, new["save"]["rows"])
+        self.assertEqual(500.0, new["save"]["durable_ms"]["p50"])
+        self.assertEqual("AB", new["code"])
+        self.assertEqual({"p50": 1}, new["ttft_ms"])
+
+    def test_큐_발행_소비_수는_옛_값을_가져온다(self):
+        collect_s1.resummarize(self.out)
+        s = self.read("summary.json")["summary"]
+        self.assertEqual(5, s["queue_published"])
+        self.assertEqual(4, s["queue_consumed"])
+        self.assertEqual(1, s["lag_ms"]["count"])
+
+    def test_옛_파일은_v1_로_남기고_두_번째_실행이_덮어쓰지_않는다(self):
+        collect_s1.resummarize(self.out)
+        self.assertEqual(self.old, self.read("summary.v1.json"))
+        collect_s1.resummarize(self.out)
+        self.assertEqual(self.old, self.read("summary.v1.json"))
+
+
+def breaker_text(name, state, not_permitted, failed, successful=100):
+    """resilience4j 지표 한 개 차단기분의 프로메테우스 본문 - state 게이지는 상태마다 한 줄, 현재 상태만 1"""
+    lines = [f'resilience4j_circuitbreaker_state{{application="backend",name="{name}",state="{st}"}} {1.0 if st == state.lower() else 0.0}'
+             for st in ("closed", "open", "half_open", "disabled", "forced_open", "metrics_only")]
+    lines += [
+        f'resilience4j_circuitbreaker_not_permitted_calls_total{{application="backend",kind="not_permitted",name="{name}"}} {float(not_permitted)}',
+        f'resilience4j_circuitbreaker_calls_seconds_count{{application="backend",kind="failed",name="{name}"}} {failed}',
+        f'resilience4j_circuitbreaker_calls_seconds_count{{application="backend",kind="successful",name="{name}"}} {successful}',
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def circuit_sample_at(t, **by_name):
+    """by_name: 차단기 이름 -> (상태, 허용 안 된 호출, 실패 호출), 이름의 밑줄은 하이픈으로 바꾼다"""
+    return {"t": t, "breakers": {n.replace("_", "-"): {"state": v[0], "not_permitted": v[1], "failed": v[2]} for n, v in by_name.items()}}
+
+
+class CircuitSampleTest(unittest.TestCase):
+    def test_circuit_표본은_차단기_셋의_상태_허용_안_된_호출_실패_호출을_읽는다(self):
+        text = (breaker_text("llm-chat", "OPEN", 12, 30) + breaker_text("llm-rag", "HALF_OPEN", 1, 4)
+                + breaker_text("llm-summary", "CLOSED", 0, 0) + breaker_text("redis-chat", "OPEN", 99, 99))
+        row = collect_s1.circuit_sample(collect_s1.parse_prom(text), 123.5)
+        self.assertEqual(123.5, row["t"])
+        self.assertEqual({"state": "OPEN", "not_permitted": 12, "failed": 30}, row["breakers"]["llm-chat"])
+        self.assertEqual("HALF_OPEN", row["breakers"]["llm-rag"]["state"])
+        self.assertEqual("CLOSED", row["breakers"]["llm-summary"]["state"])
+        self.assertNotIn("redis-chat", row["breakers"])
+
+    def test_circuit_성공_호출은_실패_호출로_세지_않는다(self):
+        row = collect_s1.circuit_sample(collect_s1.parse_prom(breaker_text("llm-chat", "CLOSED", 0, 3, successful=500)), 1.0)
+        self.assertEqual(3, row["breakers"]["llm-chat"]["failed"])
+
+    def test_circuit_지표가_없는_차단기는_표본에서_뺀다(self):
+        row = collect_s1.circuit_sample(collect_s1.parse_prom(breaker_text("llm-chat", "CLOSED", 0, 0)), 1.0)
+        self.assertEqual(["llm-chat"], list(row["breakers"]))
+
+    def test_circuit_본문을_못_읽으면_표본은_None(self):
+        self.assertIsNone(collect_s1.circuit_sample({}, 1.0))
+
+
+class CircuitBlockTest(unittest.TestCase):
+    FAULT = {"start_ms": 100_000, "end_ms": 160_000}
+
+    def block(self, samples):
+        return collect_s1.circuit_block(self.FAULT, samples)
+
+    def test_circuit_열림까지_시간은_장애_시작에서_처음_OPEN_표본까지(self):
+        b = self.block([circuit_sample_at(95, llm_chat=("CLOSED", 0, 0)), circuit_sample_at(100, llm_chat=("CLOSED", 0, 2)),
+                        circuit_sample_at(103, llm_chat=("OPEN", 0, 9)), circuit_sample_at(104, llm_chat=("OPEN", 5, 9))])
+        self.assertEqual(3.0, b["llm-chat"]["open_after_fault_s"])
+
+    def test_circuit_장애_시작_전에_OPEN_이던_표본은_열림으로_세지_않는다(self):
+        b = self.block([circuit_sample_at(90, llm_chat=("OPEN", 0, 0)), circuit_sample_at(101, llm_chat=("CLOSED", 0, 0))])
+        self.assertIsNone(b["llm-chat"]["open_after_fault_s"])
+
+    def test_circuit_닫힘까지_시간은_장애_끝에서_다시_CLOSED_가_된_표본까지(self):
+        # 장애 시작(100) 기준이면 80, 끝(160) 기준이면 20
+        b = self.block([circuit_sample_at(103, llm_chat=("OPEN", 0, 9)), circuit_sample_at(170, llm_chat=("OPEN", 50, 9)),
+                        circuit_sample_at(178, llm_chat=("HALF_OPEN", 50, 9)), circuit_sample_at(180, llm_chat=("CLOSED", 50, 9))])
+        self.assertEqual(20.0, b["llm-chat"]["closed_after_fault_end_s"])
+
+    def test_circuit_장애_끝_뒤에도_열려_있고_마지막_표본까지_안_닫히면_null(self):
+        b = self.block([circuit_sample_at(103, llm_chat=("OPEN", 0, 9)), circuit_sample_at(300, llm_chat=("OPEN", 50, 9))])
+        self.assertEqual(3.0, b["llm-chat"]["open_after_fault_s"])
+        self.assertIsNone(b["llm-chat"]["closed_after_fault_end_s"])
+
+    def test_circuit_한_번도_안_열렸으면_열림도_닫힘도_null(self):
+        b = self.block([circuit_sample_at(t, llm_chat=("CLOSED", 0, t - 90)) for t in (95, 120, 170)])
+        self.assertIsNone(b["llm-chat"]["open_after_fault_s"])
+        self.assertIsNone(b["llm-chat"]["closed_after_fault_end_s"])
+
+    def test_circuit_허용_안_된_호출과_실패_호출은_첫_표본에서_마지막_표본까지의_증가분(self):
+        b = self.block([circuit_sample_at(90, llm_chat=("CLOSED", 5, 10)), circuit_sample_at(130, llm_chat=("OPEN", 20, 40)),
+                        circuit_sample_at(200, llm_chat=("CLOSED", 45, 70))])
+        self.assertEqual(40, b["llm-chat"]["not_permitted"])
+        self.assertEqual(60, b["llm-chat"]["failed_calls"])
+
+    def test_circuit_차단기마다_따로_계산한다(self):
+        b = self.block([circuit_sample_at(95, llm_chat=("CLOSED", 0, 0), llm_rag=("CLOSED", 0, 0), llm_summary=("CLOSED", 0, 0)),
+                        circuit_sample_at(110, llm_chat=("CLOSED", 0, 3), llm_rag=("OPEN", 0, 20), llm_summary=("CLOSED", 0, 0)),
+                        circuit_sample_at(165, llm_chat=("CLOSED", 0, 3), llm_rag=("CLOSED", 7, 20), llm_summary=("CLOSED", 0, 0))])
+        self.assertEqual(10.0, b["llm-rag"]["open_after_fault_s"])
+        self.assertEqual(5.0, b["llm-rag"]["closed_after_fault_end_s"])
+        self.assertIsNone(b["llm-chat"]["open_after_fault_s"])
+        self.assertIsNone(b["llm-summary"]["open_after_fault_s"])
+
+    def test_circuit_상태가_바뀐_시점을_장애_시작_기준_초로_남긴다(self):
+        b = self.block([circuit_sample_at(95, llm_chat=("CLOSED", 0, 0)), circuit_sample_at(103, llm_chat=("OPEN", 0, 9)),
+                        circuit_sample_at(104, llm_chat=("OPEN", 1, 9)), circuit_sample_at(175, llm_chat=("HALF_OPEN", 9, 9))])
+        self.assertEqual([[-5.0, "CLOSED"], [3.0, "OPEN"], [75.0, "HALF_OPEN"]], b["llm-chat"]["transitions"])
+
+    def test_circuit_표본이_없으면_차단기_셋_모두_null(self):
+        b = self.block([])
+        self.assertEqual({"llm-chat", "llm-rag", "llm-summary"}, set(b))
+        self.assertIsNone(b["llm-chat"]["open_after_fault_s"])
+        self.assertIsNone(b["llm-chat"]["not_permitted"])
+
+
+class FaultTurnsTest(unittest.TestCase):
+    @staticmethod
+    def turn(t_start, ok=True, error=None, turn_ms=9000.0, ttft_ms=1500.0):
+        return {"t_start": t_start, "ok": ok, "error": error, "turn_ms": turn_ms, "ttft_ms": ttft_ms if ok else None}
+
+    def test_fault_턴은_장애_시작부터_장애_끝_60초_뒤까지_시작한_턴만_센다(self):
+        turns = [self.turn(99.9), self.turn(100.0), self.turn(130.0), self.turn(220.0), self.turn(220.1)]
+        t = collect_s1.fault_turns(turns, 100_000, 160_000)
+        self.assertEqual(3, t["attempted"])
+
+    def test_fault_성공_실패_수와_실패_종류별_수(self):
+        turns = [self.turn(110), self.turn(111, ok=False, error="sse_error_event", turn_ms=800.0),
+                 self.turn(112, ok=False, error="sse_error_event", turn_ms=900.0), self.turn(113, ok=False, error="turn_timeout", turn_ms=60000.0)]
+        t = collect_s1.fault_turns(turns, 100_000, 160_000)
+        self.assertEqual((4, 1, 3), (t["attempted"], t["ok"], t["failed"]))
+        self.assertEqual({"sse_error_event": 2, "turn_timeout": 1}, t["by_kind"])
+
+    def test_fault_실패한_턴_시간은_턴_시작에서_오류까지의_p50_p95(self):
+        turns = [self.turn(110 + i, ok=False, error="sse_error_event", turn_ms=float(ms)) for i, ms in enumerate((100, 200, 300, 400, 5000))]
+        t = collect_s1.fault_turns(turns, 100_000, 160_000)
+        self.assertEqual(300.0, t["failed_turn_ms"]["p50"])
+        self.assertEqual(5000.0, t["failed_turn_ms"]["p95"])
+
+    def test_fault_성공한_턴의_첫_토큰_p95는_성공_턴만으로_구한다(self):
+        turns = [self.turn(110, ttft_ms=1000.0), self.turn(111, ttft_ms=2000.0), self.turn(112, ok=False, error="sse_error_event", turn_ms=50.0)]
+        self.assertEqual(2000.0, collect_s1.fault_turns(turns, 100_000, 160_000)["ok_ttft_p95_ms"])
+
+    def test_fault_구간에_턴이_없으면_0과_null(self):
+        t = collect_s1.fault_turns([self.turn(10)], 100_000, 160_000)
+        self.assertEqual((0, 0, 0), (t["attempted"], t["ok"], t["failed"]))
+        self.assertEqual({}, t["by_kind"])
+        self.assertIsNone(t["failed_turn_ms"]["p50"])
+        self.assertIsNone(t["ok_ttft_p95_ms"])
+
+
+class FaultBlockTest(unittest.TestCase):
+    def test_fault_블록은_구간과_모의_서버의_경로별_실패_수와_턴_집계를_담는다(self):
+        mock = {"fault": {"start_ms": 100_000, "end_ms": 160_000, "failed_by_route": {"chat_stream": 4, "chat_nonstream": 2, "embeddings": 9}}}
+        f = collect_s1.fault_block({"start_ms": 100_000, "end_ms": 160_000}, mock, [FaultTurnsTest.turn(110)])
+        self.assertEqual(100_000, f["start_ms"])
+        self.assertEqual(160_000, f["end_ms"])
+        self.assertEqual({"chat_stream": 4, "chat_nonstream": 2, "embeddings": 9}, f["failed_by_route"])
+        self.assertEqual(1, f["turns"]["attempted"])
+
+    def test_fault_모의_서버_통계를_못_읽으면_실패_수는_null(self):
+        f = collect_s1.fault_block({"start_ms": 100_000, "end_ms": 160_000}, None, [])
+        self.assertIsNone(f["failed_by_route"])
+        self.assertEqual(100_000, f["start_ms"])
+
+
 if __name__ == "__main__":
     unittest.main()
