@@ -182,7 +182,7 @@ class SaveSummaryBlocksTest(unittest.TestCase):
     POSTS = {1: 1000.0, 2: 2000.0, 3: 3000.0, 4: 3500.0}  # 4번은 끝까지 행이 안 생김
 
     def test_저장_시간과_요약_지연과_누락_수가_정해진_키로_나온다(self):
-        save, summary = collect_s1.save_summary_blocks(self.POSTS, self.ROWS, 0)
+        save, summary = collect_s1.save_summary_blocks(self.POSTS, self.ROWS)
         self.assertEqual(3, save["rows"])
         self.assertEqual(4, save["posts"])
         self.assertEqual(1, save["not_durable"])
@@ -192,16 +192,35 @@ class SaveSummaryBlocksTest(unittest.TestCase):
         self.assertEqual(2, summary["missing_incl_unsaved"])
 
     def test_요약과_함께_저장된_행의_지연은_0(self):
-        _, summary = collect_s1.save_summary_blocks(self.POSTS, self.ROWS, 0)
+        _, summary = collect_s1.save_summary_blocks(self.POSTS, self.ROWS)
         self.assertEqual(0.0, summary["lag_ms"]["p50"])
         self.assertEqual(4600.0, summary["lag_ms"]["p95"])
 
-    def test_측정한_DB_시계_오프셋만큼_행_시각을_보정한다(self):
-        save, _ = collect_s1.save_summary_blocks({1: 1000.0}, self.ROWS[:1], 300)
-        self.assertEqual({"p50": 200.0, "p95": 200.0, "count": 1}, save["durable_ms"])
+    def test_저장_시간은_행_생성_시각에서_전송_시각을_뺀_값_그대로(self):
+        # created_at 은 같은 호스트의 앱 JVM 이 쓰므로 DB 시계 오프셋을 빼지 않는다
+        save, _ = collect_s1.save_summary_blocks({1: 1000.0}, self.ROWS[:1])
+        self.assertEqual({"p50": 500.0, "p95": 500.0, "count": 1}, save["durable_ms"])
+
+    def test_측정_구간_안에서_보낸_저장만_따로_p50_p95_max_개수로_센다(self):
+        rows = [{"qrid": q, "created_ms": c, "updated_ms": None, "summary_null": False} for q, c in ((1, 1500.0), (2, 2400.0), (3, 9000.0))]
+        save, _ = collect_s1.save_summary_blocks({1: 1000.0, 2: 2000.0, 3: 3000.0}, rows, hold_ms=(1800.0, 3500.0))
+        self.assertEqual({"p50": 400.0, "p95": 6000.0, "max": 6000.0, "count": 2}, save["durable_ms_hold"])
+        self.assertEqual(3, save["durable_ms"]["count"])
+
+    def test_구간을_안_주면_구간_값은_null(self):
+        save, _ = collect_s1.save_summary_blocks(self.POSTS, self.ROWS)
+        self.assertIsNone(save["durable_ms_hold"])
+
+    def test_요약과_함께_저장된_행도_측정한_updated_at_빼기_created_at_을_보고하고_주석을_남긴다(self):
+        rows = [{"qrid": 1, "created_ms": 1000.0, "updated_ms": 1005.0, "summary_null": False},
+                {"qrid": 2, "created_ms": 2000.0, "updated_ms": 6600.0, "summary_null": False}]
+        _, summary = collect_s1.save_summary_blocks({1: 900.0, 2: 1900.0}, rows)
+        self.assertEqual(5.0, summary["lag_ms"]["p50"])
+        self.assertEqual(4600.0, summary["lag_ms"]["p95"])
+        self.assertIn("updated_at", summary["lag_note"])
 
     def test_행이_없으면_백분위는_null_개수는_0(self):
-        save, summary = collect_s1.save_summary_blocks({1: 1000.0}, [], 0)
+        save, summary = collect_s1.save_summary_blocks({1: 1000.0}, [])
         self.assertEqual({"p50": None, "p95": None, "count": 0}, save["durable_ms"])
         self.assertEqual({"p50": None, "p95": None, "count": 0}, summary["lag_ms"])
         self.assertEqual(0, summary["missing_at_end"])
