@@ -362,6 +362,8 @@ class OpenerAnalysisCanOrderTest {
 
     // TransactionTemplate 목이 콜백을 실제로 실행하게 한다
     private void runTransactionInline() {
+        // 저장 호출이 저장한 행을 돌려준다 -> 소비자가 그 행 id 로 요약 이벤트를 낸다
+        when(chatMessageRepository.save(any(ChatMessage.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(transactionTemplate.execute(any())).thenAnswer(invocation -> {
             TransactionCallback<?> callback = invocation.getArgument(0);
             return callback.doInTransaction(transactionStatus);

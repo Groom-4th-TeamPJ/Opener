@@ -18,7 +18,6 @@ import spring.backend.domain.chat.model.entity.ChatMessage;
 import spring.backend.domain.chat.model.entity.ChatMessageContent;
 import spring.backend.domain.chat.repository.spec.ChatMessageRepository;
 import spring.backend.domain.chat.service.spec.ChatRedisService;
-import spring.backend.domain.chat.service.spec.LlmService;
 import spring.backend.domain.exam.model.entity.QuestionResult;
 import spring.backend.domain.exam.repository.spec.QuestionResultRepository;
 import spring.backend.shared.infrastructure.messaging.config.RabbitMQConfig;
@@ -35,7 +34,7 @@ public class ChatMessageConsumer {
     private final RedisMessageMapper redisMessageMapper;
     private final ChatMessageRepository chatMessageRepository;
     private final QuestionResultRepository questionResultRepository;
-    private final LlmService llmService;
+    private final ChatMessageProducer chatMessageProducer;
     private final MeterRegistry meterRegistry;
     private final TransactionTemplate transactionTemplate;
 
@@ -43,9 +42,9 @@ public class ChatMessageConsumer {
     private static final Duration SESSION_TTL = Duration.ofHours(1);
 
     // @RabbitListener -> 큐 메시지를 자동 수신, 폴링 코드 없이 이벤트 도착 시 호출
-    // @Transactional 제거 -> LLM 요약은 십수 초가 걸리는 외부 호출이라 커넥션을 붙잡은 채 기다리면
-    // HikariCP(max 20)가 고갈되고, 그것이 곧 이 도메인이 막겠다고 한 연쇄 지연이다
-    // DB 쓰기만 TransactionTemplate 으로 감싸 경계를 최소화한다
+    // @Transactional 은 계속 뺀다 -> LLM 요약 호출은 요약 소비자로 옮겨 갔지만 이 메서드에는 여전히 Redis 읽기·삭제와
+    // 큐 발행이 있고, 메서드 전체를 감싸면 그 대기 동안 HikariCP(max 20) 커넥션을 붙잡는다
+    // DB 쓰기만 TransactionTemplate 으로 감싸 경계를 최소화하고, 요약 이벤트는 커밋 뒤에 낸다
     @RabbitListener(queues = RabbitMQConfig.CHAT_MESSAGE_SAVE_QUEUE)
     public void handleSaveMessageEvent(ChatMessageSaveEvent event) {
         // 필수 필드가 빠진 이벤트는 몇 번을 다시 읽어도 같은 결과 -> 재시도 없이 DLQ 로 보낸다
@@ -62,7 +61,7 @@ public class ChatMessageConsumer {
                 sessionId, questionResultId);
 
         try {
-            // 소유권 검증은 Redis 읽기와 LLM 요약보다 앞 -> 요청 본문의 questionResultId 는 사용자가 정한 값이라
+            // 소유권 검증은 Redis 읽기보다 앞 -> 요청 본문의 questionResultId 는 사용자가 정한 값이라
             // 남의 문항 결과에 내 대화를 붙이거나 남의 결과를 덮어쓰는 경로가 된다
             // 재시도해도 같은 결과 -> 아래 catch 가 재시도 없이 DLQ 로 보낸다. ACK 로 버리면 원인이 남지 않는다
             if (!questionResultRepository.existsByIdAndExamResultUserId(questionResultId, event.userId())) {
@@ -134,10 +133,9 @@ public class ChatMessageConsumer {
             // MessageDto 리스트를 ChatMessageContent 리스트로 변환 -> 현재 구성은 동일하지만 추후 확장성 고려
             List<ChatMessageContent> messageContents = redisMessageMapper.toEntityList(completeMessages);
 
-            // 트랜잭션 밖에서 먼저 요약 -> 외부 호출 지연이 DB 커넥션 점유 시간에 더해지지 않게 한다
-            String summary = llmService.summaryChat(sessionId.toString());
-
-            transactionTemplate.execute(status -> {
+            // 요약 없이 저장한다 -> 요약은 저장된 행 id 를 받는 요약 소비자가 따로 채운다
+            // 요약 호출을 여기에 두면 건당 4.5 초만큼 저장이 늦어져 큐가 쌓인다
+            Long chatMessageId = transactionTemplate.execute(status -> {
                 QuestionResult questionResult = questionResultRepository.findById(questionResultId)
                         .orElseThrow(() -> {
                             log.error("[RabbitMQ] QuestionResult 조회 실패 - questionResultId: {}", questionResultId);
@@ -145,9 +143,8 @@ public class ChatMessageConsumer {
                         });
 
                 ChatMessage chatMessage = ChatMessage.createFromSession(
-                        questionResult, messageContents, summary);
-                chatMessageRepository.save(chatMessage);
-                return null;
+                        questionResult, messageContents, null);
+                return chatMessageRepository.save(chatMessage).getId();
             });
 
             log.info("[RabbitMQ] 채팅 메시지 저장 완료 - sessionId: {}, 메시지 수: {}",
@@ -156,11 +153,14 @@ public class ChatMessageConsumer {
             // DB 영속화 성공 후 Redis 정리 -> 버퍼는 임시 저장소이므로 영구 저장 완료 시점에 비움
             chatRedisService.deleteMessage(sessionId);
 
+            // 커밋과 버퍼 삭제 뒤에 발행 -> 요약 소비자가 아직 없는 행을 찾는 일이 없다
+            publishSummaryEvent(chatMessageId);
+
         } catch (BusinessException e) {
             log.error("[RabbitMQ] 비즈니스 예외 발생 - sessionId: {}, errorCode: {}, message: {}",
                     sessionId, e.getErrorCode(), e.getMessage());
             // 영구 실패(문항 결과 부재 · 문항 결과 소유자 불일치 · 세션 소유자 불일치)는 재시도해도 같은 결과
-            // -> 재시도 횟수만큼 summaryChat 을 다시 부르지 않고 원인을 단 채 바로 DLQ 로 보낸다
+            // -> 재시도 횟수만큼 같은 실패를 반복하지 않고 원인을 단 채 바로 DLQ 로 보낸다
             // 재시도 제외는 RabbitListenerRetryPolicyCustomizer 빈이 맡고, RabbitMQConfig 의 리스너 팩토리가
             // Boot 의 SimpleRabbitListenerContainerFactoryConfigurer 를 거치므로 그 빈이 이 컨슈머의 재시도 정책에 닿는다
             if (e.getErrorCode() == ErrorCode.RESULT_NOT_FOUND
@@ -175,6 +175,17 @@ public class ChatMessageConsumer {
             log.error("[RabbitMQ] 예기치 않은 예외 발생 - sessionId: {}", sessionId, e);
             // 알 수 없는 예외도 BusinessException 으로 감싸 일관된 처리 경로 유지
             throw new BusinessException(ErrorCode.MESSAGE_INPUT_FAIL);
+        }
+    }
+
+    // 발행 실패는 저장 실패가 아니다 -> 행은 이미 커밋됐고 버퍼도 지워서 저장 이벤트를 재시도해도 CHAT_BUFFER_LOST 로 DLQ 에만 간다
+    // 던지는 대신 메트릭과 로그로 남기고, 요약이 빈 행은 API 가 summary 를 null 로 내려 읽는 쪽이 견딘다
+    private void publishSummaryEvent(Long chatMessageId) {
+        try {
+            chatMessageProducer.publishSummaryEvent(chatMessageId);
+        } catch (RuntimeException e) {
+            log.error("[RabbitMQ] 요약 이벤트 발행 실패 - 요약 없이 저장됨 - chatMessageId: {}", chatMessageId, e);
+            meterRegistry.counter("chat.summary.publish_failed").increment();
         }
     }
 }

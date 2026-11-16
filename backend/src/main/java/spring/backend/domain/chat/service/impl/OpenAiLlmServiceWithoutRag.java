@@ -97,17 +97,10 @@ public class OpenAiLlmServiceWithoutRag implements LlmService {
 
     // 요약도 무보호 외부 호출이었다 -> 실패가 컨슈머 재시도로 증폭돼 LLM 부하를 키운다
     @Override
-    @CircuitBreaker(name = "llm-summary", fallbackMethod = "summaryChatFallback")
-    public String summaryChat(String sessionId) {
-        // 서킷이 감싼 호출 안에서 히스토리를 읽되 실패는 여기서 끊는다 -> Redis 장애가 llm-summary 의 실패로 집계되지 않는다
-        List<Message> chatHistory = fetchFullHistory(sessionId);
-        if (chatHistory == null) {
-            return null;
-        }
-
+    @CircuitBreaker(name = "llm-summary", fallbackMethod = "summarizeFallback")
+    public String summarize(List<Message> chatHistory) {
         try {
-            log.debug("[LLM-NoRAG] 대화 요약 시작 - sessionId: {}, 메시지 수: {}",
-                    sessionId, chatHistory.size());
+            log.debug("[LLM-NoRAG] 대화 요약 시작 - 메시지 수: {}", chatHistory.size());
 
             // 프롬프트 로드 (서술적 요약 안내)
             String summaryPrompt = promptLoader.buildChatSummaryPrompt();
@@ -122,8 +115,7 @@ public class OpenAiLlmServiceWithoutRag implements LlmService {
                     .call()
                     .content();
 
-            log.info("[LLM-NoRAG] 대화 요약 완료 - sessionId: {}, 요약 길이: {}",
-                    sessionId, summary != null ? summary.length() : 0);
+            log.info("[LLM-NoRAG] 대화 요약 완료 - 요약 길이: {}", summary != null ? summary.length() : 0);
 
             return summary;
 
@@ -134,8 +126,8 @@ public class OpenAiLlmServiceWithoutRag implements LlmService {
             Throwable rootCause = e.getCause();
             String rootCauseMessage = rootCause != null ? rootCause.getMessage() : "없음";
 
-            log.error("[LLM-NoRAG] 대화 요약 실패 - sessionId: {}, 예외타입: {}, 메시지: {}, 원인: {}",
-                    sessionId, errorType, errorMessage, rootCauseMessage);
+            log.error("[LLM-NoRAG] 대화 요약 실패 - 예외타입: {}, 메시지: {}, 원인: {}",
+                    errorType, errorMessage, rootCauseMessage);
             log.error("[LLM-NoRAG] 상세 스택트레이스:", e);
 
             // API 키 관련 오류 감지
@@ -157,27 +149,14 @@ public class OpenAiLlmServiceWithoutRag implements LlmService {
         }
     }
 
-    // 윈도우 미적용 전량 조회 -> 이 요약은 PostgreSQL 에 영구 저장되므로 최근 N 턴만 보면 기록이 영구 손실
-    // 히스토리는 Redis 에서 읽는다 -> 조회 실패(MESSAGE_INPUT_FAIL 등)는 LLM 장애가 아니므로 null 로 내려 요약 없이 저장한다
-    private List<Message> fetchFullHistory(String sessionId) {
-        try {
-            return chatHistoryProvider.getFullHistory(sessionId);
-        } catch (RuntimeException e) {
-            log.warn("[LLM-NoRAG] 요약용 히스토리 조회 실패 - 요약 없이 대화만 저장 - sessionId: {}, cause: {}",
-                    sessionId, e.getMessage());
-            return null;
-        }
-    }
-
-    // 요약 없이 대화만 저장하는 것이 저장 자체를 실패시키는 것보다 낫다
+    // 요약이 없어도 저장된 대화는 그대로다 -> 호출 실패는 null 로 돌려 요약 소비자가 재시도하게 한다
     @SuppressWarnings("unused")
-    private String summaryChatFallback(String sessionId, Throwable t) {
+    private String summarizeFallback(List<Message> chatHistory, Throwable t) {
         // 도메인 거절은 요약 누락으로 덮지 않는다 -> 호출 실패와 서킷 OPEN 만 null 로 흡수
         if (t instanceof BusinessException be) {
             throw be;
         }
-        log.warn("[LLM-NoRAG] 요약 실패 - 요약 없이 대화만 저장 - sessionId: {}, cause: {}",
-                sessionId, t.getMessage());
+        log.warn("[LLM-NoRAG] 요약 실패 - cause: {}", t.getMessage());
         return null;
     }
 }

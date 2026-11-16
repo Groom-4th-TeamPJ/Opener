@@ -26,6 +26,9 @@ public class RabbitMQConfig {
     // Queue 이름
     public static final String CHAT_MESSAGE_SAVE_QUEUE = "chat.message.save.queue";
     public static final String CHAT_MESSAGE_DLQ = "chat.message.save.dlq"; // Dead Letter Queue
+    // 요약은 저장과 다른 큐 -> 4.5 초짜리 LLM 호출이 저장 지연에 더해지지 않고, 실패해도 저장 DLQ 와 섞이지 않는다
+    public static final String CHAT_SUMMARY_QUEUE = "chat.message.summary.queue";
+    public static final String CHAT_SUMMARY_DLQ = "chat.message.summary.dlq";
 
     // Exchange 이름
     public static final String CHAT_MESSAGE_EXCHANGE = "chat.message.exchange";
@@ -34,6 +37,8 @@ public class RabbitMQConfig {
     // Routing Key
     public static final String CHAT_MESSAGE_SAVE_ROUTING_KEY = "chat.message.save";
     public static final String CHAT_MESSAGE_DLQ_ROUTING_KEY = "chat.message.save.dlq";
+    public static final String CHAT_SUMMARY_ROUTING_KEY = "chat.message.summary";
+    public static final String CHAT_SUMMARY_DLQ_ROUTING_KEY = "chat.message.summary.dlq";
 
     // durable=true -> 브로커 재시작에도 큐와 메시지 유지, 저장 이벤트 유실 방지
     // DLX 연결 -> 처리 실패 메시지를 버리지 않고 DLQ 로 보내 추후 재처리/분석 가능
@@ -44,6 +49,21 @@ public class RabbitMQConfig {
                 .withArgument("x-dead-letter-exchange", CHAT_MESSAGE_DLX)
                 .withArgument("x-dead-letter-routing-key", CHAT_MESSAGE_DLQ_ROUTING_KEY)
                 .build();
+    }
+
+    // 저장 큐와 같은 규칙 -> durable + DLX 연결, 실패한 요약은 요약 DLQ 로 간다
+    @Bean
+    public Queue chatSummaryQueue() {
+        return org.springframework.amqp.core.QueueBuilder
+                .durable(CHAT_SUMMARY_QUEUE)
+                .withArgument("x-dead-letter-exchange", CHAT_MESSAGE_DLX)
+                .withArgument("x-dead-letter-routing-key", CHAT_SUMMARY_DLQ_ROUTING_KEY)
+                .build();
+    }
+
+    @Bean
+    public Queue chatSummaryDlq() {
+        return new Queue(CHAT_SUMMARY_DLQ, true);
     }
 
     // Dead Letter Queue - 실패한 메시지 저장
@@ -71,6 +91,22 @@ public class RabbitMQConfig {
                 .bind(chatMessageSaveQueue)
                 .to(chatExchange)
                 .with(CHAT_MESSAGE_SAVE_ROUTING_KEY);
+    }
+
+    @Bean
+    public Binding chatSummaryBinding(Queue chatSummaryQueue, DirectExchange chatExchange) {
+        return BindingBuilder
+                .bind(chatSummaryQueue)
+                .to(chatExchange)
+                .with(CHAT_SUMMARY_ROUTING_KEY);
+    }
+
+    @Bean
+    public Binding chatSummaryDeadLetterBinding(Queue chatSummaryDlq, DirectExchange deadLetterExchange) {
+        return BindingBuilder
+                .bind(chatSummaryDlq)
+                .to(deadLetterExchange)
+                .with(CHAT_SUMMARY_DLQ_ROUTING_KEY);
     }
 
     // DLQ와 DLX 바인딩

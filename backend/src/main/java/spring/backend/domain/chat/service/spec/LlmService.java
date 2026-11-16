@@ -1,5 +1,7 @@
 package spring.backend.domain.chat.service.spec;
 
+import java.util.List;
+import org.springframework.ai.chat.messages.Message;
 import reactor.core.publisher.Flux;
 
 public interface LlmService {
@@ -8,6 +10,7 @@ public interface LlmService {
     // writtenLength = userMessage 저장이 돌려준 목록 길이 -> 질문 직전까지만 히스토리로 읽는다
     Flux<String> chatStream(String sessionId, String userMessage, long writtenLength);
 
-    // 채팅 기록 요약
-    String summaryChat(String sessionId);
+    // 저장된 대화 요약 -> 호출부가 메시지를 넘긴다
+    // 저장 뒤에 요약하므로 Redis 버퍼는 이미 지워졌고, 실패하면 null(서킷 OPEN 포함)
+    String summarize(List<Message> messages);
 }

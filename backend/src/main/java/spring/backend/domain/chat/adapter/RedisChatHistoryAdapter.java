@@ -77,12 +77,17 @@ public class RedisChatHistoryAdapter implements ChatHistoryProvider {
 
     // RedisMessageDto 를 Spring AI Message 로 변환
     private Message convertToSpringAiMessage(RedisMessageDto redisMessage) {
-        if (redisMessage.chatRole() == ChatRole.USER) {
-            return new UserMessage(redisMessage.message());
-        } else if (redisMessage.chatRole() == ChatRole.LLM) {
-            return new AssistantMessage(redisMessage.message());
+        return toMessage(redisMessage.chatRole(), redisMessage.message());
+    }
+
+    // 요약 소비자가 DB 에 저장된 메시지를 변환할 때도 같은 매핑을 쓴다 -> 역할 매핑이 두 곳으로 갈라지지 않게 한다
+    public static Message toMessage(ChatRole role, String text) {
+        if (role == ChatRole.USER) {
+            return new UserMessage(text);
+        } else if (role == ChatRole.LLM) {
+            return new AssistantMessage(text);
         } else {
-            log.warn("[ChatHistory] 알 수 없는 ChatRole - role: {}", redisMessage.chatRole());
+            log.warn("[ChatHistory] 알 수 없는 ChatRole - role: {}", role);
             return null;
         }
     }
