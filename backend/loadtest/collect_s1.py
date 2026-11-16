@@ -3,8 +3,9 @@
 
 watch      : window.json 이 가리키는 hold 구간 동안 5초마다 CPU 를 표집하고 시작·끝 스냅샷을 collector.json 에 쓴다
 drain      : 생성기가 끝난 뒤 저장·요약 큐를 5초마다 최대 300초 표집하고 chat_messages 행을 읽어 drain.json 에 쓴다
+fault      : 모의 서버에 장애 구간을 걸고 차단기 상태를 1초마다 표집해 circuit.json 에 쓴다 (run.sh 가 S1_FAULT 일 때만 부른다)
 summarize  : 생성기 원자료(turns-*.jsonl 등) + collector.json + drain.json -> summary.json
-사용: collect_s1.py watch --out DIR | collect_s1.py drain --out DIR | collect_s1.py summarize --out DIR --code base|new|A|AB --commit HASH [--app-env "K=V ..."]
+사용: collect_s1.py watch --out DIR | collect_s1.py fault --out DIR [--tiny] | collect_s1.py drain --out DIR | collect_s1.py summarize --out DIR --code base|new|A|AB --commit HASH [--app-env "K=V ..."]
 """
 import argparse
 import base64
@@ -146,9 +147,9 @@ def history_fallback(p0, p1, code):
     return int(now - (prom_sum(p0, "chat_redis_history_fallback_total") or 0))
 
 
-def prom_max(prom, name):
+def prom_max(prom, name, **labels):
     """같은 이름 계열 중 가장 큰 값 - 풀이 둘 이상이어도 가장 나쁜 쪽"""
-    vals = [v for (n, _), v in prom.items() if n == name]
+    vals = [v for (n, lb), v in prom.items() if n == name and _match(lb, labels)]
     return max(vals) if vals else None
 
 
@@ -181,6 +182,24 @@ def hikari_block(p0, p1, samples):
                      "max": _seconds_to_ms(_largest(samples, "hikari_usage_max_s"))},
         "timeouts": None if timeouts is None else int(timeouts - (prom_sum(p0, "hikaricp_connections_timeout_total") or 0)),
     }
+
+
+EMBED_TIMER = "gen_ai_client_operation_seconds"
+
+
+def embedding_block(p0, p1, samples):
+    """앱이 모의 서버(운영에서는 OpenAI)에 보낸 임베딩 호출 한 번의 시간 - Spring AI 클라이언트 타이머(gen_ai_operation_name=embedding)
+    RAG 검색 시간(rag.vector.search)은 이 호출 + pgvector 질의라서, 검색이 느려졌을 때 어느 쪽인지 가르는 값
+    평균 = 구간 시작·끝 스냅샷의 합·개수 증가분, 최댓값 = 5초 표본의 _max 게이지 중 가장 큰 값, 오류 호출은 개수만 센다"""
+    ok = {"gen_ai_operation_name": "embedding", "error": "none"}
+    c0, c1 = prom_sum(p0, EMBED_TIMER + "_count", **ok), prom_sum(p1, EMBED_TIMER + "_count", **ok)
+    s0, s1 = prom_sum(p0, EMBED_TIMER + "_sum", **ok), prom_sum(p1, EMBED_TIMER + "_sum", **ok)
+    n = None if c1 is None else c1 - (c0 or 0)
+    all1, all0 = prom_sum(p1, EMBED_TIMER + "_count", gen_ai_operation_name="embedding"), prom_sum(p0, EMBED_TIMER + "_count", gen_ai_operation_name="embedding")
+    return {"count": None if n is None else int(n),
+            "mean_ms": ((s1 - (s0 or 0)) / n * 1000) if n else None,
+            "max_ms": _seconds_to_ms(_largest(samples, "embed_max_s")),
+            "failed_count": None if all1 is None else int(all1 - (all0 or 0) - (n or 0))}
 
 
 # 질의문 종류 - 위에서부터 처음 맞는 것 (vector_store 가 chat_messages 보다 앞, insert·update 가 from 보다 앞)
@@ -224,6 +243,81 @@ def activity_block(samples):
     block["peak_total"] = {st: max(sum(x[st].values()) for x in ok) for st in ACTIVITY_STATES.values()}
     block["idle_in_tx_max_s"] = max([x["idle_in_tx_max_s"] for x in ok if x["idle_in_tx_max_s"] is not None] or [None])
     return block
+
+
+BREAKERS = ("llm-chat", "llm-rag", "llm-summary")
+FAULT_TURN_TAIL_S = 60
+CIRCUIT_BEFORE_S, CIRCUIT_AFTER_S = 10, 120
+# 장애 구간 (hold 시작에서 시작까지 초, 길이 초) - 시험 실행은 짧게
+FAULT_FULL, FAULT_TINY = (120, 60), (10, 10)
+
+
+def circuit_sample(prom, t):
+    """프로메테우스 표본 하나 -> 차단기 셋의 상태·허용 안 된 호출·실패 호출 (누적 값), 본문이 비었으면 None
+    /actuator/circuitbreakers 는 로그인이 필요해(401) 같은 값을 열려 있는 prometheus 에서 읽는다"""
+    if not prom:
+        return None
+
+    def series(metric, **labels):
+        # prom_series 의 첫 인자가 name 이라 name 라벨을 키워드로 못 넘긴다
+        return [(dict(lb), v) for (n, lb), v in prom.items() if n == metric and _match(lb, labels)]
+
+    out = {}
+    for name in BREAKERS:
+        states = [d["state"] for d, v in series("resilience4j_circuitbreaker_state", name=name) if v == 1.0]
+        if not states:
+            continue
+        out[name] = {"state": states[0].upper(),
+                     "not_permitted": int(sum(v for _, v in series("resilience4j_circuitbreaker_not_permitted_calls_total", name=name))),
+                     "failed": int(sum(v for _, v in series("resilience4j_circuitbreaker_calls_seconds_count", name=name, kind="failed")))}
+    return {"t": t, "breakers": out}
+
+
+def circuit_block(fault, samples):
+    """장애 구간(에포크 ms)과 1초 표본 -> 차단기별 열림·닫힘 시간
+    open_after_fault_s: 장애 시작 이후 처음 OPEN 인 표본까지 초 (안 열리면 null)
+    closed_after_fault_end_s: 열린 적이 있을 때, 장애 끝 이후(그리고 열린 뒤) 처음 CLOSED 인 표본까지 초 (마지막 표본까지 안 닫히면 null)
+    not_permitted · failed_calls: 첫 표본에서 마지막 표본까지의 증가분"""
+    start_s, end_s = fault["start_ms"] / 1000, fault["end_ms"] / 1000
+    result = {}
+    for name in BREAKERS:
+        rows = [(x["t"], x["breakers"][name]) for x in samples if x and name in x["breakers"]]
+        opened = next((t for t, b in rows if t >= start_s and b["state"] == "OPEN"), None)
+        closed = next((t for t, b in rows if opened is not None and t >= max(end_s, opened) and b["state"] == "CLOSED"), None)
+        changes, last = [], None
+        for t, b in rows:
+            if b["state"] != last:
+                changes.append([round(t - start_s, 3), b["state"]])
+                last = b["state"]
+        result[name] = {
+            "open_after_fault_s": None if opened is None else opened - start_s,
+            "closed_after_fault_end_s": None if closed is None else closed - end_s,
+            "not_permitted": rows[-1][1]["not_permitted"] - rows[0][1]["not_permitted"] if rows else None,
+            "failed_calls": rows[-1][1]["failed"] - rows[0][1]["failed"] if rows else None,
+            "transitions": changes,
+        }
+    return result
+
+
+def fault_turns(turns, start_ms, end_ms):
+    """장애 시작부터 장애 끝 60초 뒤까지 시작한 턴 - 시도·성공·실패, 실패 종류별 수, 실패한 턴 시간(턴 시작 -> 오류), 성공한 턴의 첫 토큰 p95"""
+    lo, hi = start_ms / 1000, end_ms / 1000 + FAULT_TURN_TAIL_S
+    sel = [t for t in turns if lo <= t["t_start"] <= hi]
+    ok = [t for t in sel if t["ok"]]
+    failed = [t for t in sel if not t["ok"]]
+    by_kind = {}
+    for t in failed:
+        by_kind[t["error"]] = by_kind.get(t["error"], 0) + 1
+    fail_ms = [t["turn_ms"] for t in failed]
+    return {"attempted": len(sel), "ok": len(ok), "failed": len(failed), "by_kind": by_kind,
+            "failed_turn_ms": {"p50": percentile(fail_ms, 50), "p95": percentile(fail_ms, 95)},
+            "ok_ttft_p95_ms": percentile([t["ttft_ms"] for t in ok if t["ttft_ms"] is not None], 95)}
+
+
+def fault_block(fault, mock_stats, turns):
+    failed = ((mock_stats or {}).get("fault") or {}).get("failed_by_route")
+    return {"start_ms": fault["start_ms"], "end_ms": fault["end_ms"], "failed_by_route": failed,
+            "turns": fault_turns(turns, fault["start_ms"], fault["end_ms"])}
 
 
 SAVE_Q, SUMMARY_Q = "chat.message.save.queue", "chat.message.summary.queue"
@@ -390,8 +484,8 @@ def node_snapshot(port):
     }
 
 
-PROM_KEEP = ("chat_", "rag_vector", "jvm_threads", "process_cpu", "system_cpu", "resilience4j_circuitbreaker_state",
-             "hikaricp_connections", "tomcat_threads", "jvm_gc_pause_seconds_count", "jvm_gc_pause_seconds_sum")
+PROM_KEEP = ("chat_", "rag_vector", "gen_ai_client_operation_seconds", "jvm_threads", "process_cpu", "system_cpu",
+             "hikaricp_connections", "resilience4j_circuitbreaker", "tomcat_threads", "jvm_gc_pause_seconds_count", "jvm_gc_pause_seconds_sum")
 
 
 def prom_snapshot(app_port):
@@ -452,13 +546,47 @@ def top_cpu_line():
     return lines[-1] if lines else None
 
 
-def watch(out, sc):
+def wait_window(out):
     wpath = os.path.join(out, "window.json")
     for _ in range(600):
         if os.path.exists(wpath):
             break
         time.sleep(0.5)
-    w = json.load(open(wpath))
+    return json.load(open(wpath))
+
+
+def post_json(url, obj, timeout=10):
+    req = urllib.request.Request(url, json.dumps(obj).encode(), {"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read())
+
+
+def fault_run(out, sc, tiny):
+    """장애 구간(hold 시작 기준 FAULT_FULL, 시험 실행은 FAULT_TINY)을 모의 서버에 걸고, 시작 10초 전부터 끝 120초 뒤까지 1초마다 차단기를 표집한다"""
+    w = wait_window(out)
+    delay, length = FAULT_TINY if tiny else FAULT_FULL
+    start_s = w["hold_start"] + delay
+    fault = {"start_ms": round(start_s * 1000), "end_ms": round((start_s + length) * 1000)}
+    mock = f"http://{HOST}:{sc['ports']['mock']}"
+    post_json(mock + "/fault", fault)
+    armed = (http_json(mock + "/stats") or {}).get("fault") or {}
+    if armed.get("start_ms") != fault["start_ms"] or armed.get("end_ms") != fault["end_ms"]:
+        raise RuntimeError(f"장애 구간이 모의 서버에 안 걸렸다: {armed}")
+    stop = start_s + length + CIRCUIT_AFTER_S
+    time.sleep(max(0.0, start_s - CIRCUIT_BEFORE_S - time.time()))
+    samples, nxt = [], time.time()
+    while time.time() < stop:
+        now = time.time()
+        row = circuit_sample(prom_from_snapshot(prom_snapshot(sc["ports"]["app"])), now)
+        if row:
+            samples.append(row)
+        nxt += 1
+        time.sleep(max(0.0, nxt - time.time()))
+    json.dump({"fault": fault, "samples": samples, "tiny": tiny}, open(os.path.join(out, "circuit.json"), "w"))
+
+
+def watch(out, sc):
+    w = wait_window(out)
     write_cmds = [c.lower() for c in (redis_cmd(sc["ports"]["redis_chat"][0], "COMMAND", "LIST", "FILTERBY", "ACLCAT", "write") or [])]
     time.sleep(max(0.0, w["hold_start"] - time.time()))
     snap0 = snapshot(sc)
@@ -485,6 +613,7 @@ def watch(out, sc):
         row["hikari_pending"] = prom_sum(prom, "hikaricp_connections_pending")
         row["hikari_acquire_max_s"] = prom_max(prom, "hikaricp_connections_acquire_seconds_max")
         row["hikari_usage_max_s"] = prom_max(prom, "hikaricp_connections_usage_seconds_max")
+        row["embed_max_s"] = prom_max(prom, EMBED_TIMER + "_max", gen_ai_operation_name="embedding", error="none")
         row["activity"] = read_activity()
         samples.append(row)
         nxt += SAMPLE_S
@@ -659,6 +788,11 @@ def summarize(out, code, commit, sc, app_env=None):
         depth_end = s1["depths_at_hold_end"]
     final_rabbit = http_json(f"http://{HOST}:{sc['ports']['rabbit_mgmt']}/api/queues", "guest:guest") or []
     final_mock = http_json(f"http://{HOST}:{sc['ports']['mock']}/stats")
+    fault = circuit = None
+    circ_path = os.path.join(out, "circuit.json")
+    if os.path.exists(circ_path):
+        circ = json.load(open(circ_path))
+        fault, circuit = fault_block(circ["fault"], final_mock, turns), circuit_block(circ["fault"], circ["samples"])
     sess_done = [s for s in sessions if s.get("ok") and s.get("t_end") and window[0] <= s["t_end"] <= window[1]]
     summary = {
         "code": code, "commit": commit,
@@ -706,7 +840,9 @@ def summarize(out, code, commit, sc, app_env=None):
             "dlq": {"save": dr["end"]["save_dlq"], "summary": dr["end"]["summary_dlq"]} if dr else None,
             "depth_at_drain_end": {"save": dr["end"]["save"], "summary": dr["end"]["summary"]} if dr else None,
         },
+        "app_embedding_call_ms": embedding_block(p0, p1, samples),
         "db": {"hikari": hikari_block(p0, p1, samples), "activity": activity_block([r.get("activity") for r in samples])},
+        "fault": fault, "circuit": circuit,
         "save": save_block,
         "summary": summary_block,
         "app_env": app_env,
@@ -717,6 +853,7 @@ def summarize(out, code, commit, sc, app_env=None):
         "loadgen_cpu_mean_pct": sum(gen_sum) / len(gen_sum) if gen_sum else None,
         "loadgen_cores": w["procs"],
         "mock_cpu_max_pct": max([sum(r["mock_cpu_pct"]) for r in samples if r["mock_cpu_pct"]] or [0.0]),
+        "mock_cpu_mean_pct": (lambda v: sum(v) / len(v) if v else None)([sum(r["mock_cpu_pct"]) for r in samples if r["mock_cpu_pct"]]),
         "host": host_info(),
         "sessions_completed_total": sum(1 for s in sessions if s.get("ok")),
         "attempts_in_window": ts["attempts_in_window"], "window": {"hold_start": w["hold_start"], "hold_end": w["hold_end"],
@@ -730,17 +867,20 @@ def summarize(out, code, commit, sc, app_env=None):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("mode", choices=["watch", "drain", "summarize", "resummarize", "idle"])
+    ap.add_argument("mode", choices=["watch", "fault", "drain", "summarize", "resummarize", "idle"])
     ap.add_argument("--seconds", type=float, default=20)
     ap.add_argument("--out", required=True)
     ap.add_argument("--scenario", default=os.path.join(HERE, "s1", "scenario.json"))
     ap.add_argument("--code")
     ap.add_argument("--commit")
     ap.add_argument("--app-env", default="")
+    ap.add_argument("--tiny", action="store_true")
     args = ap.parse_args()
     sc = json.load(open(args.scenario, encoding="utf-8"))
     if args.mode == "watch":
         watch(args.out, sc)
+    elif args.mode == "fault":
+        fault_run(args.out, sc, args.tiny)
     elif args.mode == "resummarize":
         resummarize(args.out)
     elif args.mode == "drain":

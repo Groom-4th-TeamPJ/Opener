@@ -1,5 +1,5 @@
 #!/bin/bash
-# 사용: [S1_APP_ENV="K=V K2=V2"] [S1_APP_COMMIT=<해시>] run.sh <code: base|new|A|AB> <체크아웃 경로> <결과 폴더> [tiny]
+# 사용: [S1_APP_ENV="K=V K2=V2"] [S1_APP_COMMIT=<해시>] [S1_FAULT=1] run.sh <code: base|new|A|AB> <체크아웃 경로> <결과 폴더> [tiny]
 # 한 회차: 스택 reset -> bootJar -> 모의 서버·앱 기동 -> 생성기·수집기 -> 큐 드레인 표집(최대 300초)·DB 행 읽기 -> 앱 정지(PID 만) -> summary.json
 # 측정 회차는 cpu-lock.sh 로 감싸서 부른다 (tiny 는 잠금 없이)
 set -u
@@ -25,7 +25,7 @@ wait_health 300 || exit 1
 # 앱이 뜬 직후의 문서 확인 검색(임베딩 호출 1회)과 큐 정리를 지난 뒤 모의 서버 집계를 0 으로 맞춘다
 sleep 5
 curl -s -X POST "http://localhost:$MOCK_PORT/stats/reset" >/dev/null
-rm -f "$OUT/summary.json" "$OUT"/turns-*.jsonl "$OUT"/sessions-*.jsonl "$OUT"/errors-*.jsonl "$OUT/window.json" "$OUT/collector.json" "$OUT/gen-pids.txt"
+rm -f "$OUT/summary.json" "$OUT"/turns-*.jsonl "$OUT"/sessions-*.jsonl "$OUT"/errors-*.jsonl "$OUT/window.json" "$OUT/collector.json" "$OUT/gen-pids.txt" "$OUT/circuit.json"
 
 # 부하 없는 Redis CPU 바탕값 20초 (앱이 떠 있는 상태, 연결 풀 생성이 끝난 뒤)
 rm -f "$OUT/idle.json"
@@ -37,12 +37,20 @@ python3 "$LOADTEST_DIR/s1_load.py" --users "$OUT/users.json" --out "$OUT" $TINY_
 GEN=$!
 python3 "$LOADTEST_DIR/collect_s1.py" watch --out "$OUT" > "$OUT/collector.log" 2>&1 &
 COL=$!
+# S1_FAULT=1 이면 hold 시작 120초 뒤 60초간 모의 서버가 OpenAI 경로를 500 으로 답하고 차단기를 1초마다 표집한다 (tiny 는 10초 뒤 10초간)
+FAULT_PID=""
+if [ -n "${S1_FAULT:-}" ]; then
+  python3 "$LOADTEST_DIR/collect_s1.py" fault --out "$OUT" $TINY_FLAG > "$OUT/fault.log" 2>&1 &
+  FAULT_PID=$!
+fi
 wait $GEN; GEN_RC=$?
 wait $COL; COL_RC=$?
-echo "[run] generator exit=$GEN_RC collector exit=$COL_RC"
-# 생성기나 수집기가 실패한 회차의 값은 측정이 아니다 - summary.json 을 만들지 않고 실패로 끝낸다
-if [ "$GEN_RC" -ne 0 ] || [ "$COL_RC" -ne 0 ]; then
-  echo "[run] FAILED: generator exit=$GEN_RC collector exit=$COL_RC (see $OUT/loadgen.log $OUT/collector.log), no summary.json" >&2
+FAULT_RC=0
+if [ -n "$FAULT_PID" ]; then wait $FAULT_PID; FAULT_RC=$?; fi
+echo "[run] generator exit=$GEN_RC collector exit=$COL_RC fault exit=$FAULT_RC"
+# 생성기·수집기·장애 표집기가 실패한 회차의 값은 측정이 아니다 - summary.json 을 만들지 않고 실패로 끝낸다
+if [ "$GEN_RC" -ne 0 ] || [ "$COL_RC" -ne 0 ] || [ "$FAULT_RC" -ne 0 ]; then
+  echo "[run] FAILED: generator exit=$GEN_RC collector exit=$COL_RC fault exit=$FAULT_RC (see $OUT/loadgen.log $OUT/collector.log $OUT/fault.log), no summary.json" >&2
   rm -f "$OUT/summary.json"
   exit 1
 fi

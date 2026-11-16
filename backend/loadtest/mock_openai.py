@@ -2,6 +2,7 @@
 """모의 OpenAI 서버 - S1 부하 시나리오의 외부 LLM 대역 (표준 라이브러리만 사용)
 
 POST /v1/chat/completions (스트림·비스트림), POST /v1/embeddings, GET /stats, POST /stats/reset
+POST /fault {"start_ms": 에포크 ms, "end_ms": 에포크 ms} - 그 구간에 도착한 위 세 경로 요청을 HTTP 500 으로 답한다 (null 이면 해제)
 지연·토큰 속도는 s1/scenario.json 의 llm 값을 따른다
 """
 import argparse
@@ -95,8 +96,14 @@ def check_prompt(messages):
     return None
 
 
+FAULT_ROUTES = ("chat_stream", "chat_nonstream", "embeddings")
+FAULT_BODY = {"error": {"message": "mock fault", "type": "server_error", "param": None, "code": None}}
+
+
 class Stats:
     def __init__(self):
+        # 장애 구간은 설정이라 reset 이 지우지 않는다 - 지우는 것은 POST /fault 의 null
+        self.fault_start_ms = self.fault_end_ms = None
         self.reset()
 
     def reset(self):
@@ -110,6 +117,7 @@ class Stats:
         self.active_streams_peak = 0
         self.nonstream_inflight = 0
         self.nonstream_inflight_peak = 0
+        self.fault_failed = {r: 0 for r in FAULT_ROUTES}
 
     def as_dict(self):
         return {
@@ -121,6 +129,7 @@ class Stats:
             "prompt_missing_by_reason": dict(self.by_reason),
             "active_streams_peak": self.active_streams_peak,
             "nonstream_inflight_peak": self.nonstream_inflight_peak,
+            "fault": {"start_ms": self.fault_start_ms, "end_ms": self.fault_end_ms, "failed_by_route": dict(self.fault_failed)},
         }
 
 
@@ -210,6 +219,13 @@ class MockServer:
             self.stats.reset()
             return self._json(writer, 200, {"ok": True})
         payload = json.loads(body or b"{}")
+        if method == "POST" and path == "/fault":
+            self.stats.fault_start_ms, self.stats.fault_end_ms = payload.get("start_ms"), payload.get("end_ms")
+            return self._json(writer, 200, {"ok": True})
+        route = self._fault_route(method, path, payload)
+        if route and self._in_fault():
+            self.stats.fault_failed[route] += 1
+            return self._json(writer, 500, FAULT_BODY)
         if method == "POST" and path == "/v1/embeddings":
             return await self._embeddings(writer, payload)
         if method == "POST" and path == "/v1/chat/completions":
@@ -217,6 +233,20 @@ class MockServer:
                 return await self._chat_stream(writer, payload)
             return await self._chat_once(writer, payload)
         self._json(writer, 404, {"error": {"message": f"no route {method} {path}"}})
+
+    @staticmethod
+    def _fault_route(method, path, payload):
+        if method != "POST":
+            return None
+        if path == "/v1/embeddings":
+            return "embeddings"
+        if path == "/v1/chat/completions":
+            return "chat_stream" if payload.get("stream") else "chat_nonstream"
+        return None
+
+    def _in_fault(self):
+        st = self.stats
+        return st.fault_start_ms is not None and st.fault_end_ms is not None and st.fault_start_ms <= time.time() * 1000 < st.fault_end_ms
 
     @staticmethod
     def _json(writer, status, obj):
