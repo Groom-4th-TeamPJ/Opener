@@ -24,12 +24,17 @@ TTL_B = b"3600"
 HISTORY_WINDOW = 20
 TURNS_PER_SESSION = 5
 SESSIONS = 30000
-STEPS = (8, 16, 32, 64, 128, 256)
-EXTRA_STEP = 512
+STEPS = (8, 16, 32, 64, 128, 256, 512, 1024)
+EXTRA_STEP = 2048
 WARMUP_S = 3.0
 MEASURE_S = 15.0
-SATURATION_CPU_PCT = 90.0
 PLATEAU_GROWTH = 1.05
+# limited_by 판정 기준 - Redis 는 할당 대비 90% 이상, 생성기는 쓸 수 있는 코어의 75% 이상
+# 생성기 기준을 예시 80% 에서 75% 로 낮춘 이유: 할당 없는 회차가 0.78 이었는데(5.11/6.58 코어) 호스트·VM 몫이 남아 있어서
+REDIS_BUSY_PCT = 90.0
+GENERATOR_BUSY_RATIO = 0.75
+LIMITED_BY_RULE = ("redis: busiest master >= 90% of its CPU quota; generator: generator CPU >= 75% of the cores it had "
+                   "(min(processes, cpu_count - cores used by Redis)); else unknown; read at the max-throughput step")
 
 # 방법값의 저장 스크립트 - 문장 4개를 바꾸면 시험이 깨진다
 SAVE_SCRIPT = (
@@ -259,13 +264,75 @@ def percentile(values, p: float) -> float:
 
 
 def saturation_index(steps):
-    """가장 바쁜 master CPU 90% 이상이거나 처리량 증가가 직전 단계 대비 5% 미만인 첫 단계, 없으면 None"""
-    for i, st in enumerate(steps):
-        if st["master_cpu_pct"] >= SATURATION_CPU_PCT:
-            return i
-        if i > 0 and st["turns_per_s"] < steps[i - 1]["turns_per_s"] * PLATEAU_GROWTH:
+    """처리량 증가가 직전 단계 대비 5% 미만인 첫 단계(정체, R125-14), 없으면 None - CPU 비율은 판정에 쓰지 않는다"""
+    for i in range(1, len(steps)):
+        if steps[i]["turns_per_s"] < steps[i - 1]["turns_per_s"] * PLATEAU_GROWTH:
             return i
     return None
+
+
+def need_extra_step(steps) -> bool:
+    """마지막 두 단계에서 처리량이 5% 이상 늘었으면 아직 오르는 중 -> 다음 단계가 필요"""
+    return len(steps) >= 2 and steps[-1]["turns_per_s"] >= steps[-2]["turns_per_s"] * PLATEAU_GROWTH
+
+
+# 채팅 턴 몫 / 세션 부담 몫으로 commandstats usec 를 가른다
+# 스크립트·MULTI/EXEC 안쪽 명령은 바깥 명령(EVALSHA·EVAL·EXEC)의 usec 에 이미 들어 있어 따로 더하지 않는다
+_CHAT_CMDS = {
+    ("master", "before"): ("hget", "rpush", "expire", "lrange"),
+    ("master", "after"): ("evalsha", "lrange", "hget"),
+    ("replica", "before"): ("hget", "rpush", "pexpireat"),
+    ("replica", "after"): ("hget", "lrange", "exec", "multi"),
+}
+# 선점 스크립트 효과가 같은 이름의 명령으로도 섞여 들어오는 것 -> 세션 정리 횟수만큼 덜어낸다
+_SHARED_WITH_RESET = {
+    ("master", "before"): ("expire",),
+    ("replica", "before"): ("pexpireat",),
+    ("replica", "after"): ("exec", "multi"),
+}
+_OVERHEAD_CMDS = {
+    ("master", "before"): ("unlink", "eval"),
+    ("master", "after"): ("unlink", "eval"),
+    ("replica", "before"): ("unlink", "exec", "multi"),
+    ("replica", "after"): ("unlink",),
+}
+
+
+def split_cmd_usec(role: str, seq: str, cmdstats, resets: int):
+    """(채팅 턴 usec, 세션 부담 usec) 합계 - commandstats 의 usec 는 명령 실행 시간만이라 CPU 전체의 일부다"""
+    key = (role, seq)
+    chat = 0.0
+    overhead = 0.0
+    for name in _CHAT_CMDS[key]:
+        v = cmdstats.get(name)
+        if not v:
+            continue
+        if name in _SHARED_WITH_RESET.get(key, ()):
+            mine = max(0, v["calls"] - resets)
+            chat += v["usec"] * mine / v["calls"]
+            if key == ("replica", "after"):
+                overhead += v["usec"] * (v["calls"] - mine) / v["calls"]
+        else:
+            chat += v["usec"]
+    for name in _OVERHEAD_CMDS[key]:
+        if key == ("replica", "after") and name != "unlink":
+            continue
+        v = cmdstats.get(name)
+        if v:
+            overhead += v["usec"]
+    return chat, overhead
+
+
+def derive_limited_by(st, cores: int) -> str:
+    """최대 처리량 단계의 읽기값으로 한계를 정한다 - 규칙은 LIMITED_BY_RULE"""
+    if st["master_cpu_pct"] >= REDIS_BUSY_PCT:
+        return "redis"
+    quota = st.get("cpu_quota", 1.0)
+    redis_cores = (sum(st.get("master_cpu_pct_by_node", [])) + sum(st.get("replica_cpu_pct_by_node", []))) * quota / 100.0
+    available = max(1.0, min(st["procs"], cores - redis_cores))
+    if st["generator_cpu_pct"] / 100.0 / available >= GENERATOR_BUSY_RATIO:
+        return "generator"
+    return "unknown"
 
 
 # ---------------------------------------------------------------------------
@@ -375,15 +442,21 @@ def snapshot(conn: Conn):
     return snap
 
 
+def _inc(new, old):
+    # 카운터가 줄었으면 CONFIG RESETSTAT·재시작으로 보고 새 값을 증가분으로 읽는다 - 음수 증가분을 만들지 않는다
+    return new - old if new >= old else new
+
+
 def node_delta(a, b):
     dt = b["t"] - a["t"]
     cmd = {}
     for name, (calls, usec) in b["cmd"].items():
         c0, u0 = a["cmd"].get(name, (0, 0.0))
-        if calls - c0:
-            cmd[name] = {"calls": calls - c0, "usec": usec - u0}
-    return {"cpu_s": b["cpu"] - a["cpu"], "wall_s": dt, "cpu_pct": (b["cpu"] - a["cpu"]) / dt * 100.0,
-            "cmd": cmd, "mem": b["mem"]}
+        d_calls = _inc(calls, c0)
+        if d_calls:
+            cmd[name] = {"calls": d_calls, "usec": _inc(usec, u0)}
+    cpu_s = _inc(b["cpu"], a["cpu"])
+    return {"cpu_s": cpu_s, "wall_s": dt, "cpu_pct": cpu_s / dt * 100.0, "cmd": cmd, "mem": b["mem"]}
 
 
 # ---------------------------------------------------------------------------
@@ -612,7 +685,11 @@ def run_step(topo: Topology, seq: str, clients: int, ages, procs_max: int, warmu
     mcmd, rcmd = role_cmds(masters), role_cmds(replicas)
     per = (lambda x: x / turns) if turns else (lambda x: 0.0)
     resets = sum(r["resets"] for r in results)
-    overhead_usec = sum(mcmd.get(n, {"usec": 0.0})["usec"] for n in ("unlink", "eval"))
+    chat_m, over_m = split_cmd_usec("master", seq, mcmd, resets)
+    chat_r, over_r = split_cmd_usec("replica", seq, rcmd, resets)
+    # 서버가 센 노드별 턴 수 - 저장 호출(before 는 RPUSH 2번, after 는 EVALSHA 2번)이 턴당 2번
+    turn_cmd = "rpush" if seq == "before" else "evalsha"
+    node_turns = [d["cmd"].get(turn_cmd, {"calls": 0})["calls"] / 2.0 / measure for d in masters]
     hist = sum(r["hist_reads"] for r in results)
     fallback = sum(r["fallback"] for r in results)
     gen_cpu = sum(r["cpu_s"] for r in results) / measure * 100.0
@@ -647,7 +724,13 @@ def run_step(topo: Topology, seq: str, clients: int, ages, procs_max: int, warmu
         "fallback_rate": (fallback / hist) if hist else 0.0,
         "session_resets": resets,
         "session_overhead_master_per_turn": per(resets * 3),
-        "session_overhead_cmdstat_usec_per_turn": per(overhead_usec),
+        # commandstats usec 는 명령 실행 시간만 - CPU 전체(읽기·쓰기 syscall 포함)보다 작다
+        "master_cmd_usec_per_turn_chat_only": per(chat_m),
+        "replica_cmd_usec_per_turn_chat_only": per(chat_r),
+        "session_overhead_master_cmd_usec_per_turn": per(over_m),
+        "session_overhead_replica_cmd_usec_per_turn": per(over_r),
+        "session_overhead_cmd_usec_share_master": (over_m / (chat_m + over_m)) if chat_m + over_m else 0.0,
+        "master_turns_per_s_by_node": node_turns,
         "k_hist": [sum(r["k_hist"][k] for r in results) for k in range(TURNS_PER_SESSION)],
         "master_commandstats": mcmd,
         "replica_commandstats": rcmd,
@@ -657,30 +740,44 @@ def run_step(topo: Topology, seq: str, clients: int, ages, procs_max: int, warmu
     }
 
 
-def finish_pass(seq: str, steps):
-    idx = saturation_index(steps)
-    before = steps[max(0, idx - 1)] if idx is not None else steps[-1]
-    last = steps[idx] if idx is not None else steps[-1]
-    cores = os.cpu_count() or 1
-    busy = last["generator_cpu_pct"] / (100.0 * last["procs"])
-    if last["master_cpu_pct"] >= SATURATION_CPU_PCT:
-        limited = "master"
-    elif idx is not None and busy >= 0.85:
-        limited = "generator"
-    else:
-        limited = "plateau-unexplained" if idx is not None else "none"
-    return {
+def finish_pass(seq: str, steps, cores=None):
+    """한 회차의 요약 - 포화는 정체, 턴당 수치는 최대 처리량 단계, 첫 단계 값은 *_at_first_step 로 따로"""
+    cores = cores or os.cpu_count() or 1
+    peak = max(range(len(steps)), key=lambda i: steps[i]["turns_per_s"])
+    top, first = steps[peak], steps[0]
+    by_node = top.get("master_turns_per_s_by_node", [])
+    mean_node = sum(by_node) / len(by_node) if by_node else 0.0
+    out = {
         "sequence": seq,
         "steps": steps,
-        "saturation_step": idx,
-        "saturated": idx is not None,
-        "limited_by": limited,
-        "generator_busy_ratio_at_saturation": busy,
+        "saturation_step": saturation_index(steps),
+        "saturated": len(steps) >= 2 and not need_extra_step(steps),
+        "max_step": peak,
+        "max_step_clients": top["clients"],
+        "max_turns_per_s": top["turns_per_s"],
+        "limited_by": derive_limited_by(top, cores),
+        "limited_by_rule": LIMITED_BY_RULE,
         "generator_cores": cores,
-        "max_turns_per_s": max(s["turns_per_s"] for s in steps),
-        "master_cpu_us_per_turn": before["master_cpu_us_per_turn"],
-        "replica_cpu_us_per_turn": before["replica_cpu_us_per_turn"],
+        "generator_cpu_pct_at_max_step": top["generator_cpu_pct"],
+        "master_cpu_pct_at_max_step": top["master_cpu_pct"],
+        "master_round_trips_per_turn": top["master_round_trips_per_turn"],
+        "replica_round_trips_per_turn": top["replica_round_trips_per_turn"],
+        "master_cpu_us_per_turn": top["master_cpu_us_per_turn"],
+        "replica_cpu_us_per_turn": top["replica_cpu_us_per_turn"],
+        "master_cpu_us_per_turn_at_first_step": first["master_cpu_us_per_turn"],
+        "replica_cpu_us_per_turn_at_first_step": first["replica_cpu_us_per_turn"],
+        "master_capacity_turns_per_s_per_core": capacity(top["master_cpu_us_per_turn"]),
+        "replica_capacity_turns_per_s_per_core": capacity(top["replica_cpu_us_per_turn"]),
+        "master_cmd_usec_per_turn_chat_only": top.get("master_cmd_usec_per_turn_chat_only"),
+        "replica_cmd_usec_per_turn_chat_only": top.get("replica_cmd_usec_per_turn_chat_only"),
+        "session_overhead_cmd_usec_share_master": top.get("session_overhead_cmd_usec_share_master"),
+        "master_turns_per_s_by_node": by_node,
+        "busiest_master_turns_per_s": max(by_node) if by_node else 0.0,
+        "master_unevenness_pct": ((max(by_node) - min(by_node)) / mean_node * 100.0) if mean_node else 0.0,
+        "master_cpu_pct_by_node_at_max_step": top.get("master_cpu_pct_by_node", []),
+        "fallback_rate_at_max_step": top.get("fallback_rate", 0.0),
     }
+    return out
 
 
 def environment(seed: str):
@@ -704,7 +801,7 @@ def run_pass(a):
               % (n, st["turns_per_s"], st["master_cpu_pct"], st["replica_cpu_pct"], st["generator_cpu_pct"],
                  st["turn_p95_ms"], st["fallback_rate"]), flush=True)
         i += 1
-        if i == len(plan) and n == STEPS[-1] and a.auto_extra and saturation_index(steps) is None:
+        if i == len(plan) and n == STEPS[-1] and a.auto_extra and need_extra_step(steps):
             plan.append(EXTRA_STEP)
     out = finish_pass(a.seq, steps)
     out["env"] = environment(a.seed_node)
@@ -738,10 +835,21 @@ def write_json(path: str, obj):
 
 STEP_KEYS = ("clients", "turns_per_s", "master_cpu_pct", "replica_cpu_pct", "master_round_trips_per_turn",
              "replica_round_trips_per_turn", "turn_p95_ms", "generator_cpu_pct")
+STEP_EXTRAS = ("master_cpu_us_per_turn", "replica_cpu_us_per_turn", "fallback_rate", "owner_recheck_rate",
+               "turn_p50_ms", "turn_p99_ms", "procs", "session_overhead_master_per_turn",
+               "master_cpu_pct_raw", "replica_cpu_pct_raw", "master_capacity_turns_per_s_per_core",
+               "replica_capacity_turns_per_s_per_core", "master_cmd_usec_per_turn_chat_only",
+               "replica_cmd_usec_per_turn_chat_only", "master_turns_per_s_by_node",
+               "session_overhead_cmd_usec_share_master")
 
 
 def _mean(xs):
     return sum(xs) / len(xs)
+
+
+def _mean_present(passes, key):
+    vals = [p[key] for p in passes if p.get(key) is not None]
+    return _mean(vals) if vals else None
 
 
 def summarize_sequence(passes):
@@ -750,73 +858,78 @@ def summarize_sequence(passes):
         for st in p["steps"]:
             row = {k: st[k] for k in STEP_KEYS}
             row["pass"] = n
-            for extra in ("master_cpu_us_per_turn", "replica_cpu_us_per_turn", "fallback_rate", "owner_recheck_rate",
-                          "turn_p50_ms", "turn_p99_ms", "procs", "session_overhead_master_per_turn",
-                          "master_cpu_pct_raw", "replica_cpu_pct_raw", "master_capacity_turns_per_s_per_core",
-                          "replica_capacity_turns_per_s_per_core"):
+            for extra in STEP_EXTRAS:
                 if extra in st:
                     row[extra] = st[extra]
             steps.append(row)
     hist = sum(st["history_reads"] for p in passes for st in p["steps"])
     fb = sum(st["fallbacks"] for p in passes for st in p["steps"])
     maxes = [p["max_turns_per_s"] for p in passes]
-    # 최대 처리량 단계의 값 - 배치 효과로 턴당 CPU 가 부하에 따라 줄어, 포화 직후 단계 값과 따로 둔다
-    at_max = [max(p["steps"], key=lambda st: st["turns_per_s"]) for p in passes]
-    at_max_cpu = [st["master_cpu_us_per_turn"] for st in at_max]
-    at_max_rcpu = [st["replica_cpu_us_per_turn"] for st in at_max]
     cpu = [p["master_cpu_us_per_turn"] for p in passes]
     rcpu = [p["replica_cpu_us_per_turn"] for p in passes]
-    last = [p["steps"][-1] for p in passes]
-    return {
+    first_cpu = [p["master_cpu_us_per_turn_at_first_step"] for p in passes]
+    first_rcpu = [p["replica_cpu_us_per_turn_at_first_step"] for p in passes]
+    rt_m = _mean([p["master_round_trips_per_turn"] for p in passes])
+    rt_r = _mean([p["replica_round_trips_per_turn"] for p in passes])
+    out = {
         "steps": steps,
+        "passes": len(passes),
         "max_turns_per_s": _mean(maxes),
         "max_turns_per_s_by_pass": maxes,
+        "max_turns_per_s_spread_pct": (max(maxes) - min(maxes)) / _mean(maxes) * 100.0,
+        "max_step_clients_by_pass": [p["max_step_clients"] for p in passes],
         "saturated": all(p["saturated"] for p in passes),
+        "saturation_step_by_pass": [p["saturation_step"] for p in passes],
         "limited_by_by_pass": [p["limited_by"] for p in passes],
+        "limited_by_rule": passes[0]["limited_by_rule"],
+        # 턴당 수치는 최대 처리량 단계 값, 첫 단계 값은 *_at_first_step
         "master_cpu_us_per_turn": _mean(cpu),
-        "master_capacity_turns_per_s_per_core": capacity(_mean(cpu)),
-        "replica_capacity_turns_per_s_per_core": capacity(_mean(rcpu)),
         "master_cpu_us_per_turn_by_pass": cpu,
-        "clients_at_max_by_pass": [st["clients"] for st in at_max],
-        "master_cpu_us_per_turn_at_max": _mean(at_max_cpu),
-        "master_cpu_us_per_turn_at_max_by_pass": at_max_cpu,
-        "replica_cpu_us_per_turn_at_max": _mean(at_max_rcpu),
-        "replica_cpu_us_per_turn_at_max_by_pass": at_max_rcpu,
-        "master_capacity_turns_per_s_per_core_at_max": capacity(_mean(at_max_cpu)),
-        "replica_capacity_turns_per_s_per_core_at_max": capacity(_mean(at_max_rcpu)),
-        "fallback_rate_at_max": _mean([st["fallback_rate"] for st in at_max]),
-        "replica_round_trip_share_at_max": _mean([st["replica_round_trips_per_turn"] / (
-            st["replica_round_trips_per_turn"] + st["master_round_trips_per_turn"]) for st in at_max]),
+        "master_cpu_us_per_turn_at_first_step": _mean(first_cpu),
         "replica_cpu_us_per_turn": _mean(rcpu),
         "replica_cpu_us_per_turn_by_pass": rcpu,
+        "replica_cpu_us_per_turn_at_first_step": _mean(first_rcpu),
+        "master_capacity_turns_per_s_per_core": capacity(_mean(cpu)),
+        "replica_capacity_turns_per_s_per_core": capacity(_mean(rcpu)),
+        "master_cmd_usec_per_turn_chat_only": _mean_present(passes, "master_cmd_usec_per_turn_chat_only"),
+        "replica_cmd_usec_per_turn_chat_only": _mean_present(passes, "replica_cmd_usec_per_turn_chat_only"),
+        "session_overhead_cmd_usec_share_master": _mean_present(passes, "session_overhead_cmd_usec_share_master"),
+        "master_round_trips_per_turn": rt_m,
+        "replica_round_trips_per_turn": rt_r,
+        "replica_round_trip_share": rt_r / (rt_r + rt_m),
         "replica_cpu_share": _mean(rcpu) / (_mean(rcpu) + _mean(cpu)),
-        "busiest_master_cpu_pct_at_last_step_by_pass": [s["master_cpu_pct"] for s in last],
+        "busiest_master_turns_per_s": _mean_present(passes, "busiest_master_turns_per_s"),
+        "master_unevenness_pct_by_pass": [p["master_unevenness_pct"] for p in passes],
         "fallback_rate": (fb / hist) if hist else 0.0,
         "fallbacks": fb,
         "history_reads": hist,
-        "passes": len(passes),
+        "fallback_rate_at_max_step": _mean_present(passes, "fallback_rate_at_max_step"),
     }
+    return out
+
+
+def _ratio(n, b):
+    return (n / b) if n is not None and b else None
+
+
+def build_summary(base, new, unthrottled=None):
+    out = {"base": summarize_sequence(base), "new": summarize_sequence(new)}
+    if unthrottled:
+        # R125-7 이전의 CPU 할당 없는 회차 - 읽은 값은 그대로 두고 판정 필드만 현재 규칙으로 다시 유도한다
+        raw = [finish_pass(p["sequence"], p["steps"], (p.get("env") or {}).get("cpu_count")) for p in unthrottled]
+        out["base_unthrottled"] = summarize_sequence(raw)
+    b, n = out["base"], out["new"]
+    out["ratio_new_over_base"] = {
+        k: _ratio(n[k], b[k]) for k in ("max_turns_per_s", "master_cpu_us_per_turn", "replica_cpu_us_per_turn",
+                                         "master_cmd_usec_per_turn_chat_only", "replica_cmd_usec_per_turn_chat_only",
+                                         "master_cpu_us_per_turn_at_first_step")}
+    return out
 
 
 def run_summarize(a):
-    base = [json.load(open(p, encoding="utf-8")) for p in a.base]
-    new = [json.load(open(p, encoding="utf-8")) for p in a.new]
-    out = {"base": summarize_sequence(base), "new": summarize_sequence(new)}
-    if a.unthrottled:
-        # R125-7 이전의 CPU 할당 없는 회차 - 생성기·호스트가 한계라 master 는 73% 에서 멈췄다
-        raw = [json.load(open(p, encoding="utf-8")) for p in a.unthrottled]
-        out["base_unthrottled"] = summarize_sequence(raw)
-        out["base_unthrottled"]["limited_by_by_pass"] = ["generator"] * len(raw)
-        out["base_unthrottled"]["note"] = ("no CPU quota; plateau reached with the busiest master at "
-                                           "%.0f%% of one core, so the load generator and host were the limit"
-                                           % max(s["master_cpu_pct"] for p in raw for s in p["steps"]))
-    b, n = out["base"], out["new"]
-    out["ratio_new_over_base"] = {
-        "max_turns_per_s": n["max_turns_per_s"] / b["max_turns_per_s"],
-        "master_cpu_us_per_turn": n["master_cpu_us_per_turn"] / b["master_cpu_us_per_turn"],
-        "master_cpu_us_per_turn_at_max": n["master_cpu_us_per_turn_at_max"] / b["master_cpu_us_per_turn_at_max"],
-        "replica_cpu_us_per_turn_at_max": n["replica_cpu_us_per_turn_at_max"] / b["replica_cpu_us_per_turn_at_max"],
-    }
+    load = lambda paths: [json.load(open(p, encoding="utf-8")) for p in paths]  # noqa: E731
+    base, new = load(a.base), load(a.new)
+    out = build_summary(base, new, load(a.unthrottled) if a.unthrottled else None)
     out["env"] = base[0].get("env", {})
     write_json(a.out, out)
     print(json.dumps(out["ratio_new_over_base"]))
