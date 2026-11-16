@@ -10,4 +10,6 @@ public interface ChatMessageRepository {
 
     Optional<ChatMessage> findByQuestionResultId(Long questionResultId);
 
+    Optional<ChatMessage> findById(Long id);
+
 }

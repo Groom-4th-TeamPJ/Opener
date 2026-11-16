@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Component;
 import spring.backend.domain.chat.dto.message_dto.ChatMessageSaveEvent;
+import spring.backend.domain.chat.dto.message_dto.ChatSummaryEvent;
 import spring.backend.shared.infrastructure.messaging.config.RabbitMQConfig;
 
 
@@ -30,6 +31,15 @@ public class ChatMessageProducer {
                 RabbitMQConfig.CHAT_MESSAGE_EXCHANGE,
                 RabbitMQConfig.CHAT_MESSAGE_SAVE_ROUTING_KEY,
                 event
+        );
+    }
+
+    // 저장된 행 id 만 싣는다 -> 요약 소비자가 행의 messages 를 읽는다
+    public void publishSummaryEvent(Long chatMessageId) {
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.CHAT_MESSAGE_EXCHANGE,
+                RabbitMQConfig.CHAT_SUMMARY_ROUTING_KEY,
+                new ChatSummaryEvent(chatMessageId)
         );
     }
 }

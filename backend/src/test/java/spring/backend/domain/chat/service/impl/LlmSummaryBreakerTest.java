@@ -1,5 +1,6 @@
 package spring.backend.domain.chat.service.impl;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -23,6 +24,9 @@ import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.yaml.snakeyaml.Yaml;
 import spring.backend.domain.chat.service.spec.ChatHistoryProvider;
@@ -32,94 +36,87 @@ import spring.backend.domain.chat.util.PromptLoader;
 import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
 
-// llm-summary 는 ignoreExceptions 에 BusinessException 을 두는데 summaryChat 이 모든 실패를 BusinessException 으로 감싸면
+// llm-summary 는 ignoreExceptions 에 BusinessException 을 두는데 summarize 가 모든 실패를 BusinessException 으로 감싸면
 // 서킷이 실패를 한 건도 세지 못해 영원히 닫혀 있다 -> 설정 파일의 목록을 읽어 던진 예외와 직접 대조한다
 class LlmSummaryBreakerTest {
 
+    private static final List<Message> HISTORY = List.of(new UserMessage("질문"), new AssistantMessage("답"));
+
     @Test
-    @DisplayName("RAG 서비스의 요약 실패는 llm-summary 무시 목록에 없는 예외로 던져진다")
-    void summaryChat_업스트림실패_무시목록밖예외() throws Exception {
-        ChatClient.Builder builder = failingClientBuilder(new IllegalStateException("OpenAI 502"));
-        ChatHistoryProvider history = mock(ChatHistoryProvider.class);
-        when(history.getFullHistory("1")).thenReturn(List.of());
-        PromptLoader promptLoader = mock(PromptLoader.class);
-        when(promptLoader.buildChatSummaryPrompt()).thenReturn("요약해");
-
-        LlmService service = new OpenAiLlmService(builder, history, mock(VectorStore.class), promptLoader,
-                new SimpleMeterRegistry());
-
-        assertCountedByBreaker(service);
+    @DisplayName("두 구현의 요약 실패는 llm-summary 무시 목록에 없는 예외로 던져진다")
+    void summarize_업스트림실패_무시목록밖예외() throws Exception {
+        for (LlmService service : services(failingClientBuilder(new IllegalStateException("OpenAI 502")))) {
+            assertCountedByBreaker(service);
+        }
     }
 
     @Test
-    @DisplayName("RAG 없는 서비스의 요약 실패도 llm-summary 무시 목록에 없는 예외로 던져진다")
-    void summaryChat_RAG없음_업스트림실패_무시목록밖예외() throws Exception {
-        ChatClient.Builder builder = failingClientBuilder(new IllegalStateException("OpenAI 502"));
-        ChatHistoryProvider history = mock(ChatHistoryProvider.class);
-        when(history.getFullHistory("1")).thenReturn(List.of());
-        PromptLoader promptLoader = mock(PromptLoader.class);
-        when(promptLoader.buildChatSummaryPrompt()).thenReturn("요약해");
+    @DisplayName("요약은 기존 요약 프롬프트를 시스템 메시지로, 받은 메시지를 대화로 넘겨 요약문을 돌려준다")
+    void summarize_성공_요약프롬프트로호출해요약문반환() {
+        ChatClient client = mock(ChatClient.class, RETURNS_DEEP_STUBS);
+        // 시스템 프롬프트가 "요약해" 일 때만 스텁이 걸린다 -> 다른 프롬프트로 부르면 null 이 나와 실패한다
+        when(client.prompt().system("요약해").messages(HISTORY).call().content()).thenReturn("요약문");
+        ChatClient.Builder builder = mock(ChatClient.Builder.class);
+        when(builder.build()).thenReturn(client);
 
-        LlmService service = new OpenAiLlmServiceWithoutRag(builder, history, promptLoader);
-
-        assertCountedByBreaker(service);
+        for (LlmService service : services(builder)) {
+            assertEquals("요약문", service.summarize(HISTORY));
+        }
     }
 
-
-    // 히스토리 조회는 Redis 일 -> 실패가 llm-summary 서킷에 집계되거나 저장 전체를 막으면 안 되고 "요약 없이 저장" 으로 내려간다
+    // 서킷 이름은 Spring AOP 가 있어야 동작한다 -> 단위 테스트에서는 어노테이션을 직접 읽는다
     @Test
-    @DisplayName("히스토리 조회가 MESSAGE_INPUT_FAIL 로 실패하면 요약 없이 null 을 돌려준다")
-    void summaryChat_히스토리조회실패_null반환() {
-        for (LlmService service : services(failingClientBuilder(new IllegalStateException("호출되면 안 됨")),
-                new BusinessException(ErrorCode.MESSAGE_INPUT_FAIL))) {
-            assertNull(service.summaryChat("1"));
+    @DisplayName("두 구현의 summarize 는 llm-summary 서킷과 summarizeFallback 폴백 아래에 있다")
+    void summarize_두구현_llmSummary서킷아래에있다() throws Exception {
+        for (Class<?> type : List.of(OpenAiLlmService.class, OpenAiLlmServiceWithoutRag.class)) {
+            io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker breaker = type
+                    .getMethod("summarize", List.class)
+                    .getAnnotation(io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker.class);
+            assertNotNull(breaker, type.getSimpleName() + ".summarize 에 서킷 어노테이션이 없음");
+            assertEquals("llm-summary", breaker.name());
+            assertEquals("summarizeFallback", breaker.fallbackMethod());
         }
     }
 
     // LLM 호출 중 던져진 도메인 거절은 감싸지 않고 올린다 -> 호출부가 입력 오류와 업스트림 장애를 구분한다
     @Test
     @DisplayName("LLM 호출 경로의 BusinessException 은 그대로 다시 던져진다")
-    void summaryChat_도메인거절_그대로던짐() {
+    void summarize_도메인거절_그대로던짐() {
         BusinessException rejection = new BusinessException(ErrorCode.LLM_RESPONSE_FAIL);
-        for (LlmService service : services(failingClientBuilder(rejection), null)) {
-            assertSame(rejection, assertThrows(BusinessException.class, () -> service.summaryChat("1")));
+        for (LlmService service : services(failingClientBuilder(rejection))) {
+            assertSame(rejection, assertThrows(BusinessException.class, () -> service.summarize(HISTORY)));
         }
     }
 
     @Test
     @DisplayName("서킷이 열려 호출이 거절되면 폴백이 null 을 돌려준다")
-    void summaryChatFallback_서킷OPEN_null반환() {
+    void summarizeFallback_서킷OPEN_null반환() {
         CircuitBreaker open = CircuitBreaker.ofDefaults("llm-summary");
         open.transitionToOpenState();
         CallNotPermittedException notPermitted = CallNotPermittedException.createCallNotPermittedException(open);
 
-        for (LlmService service : services(failingClientBuilder(new IllegalStateException("x")), null)) {
-            assertNull(ReflectionTestUtils.invokeMethod(service, "summaryChatFallback", "1", notPermitted));
+        for (LlmService service : services(failingClientBuilder(new IllegalStateException("x")))) {
+            assertNull(ReflectionTestUtils.invokeMethod(service, "summarizeFallback", HISTORY, notPermitted));
         }
     }
 
     @Test
     @DisplayName("폴백은 업스트림 실패는 null 로 흡수하고 도메인 거절은 다시 던진다")
-    void summaryChatFallback_업스트림은흡수_도메인거절은재던짐() {
+    void summarizeFallback_업스트림은흡수_도메인거절은재던짐() {
         BusinessException rejection = new BusinessException(ErrorCode.MESSAGE_INPUT_FAIL);
-        for (LlmService service : services(failingClientBuilder(new IllegalStateException("x")), null)) {
-            assertNull(ReflectionTestUtils.invokeMethod(service, "summaryChatFallback", "1",
+        for (LlmService service : services(failingClientBuilder(new IllegalStateException("x")))) {
+            assertNull(ReflectionTestUtils.invokeMethod(service, "summarizeFallback", HISTORY,
                     new LlmUpstreamException("호출 실패", new IllegalStateException("OpenAI 502"))));
             assertSame(rejection, assertThrows(BusinessException.class,
-                    () -> ReflectionTestUtils.invokeMethod(service, "summaryChatFallback", "1", rejection)));
+                    () -> ReflectionTestUtils.invokeMethod(service, "summarizeFallback", HISTORY, rejection)));
         }
     }
 
-    // 두 구현을 같은 조건으로 돌린다 -> historyFailure 가 null 이면 히스토리는 빈 목록
-    private List<LlmService> services(ChatClient.Builder builder, BusinessException historyFailure) {
+    // 두 구현을 같은 조건으로 돌린다
+    private List<LlmService> services(ChatClient.Builder builder) {
         List<LlmService> result = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             ChatHistoryProvider history = mock(ChatHistoryProvider.class);
-            if (historyFailure == null) {
-                when(history.getFullHistory("1")).thenReturn(List.of());
-            } else {
-                when(history.getFullHistory("1")).thenThrow(historyFailure);
-            }
             PromptLoader promptLoader = mock(PromptLoader.class);
             when(promptLoader.buildChatSummaryPrompt()).thenReturn("요약해");
             result.add(i == 0
@@ -136,11 +133,11 @@ class LlmSummaryBreakerTest {
 
         Throwable thrown = null;
         try {
-            service.summaryChat("1");
+            service.summarize(HISTORY);
         } catch (Throwable t) {
             thrown = t;
         }
-        assertNotNull(thrown, "업스트림 실패인데 summaryChat 이 예외를 던지지 않음");
+        assertNotNull(thrown, "업스트림 실패인데 summarize 가 예외를 던지지 않음");
 
         for (Class<?> ignoredType : ignored) {
             assertFalse(ignoredType.isAssignableFrom(thrown.getClass()),

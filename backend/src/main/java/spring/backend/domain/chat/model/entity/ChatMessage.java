@@ -36,7 +36,8 @@ public class ChatMessage extends BaseEntity {
     @Column(name = "messages", columnDefinition = "jsonb", nullable = false)
     private List<ChatMessageContent> messages = new ArrayList<>();
 
-    @Column(name = "summary", nullable = false)
+    // 저장 직후에는 null -> 요약 소비자가 뒤에 채운다
+    @Column(name = "summary")
     private String summary;
 
     // chat message 생성 팩토리 메서드
@@ -50,6 +51,10 @@ public class ChatMessage extends BaseEntity {
         chatMessage.messages = messages != null ? messages : new ArrayList<>();
         chatMessage.summary = summary;
         return chatMessage;
+    }
+
+    public void updateSummary(String summary) {
+        this.summary = summary;
     }
 
 }

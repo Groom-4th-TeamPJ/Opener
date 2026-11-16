@@ -25,4 +25,9 @@ public class ChatMessageRepositoryImpl implements ChatMessageRepository {
         return jpaChatMessageRepository.findByQuestionResultId(questionResultId);
     }
 
+    @Override
+    public Optional<ChatMessage> findById(Long id) {
+        return jpaChatMessageRepository.findById(id);
+    }
+
 }

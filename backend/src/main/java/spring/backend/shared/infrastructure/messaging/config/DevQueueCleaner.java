@@ -33,6 +33,8 @@ public class DevQueueCleaner {
         try {
             // 1. 채팅 메시지 저장 큐 정리 (RabbitListener는 아직 시작 안 됨)
             purgeQueue(RabbitMQConfig.CHAT_MESSAGE_SAVE_QUEUE);
+            // 요약 큐도 비운다 -> 옛 행 id 의 요약 이벤트가 남으면 시작 직후 존재하지 않는 행으로 DLQ 가 찬다
+            purgeQueue(RabbitMQConfig.CHAT_SUMMARY_QUEUE);
 
             log.info("=== [DEV] RabbitMQ 큐 정리 완료 ===");
 

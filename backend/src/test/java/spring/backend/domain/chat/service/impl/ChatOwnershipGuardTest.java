@@ -113,7 +113,7 @@ class ChatOwnershipGuardTest {
                 new RedisMessageMapper(),
                 chatMessageRepository,
                 questionResultRepository,
-                llmService,
+                chatMessageProducer,
                 meterRegistry,
                 transactionTemplate);
     }
