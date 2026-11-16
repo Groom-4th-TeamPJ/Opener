@@ -760,6 +760,10 @@ def summarize_sequence(passes):
     hist = sum(st["history_reads"] for p in passes for st in p["steps"])
     fb = sum(st["fallbacks"] for p in passes for st in p["steps"])
     maxes = [p["max_turns_per_s"] for p in passes]
+    # 최대 처리량 단계의 값 - 배치 효과로 턴당 CPU 가 부하에 따라 줄어, 포화 직후 단계 값과 따로 둔다
+    at_max = [max(p["steps"], key=lambda st: st["turns_per_s"]) for p in passes]
+    at_max_cpu = [st["master_cpu_us_per_turn"] for st in at_max]
+    at_max_rcpu = [st["replica_cpu_us_per_turn"] for st in at_max]
     cpu = [p["master_cpu_us_per_turn"] for p in passes]
     rcpu = [p["replica_cpu_us_per_turn"] for p in passes]
     last = [p["steps"][-1] for p in passes]
@@ -773,6 +777,16 @@ def summarize_sequence(passes):
         "master_capacity_turns_per_s_per_core": capacity(_mean(cpu)),
         "replica_capacity_turns_per_s_per_core": capacity(_mean(rcpu)),
         "master_cpu_us_per_turn_by_pass": cpu,
+        "clients_at_max_by_pass": [st["clients"] for st in at_max],
+        "master_cpu_us_per_turn_at_max": _mean(at_max_cpu),
+        "master_cpu_us_per_turn_at_max_by_pass": at_max_cpu,
+        "replica_cpu_us_per_turn_at_max": _mean(at_max_rcpu),
+        "replica_cpu_us_per_turn_at_max_by_pass": at_max_rcpu,
+        "master_capacity_turns_per_s_per_core_at_max": capacity(_mean(at_max_cpu)),
+        "replica_capacity_turns_per_s_per_core_at_max": capacity(_mean(at_max_rcpu)),
+        "fallback_rate_at_max": _mean([st["fallback_rate"] for st in at_max]),
+        "replica_round_trip_share_at_max": _mean([st["replica_round_trips_per_turn"] / (
+            st["replica_round_trips_per_turn"] + st["master_round_trips_per_turn"]) for st in at_max]),
         "replica_cpu_us_per_turn": _mean(rcpu),
         "replica_cpu_us_per_turn_by_pass": rcpu,
         "replica_cpu_share": _mean(rcpu) / (_mean(rcpu) + _mean(cpu)),
@@ -800,6 +814,8 @@ def run_summarize(a):
     out["ratio_new_over_base"] = {
         "max_turns_per_s": n["max_turns_per_s"] / b["max_turns_per_s"],
         "master_cpu_us_per_turn": n["master_cpu_us_per_turn"] / b["master_cpu_us_per_turn"],
+        "master_cpu_us_per_turn_at_max": n["master_cpu_us_per_turn_at_max"] / b["master_cpu_us_per_turn_at_max"],
+        "replica_cpu_us_per_turn_at_max": n["replica_cpu_us_per_turn_at_max"] / b["replica_cpu_us_per_turn_at_max"],
     }
     out["env"] = base[0].get("env", {})
     write_json(a.out, out)
