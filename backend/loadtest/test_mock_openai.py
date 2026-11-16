@@ -182,6 +182,27 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(1, st["chat_nonstream"])
         self.assertEqual(0, st["chat_streams"])
 
+    def test_비스트림_동시_호출_최대치를_센다(self):
+        self.reset()
+        results = []
+
+        def once(i):
+            c, resp = self.post("/v1/chat/completions", {"model": "m", "stream": False, "messages": [SYSTEM, q(i, 1)]})
+            resp.read()
+            c.close()
+            results.append(i)
+
+        threads = [threading.Thread(target=once, args=(i,)) for i in range(6)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        st = self.stats()
+        self.assertEqual(6, len(results))
+        self.assertEqual(6, st["nonstream_inflight_peak"])
+        self.reset()
+        self.assertEqual(0, self.stats()["nonstream_inflight_peak"])
+
     def test_임베딩은_1536개_실수를_150ms_뒤에_돌려준다(self):
         self.reset()
         t0 = time.monotonic()
