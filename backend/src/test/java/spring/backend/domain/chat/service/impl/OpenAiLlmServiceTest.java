@@ -32,7 +32,6 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -118,6 +117,5 @@ class OpenAiLlmServiceTest {
         assertInstanceOf(SystemMessage.class, messages.get(0));
         assertInstanceOf(UserMessage.class, messages.get(3));
         verify(chatHistoryProvider).getHistoryBefore("1", 7L);
-        verify(chatHistoryProvider, never()).getFullHistory("1");
     }
 }

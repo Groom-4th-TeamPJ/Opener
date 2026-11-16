@@ -23,7 +23,6 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -65,7 +64,6 @@ class OpenAiLlmServiceWithoutRagTest {
         assertEquals(List.of("이전 질문", "이전 답", "현재 질문"), messages.stream().map(Message::getText).toList());
         assertInstanceOf(UserMessage.class, messages.get(2));
         verify(chatHistoryProvider).getHistoryBefore("1", 7L);
-        verify(chatHistoryProvider, never()).getFullHistory("1");
     }
 
     @Test

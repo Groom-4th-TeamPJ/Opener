@@ -23,6 +23,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import spring.backend.domain.chat.dto.enums.ChatRole;
 import spring.backend.domain.chat.dto.redis_dto.RedisMessageDto;
 import spring.backend.domain.chat.model.entity.ChatMessage;
+import spring.backend.domain.chat.model.entity.ChatMessageContent;
 import spring.backend.domain.exam.model.entity.QuestionResult;
 import spring.backend.domain.chat.dto.message_dto.ChatMessageSaveEvent;
 import spring.backend.domain.chat.mapper.RedisMessageMapper;
@@ -200,24 +201,27 @@ class ChatMessageConsumerTest {
         assertEquals(1.0, meterRegistry.counter("chat.summary.publish_failed").count());
     }
 
-    // 요약 읽기는 소비자가 영구 저장에서 뺀 턴을 같은 규칙으로 뺀다
-    // (이 테스트가 여기 있는 이유: 어댑터 전용 테스트 파일은 이 작업의 파일 표 밖이다)
+    // 요약 소비자는 저장된 행을 읽는다 -> 끊긴 턴을 저장본에서 빼면 요약 입력에서도 빠진다
     @Test
-    @DisplayName("요약이 읽는 전량 히스토리는 끊긴 응답과 답 없는 질문을 제외한다")
-    void getFullHistory_끊긴응답과답없는질문_요약읽기에서제외한다() {
+    @DisplayName("저장본은 끊긴 응답과 답 없는 질문을 제외하고 제외한 개수를 메트릭에 남긴다")
+    void handleSaveMessageEvent_끊긴응답과답없는질문_저장본에서제외한다() {
         RedisMessageDto partial = RedisMessageDto.builder()
                 .chatRole(ChatRole.LLM).message("끊긴 답").timestamp(LocalDateTime.now()).partial(true).build();
         RedisMessageDto unansweredTail = RedisMessageDto.builder()
                 .chatRole(ChatRole.USER).message("답 없는 마지막 질문").timestamp(LocalDateTime.now()).build();
         when(chatRedisService.getSessionMessages(SESSION_ID)).thenReturn(List.of(
                 userMessage(), partial, userMessage(), llmMessage(), unansweredTail));
+        when(questionResultRepository.findById(QUESTION_RESULT_ID)).thenReturn(Optional.of(questionResult));
+        saveAssignsId(77L);
+        runTransactionInline();
 
-        List<org.springframework.ai.chat.messages.Message> history =
-                new spring.backend.domain.chat.adapter.RedisChatHistoryAdapter(chatRedisService)
-                        .getFullHistory(SESSION_ID.toString());
+        consumer().handleSaveMessageEvent(event(Instant.now()));
 
-        // 요약은 영구 저장되므로 저장본과 다른 대화를 요약하면 복습 화면의 요약이 본문과 어긋난다
+        ArgumentCaptor<ChatMessage> saved = ArgumentCaptor.forClass(ChatMessage.class);
+        verify(chatMessageRepository).save(saved.capture());
+        // 저장본과 다른 대화를 요약하면 복습 화면의 요약이 본문과 어긋난다
         assertEquals(List.of("질문", "답"),
-                history.stream().map(org.springframework.ai.chat.messages.Message::getText).toList());
+                saved.getValue().getMessages().stream().map(ChatMessageContent::getContent).toList());
+        assertEquals(3.0, meterRegistry.counter("chat.persist.dropped", "reason", "truncated").count());
     }
 }
