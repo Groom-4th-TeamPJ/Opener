@@ -1,5 +1,7 @@
 package spring.backend.domain.chat.repository.spec;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import spring.backend.domain.chat.model.entity.ChatMessage;
 
@@ -11,5 +13,8 @@ public interface ChatMessageRepository {
     Optional<ChatMessage> findByQuestionResultId(Long questionResultId);
 
     Optional<ChatMessage> findById(Long id);
+
+    // 요약이 아직 없고 cutoff 보다 먼저 저장된 행의 id -> 오래된 id 부터 limit 개, 요약 이벤트를 다시 내는 점검용
+    List<Long> findPendingSummaryIds(LocalDateTime cutoff, int limit);
 
 }
