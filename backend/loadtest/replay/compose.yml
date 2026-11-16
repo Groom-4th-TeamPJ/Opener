@@ -3,6 +3,8 @@ name: r125-rp
 
 x-node: &node
   image: redis:7-alpine
+  # Ruling R125-7 - 노드마다 CPU 0.3 코어로 고정, 생성기(파이썬)가 닿는 부하에서 master 가 포화되게 한다
+  cpus: 0.3
   # /data 는 tmpfs - 익명 볼륨이 남지 않게 한다(AOF 는 켠 채 쓰기만 메모리로)
   tmpfs:
     - /data

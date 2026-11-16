@@ -247,6 +247,10 @@ SEQUENCES = {"before": turn_before, "after": turn_after}
 # ---------------------------------------------------------------------------
 
 
+def capacity(cpu_us_per_turn: float) -> float:
+    return 1e6 / cpu_us_per_turn if cpu_us_per_turn else 0.0
+
+
 def percentile(values, p: float) -> float:
     if not values:
         return 0.0
@@ -545,7 +549,7 @@ def worker_main(wi: int, client_ids, args, ages, barrier1, barrier2, t0_value, q
 
 
 def run_step(topo: Topology, seq: str, clients: int, ages, procs_max: int, warmup: float, measure: float,
-             sessions: int, seed: int):
+             sessions: int, seed: int, quota: float = 1.0):
     procs = min(clients, procs_max)
     ctx = mp.get_context("fork")
     barrier1 = ctx.Barrier(procs + 1)
@@ -617,10 +621,14 @@ def run_step(topo: Topology, seq: str, clients: int, ages, procs_max: int, warmu
         "procs": procs,
         "turns": turns,
         "turns_per_s": turns / measure,
-        "master_cpu_pct": max(d["cpu_pct"] for d in masters),
-        "replica_cpu_pct": max(d["cpu_pct"] for d in replicas),
-        "master_cpu_pct_by_node": [round(d["cpu_pct"], 1) for d in masters],
-        "replica_cpu_pct_by_node": [round(d["cpu_pct"], 1) for d in replicas],
+        # CPU 비율은 컨테이너 CPU 할당(quota) 대비 - 한 코어 대비 원값은 *_raw 로 따로 둔다
+        "cpu_quota": quota,
+        "master_cpu_pct": max(d["cpu_pct"] for d in masters) / quota,
+        "replica_cpu_pct": max(d["cpu_pct"] for d in replicas) / quota,
+        "master_cpu_pct_raw": max(d["cpu_pct"] for d in masters),
+        "replica_cpu_pct_raw": max(d["cpu_pct"] for d in replicas),
+        "master_cpu_pct_by_node": [round(d["cpu_pct"] / quota, 1) for d in masters],
+        "replica_cpu_pct_by_node": [round(d["cpu_pct"] / quota, 1) for d in replicas],
         "master_round_trips_per_turn": per(sum(r["master_trips"] for r in results)),
         "replica_round_trips_per_turn": per(sum(r["replica_trips"] for r in results)),
         "turn_p50_ms": percentile(lat, 50),
@@ -630,6 +638,9 @@ def run_step(topo: Topology, seq: str, clients: int, ages, procs_max: int, warmu
         "generator_cpu_pct_per_proc": gen_cpu / procs,
         "master_cpu_us_per_turn": per(sum(d["cpu_s"] for d in masters) * 1e6),
         "replica_cpu_us_per_turn": per(sum(d["cpu_s"] for d in replicas) * 1e6),
+        # 코어 하나치 CPU 로 버티는 턴 수 - 노드 수와 quota 에 상관없는 용량 지표
+        "master_capacity_turns_per_s_per_core": capacity(per(sum(d["cpu_s"] for d in masters) * 1e6)),
+        "replica_capacity_turns_per_s_per_core": capacity(per(sum(d["cpu_s"] for d in replicas) * 1e6)),
         "owner_recheck_rate": per(sum(r["owner_recheck"] for r in results)),
         "history_reads": hist,
         "fallbacks": fallback,
@@ -687,7 +698,7 @@ def run_pass(a):
     i = 0
     while i < len(plan):
         n = plan[i]
-        st = run_step(topo, a.seq, n, ages, a.procs_max, a.warmup, a.measure, a.sessions, a.seed + i)
+        st = run_step(topo, a.seq, n, ages, a.procs_max, a.warmup, a.measure, a.sessions, a.seed + i, a.cpu_quota)
         steps.append(st)
         print("step %-4d turns/s %9.0f  master %5.1f%%  replica %5.1f%%  gen %6.0f%%  p95 %7.2f ms  fb %.4f"
               % (n, st["turns_per_s"], st["master_cpu_pct"], st["replica_cpu_pct"], st["generator_cpu_pct"],
@@ -699,6 +710,7 @@ def run_pass(a):
     out["env"] = environment(a.seed_node)
     out["sessions"] = a.sessions
     out["procs_max"] = a.procs_max
+    out["cpu_quota"] = a.cpu_quota
     write_json(a.out, out)
     print("pass 끝 saturated=%s limited_by=%s max_turns_per_s=%.0f" % (out["saturated"], out["limited_by"],
                                                                         out["max_turns_per_s"]), flush=True)
@@ -709,7 +721,7 @@ def run_one_step(a):
     prepare_pass(topo, a.sessions)
     time.sleep(1.0)
     ages = mp.get_context("fork").RawArray("B", a.sessions)
-    st = run_step(topo, a.seq, a.clients, ages, a.procs_max, a.warmup, a.measure, a.sessions, a.seed)
+    st = run_step(topo, a.seq, a.clients, ages, a.procs_max, a.warmup, a.measure, a.sessions, a.seed, a.cpu_quota)
     write_json(a.out, {"sequence": a.seq, "steps": [st], "env": environment(a.seed_node)})
     print(json.dumps({k: v for k, v in st.items() if "commandstats" not in k}, indent=1, ensure_ascii=False))
 
@@ -739,8 +751,11 @@ def summarize_sequence(passes):
             row = {k: st[k] for k in STEP_KEYS}
             row["pass"] = n
             for extra in ("master_cpu_us_per_turn", "replica_cpu_us_per_turn", "fallback_rate", "owner_recheck_rate",
-                          "turn_p50_ms", "turn_p99_ms", "procs", "session_overhead_master_per_turn"):
-                row[extra] = st[extra]
+                          "turn_p50_ms", "turn_p99_ms", "procs", "session_overhead_master_per_turn",
+                          "master_cpu_pct_raw", "replica_cpu_pct_raw", "master_capacity_turns_per_s_per_core",
+                          "replica_capacity_turns_per_s_per_core"):
+                if extra in st:
+                    row[extra] = st[extra]
             steps.append(row)
     hist = sum(st["history_reads"] for p in passes for st in p["steps"])
     fb = sum(st["fallbacks"] for p in passes for st in p["steps"])
@@ -755,6 +770,8 @@ def summarize_sequence(passes):
         "saturated": all(p["saturated"] for p in passes),
         "limited_by_by_pass": [p["limited_by"] for p in passes],
         "master_cpu_us_per_turn": _mean(cpu),
+        "master_capacity_turns_per_s_per_core": capacity(_mean(cpu)),
+        "replica_capacity_turns_per_s_per_core": capacity(_mean(rcpu)),
         "master_cpu_us_per_turn_by_pass": cpu,
         "replica_cpu_us_per_turn": _mean(rcpu),
         "replica_cpu_us_per_turn_by_pass": rcpu,
@@ -771,6 +788,14 @@ def run_summarize(a):
     base = [json.load(open(p, encoding="utf-8")) for p in a.base]
     new = [json.load(open(p, encoding="utf-8")) for p in a.new]
     out = {"base": summarize_sequence(base), "new": summarize_sequence(new)}
+    if a.unthrottled:
+        # R125-7 이전의 CPU 할당 없는 회차 - 생성기·호스트가 한계라 master 는 73% 에서 멈췄다
+        raw = [json.load(open(p, encoding="utf-8")) for p in a.unthrottled]
+        out["base_unthrottled"] = summarize_sequence(raw)
+        out["base_unthrottled"]["limited_by_by_pass"] = ["generator"] * len(raw)
+        out["base_unthrottled"]["note"] = ("no CPU quota; plateau reached with the busiest master at "
+                                           "%.0f%% of one core, so the load generator and host were the limit"
+                                           % max(s["master_cpu_pct"] for p in raw for s in p["steps"]))
     b, n = out["base"], out["new"]
     out["ratio_new_over_base"] = {
         "max_turns_per_s": n["max_turns_per_s"] / b["max_turns_per_s"],
@@ -793,6 +818,7 @@ def main(argv=None):
         p.add_argument("--warmup", type=float, default=WARMUP_S)
         p.add_argument("--measure", type=float, default=MEASURE_S)
         p.add_argument("--seed", type=int, default=1)
+        p.add_argument("--cpu-quota", type=float, default=float(os.environ.get("CPU_QUOTA", "0.3")))
         p.add_argument("--out", required=True)
 
     p = sub.add_parser("pass")
@@ -805,6 +831,7 @@ def main(argv=None):
     p = sub.add_parser("summarize")
     p.add_argument("--base", nargs="+", required=True)
     p.add_argument("--new", nargs="+", required=True)
+    p.add_argument("--unthrottled", nargs="*", default=[])
     p.add_argument("--out", required=True)
     a = ap.parse_args(argv)
     {"pass": run_pass, "step": run_one_step, "summarize": run_summarize}[a.cmd](a)
