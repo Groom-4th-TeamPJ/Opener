@@ -1,0 +1,45 @@
+{
+  "name": "S1",
+  "vus": 1000,
+  "turns_per_session": 5,
+  "think_s": [10, 20],
+  "ramp_up_s": 120,
+  "hold_s": 600,
+  "ramp_down_s": 60,
+  "turn_timeout_s": 60,
+  "llm": {
+    "first_token_ms": [1000, 2000],
+    "tokens_per_s": 50,
+    "answer_tokens": 400,
+    "embedding_ms": 150,
+    "nonstream_first_ms": 1500,
+    "nonstream_tokens": 150,
+    "chars_per_token": 2
+  },
+  "markers": {
+    "question": "[q s={session} t={turn}] ",
+    "answer": "[a s={session} t={turn}] "
+  },
+  "ports": {
+    "postgres": 25432,
+    "redis_auth": 26379,
+    "redis_chat": [27380, 27381, 27382, 27383, 27384, 27385],
+    "redis_chat_bus": [37380, 37381, 37382, 37383, 37384, 37385],
+    "rabbit": 25672,
+    "rabbit_mgmt": 35672,
+    "app": 18080,
+    "mock": 18090
+  },
+  "jvm_opts": ["-Xms2g", "-Xmx2g"],
+  "loadgen_procs": 4,
+  "tiny": {
+    "vus": 10,
+    "turns_per_session": 2,
+    "think_s": [1, 2],
+    "ramp_up_s": 0,
+    "hold_s": 40,
+    "ramp_down_s": 0,
+    "max_sessions_per_vu": 1,
+    "loadgen_procs": 1
+  }
+}
