@@ -147,6 +147,12 @@ class FakeApp:
                         time.sleep(0.002)
 
             def do_GET(self):
+                try:
+                    self.serve_sse()
+                except (BrokenPipeError, ConnectionResetError):
+                    pass  # 생성기가 오류로 연결을 먼저 닫는 경우
+
+            def serve_sse(self):
                 sid = int(self.path.split("sessionId=")[1])
                 q = outer.queues.setdefault(sid, queue.Queue())
                 self.send_response(200)
