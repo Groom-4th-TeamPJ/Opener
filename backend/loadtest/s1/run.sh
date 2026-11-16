@@ -1,5 +1,5 @@
 #!/bin/bash
-# 사용: [S1_APP_ENV="K=V K2=V2"] run.sh <code: base|new|A|AB> <체크아웃 경로> <결과 폴더> [tiny]
+# 사용: [S1_APP_ENV="K=V K2=V2"] [S1_APP_COMMIT=<해시>] run.sh <code: base|new|A|AB> <체크아웃 경로> <결과 폴더> [tiny]
 # 한 회차: 스택 reset -> bootJar -> 모의 서버·앱 기동 -> 생성기·수집기 -> 큐 드레인 표집(최대 300초)·DB 행 읽기 -> 앱 정지(PID 만) -> summary.json
 # 측정 회차는 cpu-lock.sh 로 감싸서 부른다 (tiny 는 잠금 없이)
 set -u
@@ -9,7 +9,8 @@ load_ports
 CODE="${1:?code base|new}"; CHECKOUT="${2:?체크아웃 경로}"; OUT="${3:?결과 폴더}"; TINY="${4:-}"
 TINY_FLAG=""; [ "$TINY" = "tiny" ] && TINY_FLAG="--tiny"
 mkdir -p "$OUT"
-COMMIT=$(git -C "$CHECKOUT" log -1 --format=%h)
+# S1_APP_COMMIT: 측정 도구만 커밋이 늘어난 체크아웃에서 앱 코드의 기준 커밋을 요약에 적는다 (backend/src 가 같다는 확인은 실행하는 쪽 몫)
+COMMIT="${S1_APP_COMMIT:-$(git -C "$CHECKOUT" log -1 --format=%h)}"
 cleanup() { stop_pid "$OUT/app.pid"; stop_pid "$OUT/mock.pid"; }
 trap cleanup EXIT
 
