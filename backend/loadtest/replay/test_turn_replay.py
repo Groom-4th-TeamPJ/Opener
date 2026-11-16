@@ -546,7 +546,9 @@ class SummarizeTest(unittest.TestCase):
         self.assertEqual(out["base_unthrottled"]["limited_by_by_pass"], ["generator"])
         self.assertEqual(out["base_unthrottled"]["max_turns_per_s"], 26000)
         self.assertIn("fallback_rate", out["new"])
-        self.assertTrue(out["base"]["saturated"] and out["new"]["saturated"])
+        # base 2회차는 마지막 두 단계에서 11.5% 늘어 정체 전 -> 두 회차 모두 정체여야 포화
+        self.assertFalse(out["base"]["saturated"])
+        self.assertTrue(out["new"]["saturated"])
 
 
 
