@@ -161,6 +161,10 @@ class MockServer:
             self._loop.run_forever()
         finally:
             self._server.close()
+            pending = asyncio.all_tasks(self._loop)
+            for t in pending:
+                t.cancel()
+            self._loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
             self._loop.close()
 
     def serve_forever(self):
