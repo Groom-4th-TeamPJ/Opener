@@ -86,6 +86,8 @@ class ChatRedisReplicaFallbackTest {
         assertEquals(List.of("m1", "m2", "m3", "m4", "m5", "m6"), texts(history));
         verify(masterListOperations, times(1)).range(MESSAGE_KEY, 0L, 5L);
         assertEquals(1.0, replicaErrors("history"));
+        // 오류 경로의 master 읽기는 짧은 결과 fallback 이 아니다 -> 빈 결과를 내는 결함이 있어도 그 fallback 이 같은 master 를 읽어 결과만으로는 안 드러난다
+        assertEquals(0.0, meterRegistry.counter("chat.redis.history.fallback").count());
     }
 
     @Test
