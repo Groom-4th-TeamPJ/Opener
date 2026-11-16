@@ -5,8 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -72,7 +72,8 @@ class ChatSummarySweepJobTest {
     @DisplayName("발행이 한 건 실패해도 세고 다음 id 로 계속 간다")
     void sweep_발행한건실패_실패로세고나머지를계속발행한다() {
         when(chatMessageRepository.findPendingSummaryIds(any(), anyInt())).thenReturn(List.of(3L, 5L, 9L));
-        doThrow(new AmqpException("broker down")).when(chatMessageProducer).publishSummaryEvent(5L);
+        // 엄격 스텁은 5L 이 아닌 호출(3L, 9L)을 인자 불일치로 막는다 -> 5L 만 던지게 느슨하게 건다
+        lenient().doThrow(new AmqpException("broker down")).when(chatMessageProducer).publishSummaryEvent(5L);
 
         job().sweep();
 
