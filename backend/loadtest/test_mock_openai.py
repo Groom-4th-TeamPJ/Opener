@@ -244,7 +244,9 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(3, len(body["data"]))
 
     def test_stats_reset이_집계를_0으로_되돌린다(self):
-        self.post("/v1/embeddings", {"input": "x"})[1].read()
+        c, resp = self.post("/v1/embeddings", {"input": "x"})
+        resp.read()
+        c.close()
         self.reset()
         st = self.stats()
         for key in ("chat_streams", "chat_nonstream", "embeddings", "prompt_checked", "prompt_missing"):
