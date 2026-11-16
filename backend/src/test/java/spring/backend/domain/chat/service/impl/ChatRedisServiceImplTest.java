@@ -106,11 +106,15 @@ class ChatRedisServiceImplTest {
     }
 
     @Test
-    @DisplayName("Redis I/O 실패는 도메인 예외로 감싸지 않고 그대로 전파한다")
+    @DisplayName("replica 와 master 가 모두 실패하면 Redis I/O 실패를 도메인 예외로 감싸지 않고 그대로 전파한다")
     void validateSessionOwner_레디스장애_DataAccessException을전파한다() {
         doReturn(hashOperations).when(redisTemplate).opsForHash();
         when(hashOperations.get(SESSION_KEY, "userId"))
                 .thenThrow(new RedisConnectionFailureException("node down"));
+        // replica 오류는 master 읽기로 넘어간다 -> 전파되는 쪽은 master 의 오류다
+        doReturn(masterHashOperations).when(masterRedisTemplate).opsForHash();
+        when(masterHashOperations.get(SESSION_KEY, "userId"))
+                .thenThrow(new RedisConnectionFailureException("master down"));
 
         assertThrows(RedisConnectionFailureException.class,
                 () -> service.validateSessionOwner(SESSION_ID, UUID.randomUUID()));
