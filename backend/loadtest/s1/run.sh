@@ -24,7 +24,7 @@ wait_health 300 || exit 1
 # 앱이 뜬 직후의 문서 확인 검색(임베딩 호출 1회)과 큐 정리를 지난 뒤 모의 서버 집계를 0 으로 맞춘다
 sleep 5
 curl -s -X POST "http://localhost:$MOCK_PORT/stats/reset" >/dev/null
-rm -f "$OUT"/turns-*.jsonl "$OUT"/sessions-*.jsonl "$OUT"/errors-*.jsonl "$OUT/window.json" "$OUT/collector.json" "$OUT/gen-pids.txt"
+rm -f "$OUT/summary.json" "$OUT"/turns-*.jsonl "$OUT"/sessions-*.jsonl "$OUT"/errors-*.jsonl "$OUT/window.json" "$OUT/collector.json" "$OUT/gen-pids.txt"
 
 # 부하 없는 Redis CPU 바탕값 20초 (앱이 떠 있는 상태, 연결 풀 생성이 끝난 뒤)
 rm -f "$OUT/idle.json"
@@ -39,6 +39,12 @@ COL=$!
 wait $GEN; GEN_RC=$?
 wait $COL; COL_RC=$?
 echo "[run] generator exit=$GEN_RC collector exit=$COL_RC"
+# 생성기나 수집기가 실패한 회차의 값은 측정이 아니다 - summary.json 을 만들지 않고 실패로 끝낸다
+if [ "$GEN_RC" -ne 0 ] || [ "$COL_RC" -ne 0 ]; then
+  echo "[run] FAILED: generator exit=$GEN_RC collector exit=$COL_RC (see $OUT/loadgen.log $OUT/collector.log), no summary.json" >&2
+  rm -f "$OUT/summary.json"
+  exit 1
+fi
 
 # 생성기가 끝난 뒤에도 저장 이벤트 소비가 남아 있으면 잠시 기다린다 (큐가 비는 시점 기록용)
 python3 "$LOADTEST_DIR/collect_s1.py" summarize --out "$OUT" --code "$CODE" --commit "$COMMIT" || exit 1

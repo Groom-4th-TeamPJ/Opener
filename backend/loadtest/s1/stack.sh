@@ -23,14 +23,26 @@ case "$1" in
     ;;
   reset)
     psql_db -d postgres -c "DROP DATABASE IF EXISTS opener_s1 WITH (FORCE)" -c "CREATE DATABASE opener_s1 TEMPLATE opener_tpl" || exit 1
+    # 마스터만 비운다 (복제본은 읽기 전용이라 FLUSHALL 이 거부되는 것이 정상, 마스터의 FLUSHALL 이 복제본에도 전파된다)
     for n in 1 2 3 4 5 6; do
       eval "p=\$CHAT_PORT_$n"
-      docker exec "r125s1-redis-chat-$n" redis-cli -p "$p" FLUSHALL >/dev/null 2>&1   # 복제본은 읽기 전용이라 거부되는 것이 정상
+      c="r125s1-redis-chat-$n"
+      role=$(docker exec "$c" redis-cli -p "$p" role | head -1)
+      [ "$role" = "master" ] || continue
+      out=$(docker exec "$c" redis-cli -p "$p" FLUSHALL 2>&1)
+      [ "$out" = "OK" ] || { echo "reset FAILED: FLUSHALL on $c -> $out" >&2; exit 1; }
+      size=$(docker exec "$c" redis-cli -p "$p" DBSIZE)
+      [ "$size" = "0" ] || { echo "reset FAILED: $c DBSIZE=$size after FLUSHALL" >&2; exit 1; }
     done
+    # 관리 API 의 messages 는 5초 간격으로 갱신돼 직후에 옛 값을 주므로 rabbitmqctl 로 정확한 수를 본다
     for q in chat.message.save.queue chat.message.save.dlq; do
-      curl -s -o /dev/null -u guest:guest -X DELETE "http://localhost:$RABBIT_MGMT_PORT/api/queues/%2F/$q/contents"
+      if docker exec r125s1-rabbitmq rabbitmqctl list_queues name --quiet 2>/dev/null | grep -qx "$q"; then
+        docker exec r125s1-rabbitmq rabbitmqctl purge_queue "$q" >/dev/null 2>&1 || { echo "reset FAILED: purge_queue $q" >&2; exit 1; }
+        left=$(docker exec r125s1-rabbitmq rabbitmqctl list_queues name messages --quiet 2>/dev/null | awk -v q="$q" '$1 == q {print $2}')
+        [ "$left" = "0" ] || { echo "reset FAILED: queue $q has '$left' messages after purge" >&2; exit 1; }
+      fi
     done
-    echo "reset done"
+    echo "reset done (chat masters DBSIZE 0, queues 0)"
     ;;
   down)
     dc down

@@ -132,6 +132,11 @@ def client_round_trips(role, calls, write_cmds, failed=None):
     return total
 
 
+def vus_peak(samples):
+    """측정 구간에서 앱이 센 SSE 연결 수의 최댓값 - 설정한 VU 수가 아니라 실제로 붙어 있던 세션"""
+    return int(max([r["sse_active"] for r in samples if r.get("sse_active") is not None] or [0]))
+
+
 def pct3(values):
     return {"p50": percentile(values, 50), "p95": percentile(values, 95), "p99": percentile(values, 99)}
 
@@ -396,7 +401,7 @@ def summarize(out, code, commit, sc):
     sess_done = [s for s in sessions if s.get("ok") and s.get("t_end") and window[0] <= s["t_end"] <= window[1]]
     summary = {
         "code": code, "commit": commit,
-        "vus_peak": w["vus"] - len(login_failed), "hold_s": w["hold_s"],
+        "vus_peak": vus_peak(samples), "vus_configured": w["vus"], "login_failed_vus": len(login_failed), "hold_s": w["hold_s"],
         "sessions_completed": len(sess_done), "turns_completed": n_turns,
         "turns_per_s": n_turns / w["hold_s"],
         "ttft_ms": ts["ttft_ms"], "turn_ms": ts["turn_ms"],
