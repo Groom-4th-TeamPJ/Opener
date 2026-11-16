@@ -2,6 +2,7 @@ package spring.backend.domain.chat.service.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.lettuce.core.RedisException;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
@@ -9,10 +10,12 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -173,8 +176,9 @@ public class ChatRedisServiceImpl implements ChatRedisService {
     @Override
     public List<RedisMessageDto> getSessionMessages(Long sessionId) {
         // 영속화는 스트리밍 종료 후 별도 요청이라 복제 지연 창이 닫혀 있다 -> replica 유지
-        return meterRegistry.timer("chat.redis.read", "route", "replica")
-                .record(() -> fetchMessages(redisTemplate, sessionId, 0, -1));
+        return replicaReadWithMasterFallback("session_messages",
+                () -> parseMessages(sessionId, replicaRange(sessionId, 0, -1)),
+                () -> parseMessages(sessionId, timedRange("master-fallback", masterRedisTemplate, sessionId, 0, -1)));
     }
 
     // LLM 컨텍스트 전용 -> 턴이 쌓일수록 프롬프트가 선형 증가해 비용·TTFT 가 나빠지므로 최근 N 개로 상한
@@ -201,7 +205,10 @@ public class ChatRedisServiceImpl implements ChatRedisService {
             return List.of();
         }
 
-        List<String> raw = timedRange("replica", redisTemplate, sessionId, from, to);
+        // shortcut: replica 오류 뒤 master 가 기대보다 짧게 답하면 아래 짧은 결과 fallback 이 master 를 한 번 더 읽는다, 읽기 중복이 문제가 되면 읽은 경로를 기억해 건너뛴다
+        List<String> raw = replicaReadWithMasterFallback("history",
+                () -> replicaRange(sessionId, from, to),
+                () -> timedRange("master-fallback", masterRedisTemplate, sessionId, from, to));
         // 기대보다 짧다 = 복제본이 방금 쓴 항목까지 못 따라왔다 -> 마스터에서 같은 범위를 한 번만 다시 읽는다
         // 짧은 결과를 그대로 쓰면 직전 LLM 답이 프롬프트에서 빠진다
         if (raw.size() < expected) {
@@ -229,34 +236,50 @@ public class ChatRedisServiceImpl implements ChatRedisService {
                 .record(() -> readRange(template, sessionId, start, end));
     }
 
-    // 조회 범위만 다르고 역직렬화/예외 처리는 동일 -> 중복 대신 범위를 인자로 받아 한 곳에서 처리
-    private List<RedisMessageDto> fetchMessages(
-            StringRedisTemplate template, Long sessionId, long start, long end) {
-        return parseMessages(sessionId, readRange(template, sessionId, start, end));
+    // replica 읽기 -> Redis 오류를 BusinessException 으로 감싸지 않고 올려 보낸다, 아래 도우미가 master 읽기로 넘기려면 원래 타입이 필요하다
+    private List<String> replicaRange(Long sessionId, long start, long end) {
+        return meterRegistry.timer("chat.redis.read", "route", "replica")
+                .record(() -> rangeOf(redisTemplate, sessionId, start, end));
+    }
+
+    // replica 읽기가 Redis 오류로 실패하면 요청을 실패시키지 않고 같은 읽기를 master 에서 한 번 한다
+    // master 오류는 잡지 않는다 -> redis-chat 서킷이 그 실패를 세고, 오류 계수로 replica 노드 장애를 따로 본다
+    private <T> T replicaReadWithMasterFallback(String op, Supplier<T> replicaRead, Supplier<T> masterRead) {
+        try {
+            return replicaRead.get();
+        } catch (DataAccessException | RedisException e) {
+            meterRegistry.counter("chat.redis.read.replica_error", "op", op).increment();
+            log.warn("[Redis Cluster] replica 읽기 실패 - master 로 한 번 재시도 - op: {}", op, e);
+            return masterRead.get();
+        }
     }
 
     // 원문 그대로 읽는다 -> 복제 지연 판정이 역직렬화로 걸러진 개수가 아니라 Redis 가 돌려준 개수를 봐야 한다
     private List<String> readRange(StringRedisTemplate template, Long sessionId, long start, long end) {
-        String messageKey = getMessageKey(sessionId);
-
         try {
-            log.debug("[Redis Cluster] 세션 메시지 조회 시작 - sessionId: {}, key: {}, range: [{}, {}]",
-                    sessionId, messageKey, start, end);
-
-            List<String> jsonMessages = template.opsForList().range(messageKey, start, end);
-
-            if (jsonMessages == null || jsonMessages.isEmpty()) {
-                log.debug("[Redis Cluster] 세션 메시지 없음 - sessionId: {}", sessionId);
-                return List.of();
-            }
-
-            log.debug("[Redis Cluster] 세션 메시지 조회 성공 - sessionId: {}, 메시지 수: {}", sessionId, jsonMessages.size());
-            return jsonMessages;
-
+            return rangeOf(template, sessionId, start, end);
         } catch (Exception e) {
-            log.error("[Redis Cluster] 세션 메시지 조회 중 예외 발생 - sessionId: {}, key: {}", sessionId, messageKey, e);
+            log.error("[Redis Cluster] 세션 메시지 조회 중 예외 발생 - sessionId: {}, key: {}", sessionId, getMessageKey(sessionId), e);
             throw new BusinessException(ErrorCode.MESSAGE_INPUT_FAIL);
         }
+    }
+
+    // 예외를 감싸지 않는 읽기 -> master 읽기는 readRange 로, replica 읽기는 이 메서드를 직접 써서 오류 타입을 보존한다
+    private List<String> rangeOf(StringRedisTemplate template, Long sessionId, long start, long end) {
+        String messageKey = getMessageKey(sessionId);
+
+        log.debug("[Redis Cluster] 세션 메시지 조회 시작 - sessionId: {}, key: {}, range: [{}, {}]",
+                sessionId, messageKey, start, end);
+
+        List<String> jsonMessages = template.opsForList().range(messageKey, start, end);
+
+        if (jsonMessages == null || jsonMessages.isEmpty()) {
+            log.debug("[Redis Cluster] 세션 메시지 없음 - sessionId: {}", sessionId);
+            return List.of();
+        }
+
+        log.debug("[Redis Cluster] 세션 메시지 조회 성공 - sessionId: {}, 메시지 수: {}", sessionId, jsonMessages.size());
+        return jsonMessages;
     }
 
     // JSON 문자열을 MessageDto로 변환
@@ -352,8 +375,11 @@ public class ChatRedisServiceImpl implements ChatRedisService {
     private void assertSessionOwner(Long sessionId, UUID userId, String context) {
         String sessionKey = getSessionKey(sessionId);
 
-        String storedUserId = (String) meterRegistry.timer("chat.redis.read", "route", "replica")
-                .record(() -> redisTemplate.opsForHash().get(sessionKey, "userId"));
+        String storedUserId = replicaReadWithMasterFallback("owner",
+                () -> (String) meterRegistry.timer("chat.redis.read", "route", "replica")
+                        .record(() -> redisTemplate.opsForHash().get(sessionKey, "userId")),
+                () -> (String) meterRegistry.timer("chat.redis.read", "route", "master")
+                        .record(() -> masterRedisTemplate.opsForHash().get(sessionKey, "userId")));
 
         // replica 가 비었을 때만 master 재확인 -> 정상 경로는 그대로 분산되고 복제 지연 의심 순간만 선형화
         // 무조건 master 로 읽으면 분산이 사라지고, 재확인이 없으면 방금 만든 세션이 없는 것으로 보인다
