@@ -199,17 +199,56 @@ def ms_stats(values):
     return {"p50": percentile(values, 50), "p95": percentile(values, 95), "count": len(values)}
 
 
-def save_summary_blocks(posts, rows, offset_ms):
-    """posts: {question_result_id: 저장 요청 전송 시각(호스트 ms)}, rows: parse_rows 결과, offset_ms: DB 시계 - 호스트 시계"""
+LAG_NOTE = ("행이 요약과 함께 저장된 경우도 updated_at - created_at 을 그대로 잰 값이다 "
+            "(@LastModifiedDate 가 같은 INSERT 에서 created_at 보다 몇 ms 뒤에 찍힌다), 요약을 나중에 채우면 그 지연이 더해진다")
+
+
+def save_summary_blocks(posts, rows, hold_ms=None):
+    """posts: {question_result_id: 저장 요청 전송 시각(호스트 ms)}, rows: parse_rows 결과, hold_ms: (측정 구간 시작, 끝) 호스트 ms
+    created_at 은 같은 호스트의 앱 JVM 이 쓰므로(@CreatedDate) DB 시계 오프셋은 빼지 않는다 - 오프셋은 따로 보고만 한다"""
     created = {r["qrid"]: r["created_ms"] for r in rows}
-    durable = [created[q] - offset_ms - sent for q, sent in posts.items() if q in created]
-    # 요약과 함께 저장된 행은 updated_at 이 없거나 created_at 과 같아 지연 0, 나중에 채운 행은 둘의 차이
+    durable = [created[q] - sent for q, sent in posts.items() if q in created]
+    hold = None
+    if hold_ms:
+        in_hold = [created[q] - sent for q, sent in posts.items() if q in created and hold_ms[0] <= sent <= hold_ms[1]]
+        hold = {**ms_stats(in_hold), "max": max(in_hold) if in_hold else None}
     lags = [max(0.0, (r["updated_ms"] or r["created_ms"]) - r["created_ms"]) for r in rows if not r["summary_null"]]
     missing = sum(1 for r in rows if r["summary_null"])
     not_durable = sum(1 for q in posts if q not in created)
-    save = {"rows": len(rows), "posts": len(posts), "not_durable": not_durable, "durable_ms": ms_stats(durable)}
-    summary = {"lag_ms": ms_stats(lags), "missing_at_end": missing, "missing_incl_unsaved": missing + not_durable}
+    save = {"rows": len(rows), "posts": len(posts), "not_durable": not_durable, "durable_ms": ms_stats(durable),
+            "durable_ms_hold": hold}
+    summary = {"lag_ms": ms_stats(lags), "lag_note": LAG_NOTE, "missing_at_end": missing, "missing_incl_unsaved": missing + not_durable}
     return save, summary
+
+
+def raw_blocks(out, sessions, window):
+    """생성기 원자료(sessions)와 drain.json 에서 save·summary 블록을 만든다 - summarize 와 resummarize 가 같은 정의를 쓴다"""
+    dr_path = os.path.join(out, "drain.json")
+    dr = json.load(open(dr_path)) if os.path.exists(dr_path) else None
+    rows = parse_rows(dr["rows_raw"], dr["host_gmtoff_s"]) if dr else []
+    # 같은 결과 id 로 저장 요청이 둘이면 먼저 보낸 것 - 행은 결과 id 당 하나뿐
+    posts = {}
+    for sess in sorted((x for x in sessions if x.get("save_code") == 200), key=lambda x: x["save_sent_ms"]):
+        posts.setdefault(sess["question_result_id"], sess["save_sent_ms"])
+    save_block, summary_block = save_summary_blocks(posts, rows, (window[0] * 1000, window[1] * 1000))
+    save_block["clock_offset_ms"] = dr["clock_offset_ms"] if dr else None
+    return dr, save_block, summary_block
+
+
+def resummarize(out):
+    """이미 만든 summary.json 의 save·summary 블록만 원자료로 다시 계산한다 - 앱·모의 서버가 꺼진 뒤라 나머지 값은 건드리지 않는다
+    (옛 파일은 summary.v1.json 으로 남긴다)"""
+    path = os.path.join(out, "summary.json")
+    old = json.load(open(path))
+    v1 = os.path.join(out, "summary.v1.json")
+    if not os.path.exists(v1):
+        json.dump(old, open(v1, "w"), ensure_ascii=False, indent=2)
+    w = json.load(open(os.path.join(out, "window.json")))
+    _, save_block, summary_block = raw_blocks(out, read_jsonl(out, "sessions"), (w["hold_start"], w["hold_end"]))
+    summary_block["queue_published"] = old["summary"].get("queue_published")
+    summary_block["queue_consumed"] = old["summary"].get("queue_consumed")
+    old["save"], old["summary"] = save_block, summary_block
+    json.dump(old, open(path, "w"), ensure_ascii=False, indent=2)
 
 
 def pct3(values):
@@ -520,15 +559,7 @@ def summarize(out, code, commit, sc, app_env=None):
     app_ps = [sum(r["app_cpu_pct"]) for r in samples if r["app_cpu_pct"]]
     q0, q1 = s0["rabbit"].get(SAVE_Q, {}), s1["rabbit"].get(SAVE_Q, {})
     sq0, sq1 = s0["rabbit"].get(SUMMARY_Q, {}), s1["rabbit"].get(SUMMARY_Q, {})
-    dr_path = os.path.join(out, "drain.json")
-    dr = json.load(open(dr_path)) if os.path.exists(dr_path) else None
-    rows = parse_rows(dr["rows_raw"], dr["host_gmtoff_s"]) if dr else []
-    # 같은 결과 id 로 저장 요청이 둘이면 먼저 보낸 것 - 행은 결과 id 당 하나뿐
-    posts = {}
-    for sess in sorted((x for x in sessions if x.get("save_code") == 200), key=lambda x: x["save_sent_ms"]):
-        posts.setdefault(sess["question_result_id"], sess["save_sent_ms"])
-    save_block, summary_block = save_summary_blocks(posts, rows, dr["clock_offset_ms"] if dr else 0)
-    save_block["clock_offset_ms"] = dr["clock_offset_ms"] if dr else None
+    dr, save_block, summary_block = raw_blocks(out, sessions, window)
     summary_block["queue_published"] = (sq1.get("stats", {}).get("publish", 0)) - (sq0.get("stats", {}).get("publish", 0)) if sq1 else None
     summary_block["queue_consumed"] = (sq1.get("stats", {}).get("ack", 0)) - (sq0.get("stats", {}).get("ack", 0)) if sq1 else None
     depth_end = depth_pair({k: v["messages"] for k, v in s1["rabbit"].items()})
@@ -606,7 +637,7 @@ def summarize(out, code, commit, sc, app_env=None):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("mode", choices=["watch", "drain", "summarize", "idle"])
+    ap.add_argument("mode", choices=["watch", "drain", "summarize", "resummarize", "idle"])
     ap.add_argument("--seconds", type=float, default=20)
     ap.add_argument("--out", required=True)
     ap.add_argument("--scenario", default=os.path.join(HERE, "s1", "scenario.json"))
@@ -617,6 +648,8 @@ def main():
     sc = json.load(open(args.scenario, encoding="utf-8"))
     if args.mode == "watch":
         watch(args.out, sc)
+    elif args.mode == "resummarize":
+        resummarize(args.out)
     elif args.mode == "drain":
         drain(args.out, sc)
     elif args.mode == "idle":

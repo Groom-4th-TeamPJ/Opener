@@ -35,7 +35,7 @@ case "$1" in
       [ "$size" = "0" ] || { echo "reset FAILED: $c DBSIZE=$size after FLUSHALL" >&2; exit 1; }
     done
     # 관리 API 의 messages 는 5초 간격으로 갱신돼 직후에 옛 값을 주므로 rabbitmqctl 로 정확한 수를 본다
-    for q in chat.message.save.queue chat.message.save.dlq; do
+    for q in chat.message.save.queue chat.message.save.dlq chat.message.summary.queue chat.message.summary.dlq; do
       if docker exec r125s1-rabbitmq rabbitmqctl list_queues name --quiet 2>/dev/null | grep -qx "$q"; then
         docker exec r125s1-rabbitmq rabbitmqctl purge_queue "$q" >/dev/null 2>&1 || { echo "reset FAILED: purge_queue $q" >&2; exit 1; }
         left=$(docker exec r125s1-rabbitmq rabbitmqctl list_queues name messages --quiet 2>/dev/null | awk -v q="$q" '$1 == q {print $2}')
