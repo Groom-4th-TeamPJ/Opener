@@ -38,6 +38,7 @@ public class ChatSummarySweepJob {
 
     // fixedDelay -> 앞 점검이 끝난 뒤부터 간격을 센다, 점검이 길어져도 겹쳐 돌지 않는다
     // shortcut: 첫 요약 이벤트가 아직 큐에 있거나 처리 중인 행도 최소 나이(5분)가 지나면 다시 발행해 LLM 을 한 번 더 부른다(소비자는 요약이 저장된 뒤에야 건너뜀), 큐 적체가 최소 나이를 넘기면 이 중복이 는다
+    // shortcut: 요약이 매번 실패해 DLQ 로 가는 행은 오래된 id 순 조회에서 매 점검마다 맨 앞에 돌아온다, 그런 행이 배치 크기보다 많아지면 더 새 행에는 닿지 않는다 -> 점검을 거듭해도 미요약 행 수가 0 위로 남으면 시도 횟수나 마지막 시도 시각 컬럼을 두고 조회가 건너뛰게 한다
     // shortcut: 인스턴스가 여럿이면 같은 행을 각자 발행한다, 다중 인스턴스로 배포할 때 점검 잠금 추가
     @Scheduled(fixedDelayString = "${chat.summary.sweep.interval-ms:60000}")
     public void sweep() {
