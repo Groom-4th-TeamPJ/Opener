@@ -789,7 +789,7 @@ def main(argv=None):
         p.add_argument("--seq", choices=sorted(SEQUENCES), required=True)
         p.add_argument("--seed-node", default=os.environ.get("SEED_NODE", "rp-node-1:6379"))
         p.add_argument("--sessions", type=int, default=SESSIONS)
-        p.add_argument("--procs-max", type=int, default=int(os.environ.get("PROCS_MAX", "6")))
+        p.add_argument("--procs-max", type=int, default=int(os.environ.get("PROCS_MAX", "8")))
         p.add_argument("--warmup", type=float, default=WARMUP_S)
         p.add_argument("--measure", type=float, default=MEASURE_S)
         p.add_argument("--seed", type=int, default=1)

@@ -1,0 +1,66 @@
+# r125 t3 - 채팅 한 턴의 Redis 명령 재생용 클러스터(master 3 + replica 3)와 생성기, 호스트 포트 없음
+name: r125-rp
+
+x-node: &node
+  image: redis:7-alpine
+  # /data 는 tmpfs - 익명 볼륨이 남지 않게 한다(AOF 는 켠 채 쓰기만 메모리로)
+  tmpfs:
+    - /data
+  volumes:
+    - ../../../redis-cluster/redis-node.conf:/etc/redis/redis.conf:ro
+  healthcheck:
+    test: ["CMD", "redis-cli", "ping"]
+    interval: 3s
+    timeout: 3s
+    retries: 20
+
+services:
+  rp-node-1:
+    <<: *node
+    command: redis-server /etc/redis/redis.conf --cluster-announce-hostname rp-node-1 --appendonly yes --appendfsync everysec
+  rp-node-2:
+    <<: *node
+    command: redis-server /etc/redis/redis.conf --cluster-announce-hostname rp-node-2 --appendonly yes --appendfsync everysec
+  rp-node-3:
+    <<: *node
+    command: redis-server /etc/redis/redis.conf --cluster-announce-hostname rp-node-3 --appendonly yes --appendfsync everysec
+  rp-node-4:
+    <<: *node
+    command: redis-server /etc/redis/redis.conf --cluster-announce-hostname rp-node-4 --appendonly yes --appendfsync everysec
+  rp-node-5:
+    <<: *node
+    command: redis-server /etc/redis/redis.conf --cluster-announce-hostname rp-node-5 --appendonly yes --appendfsync everysec
+  rp-node-6:
+    <<: *node
+    command: redis-server /etc/redis/redis.conf --cluster-announce-hostname rp-node-6 --appendonly yes --appendfsync everysec
+
+  rp-init:
+    image: redis:7-alpine
+    restart: "no"
+    depends_on:
+      rp-node-1: {condition: service_healthy}
+      rp-node-2: {condition: service_healthy}
+      rp-node-3: {condition: service_healthy}
+      rp-node-4: {condition: service_healthy}
+      rp-node-5: {condition: service_healthy}
+      rp-node-6: {condition: service_healthy}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        redis-cli --cluster create rp-node-1:6379 rp-node-2:6379 rp-node-3:6379
+        rp-node-4:6379 rp-node-5:6379 rp-node-6:6379
+        --cluster-replicas 1 --cluster-yes --cluster-timeout 5 &&
+        sleep 3 && redis-cli -h rp-node-1 cluster info | grep -E 'cluster_state|cluster_slots_assigned'
+
+  generator:
+    image: python:3.12-alpine
+    command: ["sleep", "infinity"]
+    depends_on:
+      rp-init: {condition: service_completed_successfully}
+    environment:
+      SEED_NODE: rp-node-1:6379
+      CLAIM_LUA: /scripts/chat-session-claim.lua
+    volumes:
+      - ./:/replay:ro
+      - ../../src/main/resources/scripts:/scripts:ro
+      - ${REPLAY_OUT:-/Users/mskim/Desktop/PJ/Opener/.cascade/r125/measure/replay}:/out
