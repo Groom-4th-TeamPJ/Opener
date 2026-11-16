@@ -85,7 +85,7 @@ class RespCodecTest(unittest.TestCase):
         self.assertEqual(tr.decode_reply(b"$3\r\nabc\r\n"), (b"abc", 9))
         self.assertEqual(tr.decode_reply(b"$-1\r\n"), (None, 5))
         self.assertEqual(tr.decode_reply(b"*3\r\n$1\r\na\r\n$-1\r\n:5\r\n"),
-                         ([b"a", None, 5], 21))
+                         ([b"a", None, 5], 20))
         self.assertEqual(tr.decode_reply(b"*0\r\n"), ([], 4))
 
     def test_decode_벌크_안의_CRLF_는_본문으로_읽는다(self):
