@@ -62,6 +62,8 @@ spring:
     listener:
       simple:
         prefetch: 1 # 한 번에 하나의 메시지만 처리
+        concurrency: 48 # 저장·요약 리스너가 공유 - 초당 9.1건 발행 × 건당 4.6초 ≈ 42 이상이어야 적체가 쌓이지 않는다
+        max-concurrency: 64 # 부하가 늘면 이 상한까지 소비자를 늘린다
         acknowledge-mode: auto # 자동 ACK
         retry:
           enabled: true
