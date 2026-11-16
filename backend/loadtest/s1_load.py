@@ -273,9 +273,11 @@ async def run_session(spec, rec, cookie, sess, rng):
                 break
         if info["turns"]:
             m = time.monotonic()
+            # 저장 요청 전송 시각(호스트 시계)과 결과 id - 수집기가 chat_messages 행의 생성 시각과 이어 붙인다
+            info["save_sent_ms"], info["question_result_id"] = time.time() * 1000, sess["question_result_id"]
             code, _, _ = await http_request(host, port, "POST", prefix + "/chat/save-message", cookie,
                                             {"sessionId": sid, "questionResultId": sess["question_result_id"]})
-            info["save_ms"] = (time.monotonic() - m) * 1000
+            info["save_ms"], info["save_code"] = (time.monotonic() - m) * 1000, code
             if code != 200:
                 rec.error(status_kind(code), spec["vu"])
         m = time.monotonic()
