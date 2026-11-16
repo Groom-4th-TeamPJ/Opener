@@ -32,7 +32,7 @@ import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 public class OpenAiLlmServiceWithoutRag implements LlmService {
 
     private final ChatClient.Builder chatClientBuilder;
-    // 대화 이력 조회 -> 프롬프트용(getRecentHistory)과 요약용(getFullHistory)을 메서드로 구분
+    // 대화 이력 조회 -> 프롬프트용(getHistoryBefore)과 요약용(getFullHistory)을 메서드로 구분
     private final ChatHistoryProvider chatHistoryProvider;
     private final PromptLoader promptLoader;
 
@@ -62,14 +62,15 @@ public class OpenAiLlmServiceWithoutRag implements LlmService {
     }
 
     @Override
-    public Flux<String> chatStream(String sessionId, String userMessage) {
+    public Flux<String> chatStream(String sessionId, String userMessage, long writtenLength) {
         // defer -> 히스토리 조회를 구독 시점으로 미룬다
         // 조립 시점에 Redis 가 던지면 호출자의 doOnError 가 돌지 않아 세션이 PROCESSING 에 갇힌다
-        return Flux.defer(() -> buildStream(sessionId, userMessage));
+        return Flux.defer(() -> buildStream(sessionId, userMessage, writtenLength));
     }
 
-    private Flux<String> buildStream(String sessionId, String userMessage) {
-        List<Message> chatHistory = chatHistoryProvider.getRecentHistory(sessionId);
+    private Flux<String> buildStream(String sessionId, String userMessage, long writtenLength) {
+        // 질문 직전까지만 읽는다 -> 현재 질문은 요청에서 받은 원문을 아래에서 한 번 붙인다
+        List<Message> chatHistory = chatHistoryProvider.getHistoryBefore(sessionId, writtenLength);
 
         log.debug("[LLM-NoRAG] 대화 히스토리 조회 완료 - sessionId: {}, 메시지 수: {}",
                 sessionId, chatHistory.size());
@@ -82,8 +83,8 @@ public class OpenAiLlmServiceWithoutRag implements LlmService {
         return chatClient
                 .prompt()
                 .system(systemRulePrompt)
-                // 히스토리는 master 에서 읽어 정상 경로에는 방금 질문이 들어 있지만 저장이 실패한 턴은 빠진다
-                // 호출자가 넘긴 원문을 여기서 보장해야 프롬프트에서 질문이 통째로 사라지는 경로가 닫힌다
+                // 히스토리는 질문 직전까지만 읽으므로 호출자가 넘긴 원문을 여기서 한 번 붙인다
+                // 저장이 실패한 턴도 같은 경로라 프롬프트에서 질문이 통째로 사라지는 경로가 없다
                 .messages(ChatPromptAssembler.withCurrentQuestion(chatHistory, userMessage))
                 .stream()
                 .content()

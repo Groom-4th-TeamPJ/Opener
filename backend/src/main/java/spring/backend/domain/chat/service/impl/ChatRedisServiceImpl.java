@@ -46,6 +46,9 @@ public class ChatRedisServiceImpl implements ChatRedisService {
     // 세션 선점 스크립트 -> 소유자 기록(HSETNX)과 TTL(EXPIRE)이 한 왕복
     private static final RedisScript<Long> SESSION_CLAIM_SCRIPT = loadSessionClaimScript();
 
+    // 저장 스크립트 -> RPUSH 와 TTL 갱신 2회가 한 왕복, 반환값이 push 직후 목록 길이
+    private static final RedisScript<Long> MESSAGE_SAVE_SCRIPT = loadScript("scripts/chat-message-save.lua");
+
     private final ObjectMapper objectMapper;
     private final StringRedisTemplate redisTemplate;
 
@@ -54,7 +57,7 @@ public class ChatRedisServiceImpl implements ChatRedisService {
 
     private final MeterRegistry meterRegistry;
 
-    // 쓰기 직후 읽기가 같은 요청 안에서 일어나는 경로 전용 (ReadFrom.MASTER)
+    // 복제 지연을 의심하는 재조회와 쓰기 직후 확인 전용 (ReadFrom.MASTER)
     private final StringRedisTemplate masterRedisTemplate;
 
     public ChatRedisServiceImpl(
@@ -73,8 +76,12 @@ public class ChatRedisServiceImpl implements ChatRedisService {
     }
 
     private static RedisScript<Long> loadSessionClaimScript() {
+        return loadScript("scripts/chat-session-claim.lua");
+    }
+
+    private static RedisScript<Long> loadScript(String path) {
         DefaultRedisScript<Long> script = new DefaultRedisScript<>();
-        script.setLocation(new ClassPathResource("scripts/chat-session-claim.lua"));
+        script.setLocation(new ClassPathResource(path));
         script.setResultType(Long.class);
         return script;
     }
@@ -130,9 +137,10 @@ public class ChatRedisServiceImpl implements ChatRedisService {
     }
 
     // @CircuitBreaker -> Redis 장애가 길어지면 호출을 즉시 차단, 스레드가 타임아웃 대기에 묶여 전체 지연되는 것 방지
+    // 반환 = push 직후 목록 길이 -> 호출자가 이 질문 직전까지만 복제본에서 읽는 범위를 계산한다
     @Override
     @CircuitBreaker(name = "redis-chat", fallbackMethod = "saveMessageFallback")
-    public void saveMessage(Long sessionId, RedisMessageDto message) {
+    public long saveMessage(Long sessionId, RedisMessageDto message) {
         String messageKey = getMessageKey(sessionId);
         String sessionKey = getSessionKey(sessionId);
 
@@ -140,19 +148,19 @@ public class ChatRedisServiceImpl implements ChatRedisService {
             // 메시지를 JSON 문자열로 변환
             String json = objectMapper.writeValueAsString(message);
 
-            // List 자료구조 + rightPush -> 대화는 시간 순서가 핵심이라 append 로 순서 보존
-            redisTemplate.opsForList().rightPush(messageKey, json);
+            // 스크립트 한 번 -> rightPush(대화는 시간 순서가 핵심이라 append) + 메시지 TTL + 세션 TTL 이 한 왕복
+            // 메시지마다 세션 TTL 을 갱신해 대화 중인 활성 세션이 중간에 만료되는 것을 막는다
+            // 스크립트는 쓰기 명령이라 읽기 분산 설정과 무관하게 마스터에서 실행된다
+            Long length = redisTemplate.execute(
+                    MESSAGE_SAVE_SCRIPT,
+                    List.of(messageKey, sessionKey),
+                    json,
+                    String.valueOf(SESSION_TTL.toSeconds()));
 
-            // TTL 설정 및 검증
-            Boolean ttlSet = redisTemplate.expire(messageKey, SESSION_TTL);
-            if (!Boolean.TRUE.equals(ttlSet)) {
-                log.warn("Failed to set TTL for messages: {}", sessionId);
-            }
+            log.debug("Message saved: sessionId={}, role={}, length={}", sessionId, message.chatRole(), length);
 
-            // 메시지마다 세션 TTL 갱신 -> 대화 중인 활성 세션이 중간에 만료되는 것 방지
-            redisTemplate.expire(sessionKey, SESSION_TTL);
-
-            log.debug("Message saved: sessionId={}, role={}", sessionId, message.chatRole());
+            // 결과가 없으면 길이를 알 수 없다 -> 저장이 버려진 턴과 같은 -1 로 마스터 최근 읽기를 타게 한다
+            return length == null ? -1L : length;
 
         // 직렬화 실패만 도메인 오류 -> Redis I/O 실패는 그대로 던져 서킷이 세게 한다
         } catch (JsonProcessingException e) {
@@ -170,23 +178,65 @@ public class ChatRedisServiceImpl implements ChatRedisService {
     }
 
     // LLM 컨텍스트 전용 -> 턴이 쌓일수록 프롬프트가 선형 증가해 비용·TTFT 가 나빠지므로 최근 N 개로 상한
+    // 현재 질문은 읽지 않는다 -> 요청에서 받은 원문을 프롬프트 조립이 붙이므로 방금 쓴 항목을 읽을 이유가 없다
+    // 그래서 쓰기 직후 읽기인데도 복제본으로 보낼 수 있고, 복제본이 덜 따라왔는지는 기대 항목 수로 알아낸다
     @Override
-    public List<RedisMessageDto> getRecentSessionMessages(Long sessionId) {
-        // 음수 인덱스 = 뒤에서부터 -> 저장 개수가 N 보다 적어도 Redis 가 있는 만큼만 반환해 별도 길이 체크 불필요
-        // 설정값이 0 이하면 윈도우 비활성으로 보고 전체 반환
-        long start = historyWindow > 0 ? -historyWindow : 0;
-        // 같은 요청 안에서 saveMessage 직후에 읽는다 -> 복제 지연 창이 항상 열려 있어 master 고정
-        // partial 표식 메시지는 프롬프트에서 뺀다 -> 끊긴 문장을 모델이 자기 답으로 이어 쓰지 않게 한다
-        // 영속화 읽기(getSessionMessages)는 그대로 둬 소비자가 표식을 보고 직접 제외한다
-        return meterRegistry.timer("chat.redis.read", "route", "master")
-                .record(() -> fetchMessages(masterRedisTemplate, sessionId, start, -1).stream()
-                        .filter(message -> !message.partial())
-                        .toList());
+    public List<RedisMessageDto> getHistoryBefore(Long sessionId, long writtenLength) {
+        // 윈도우 W 는 질문 포함 개수 -> 이전 메시지는 W-1 개, 설정값이 0 이하면 윈도우 비활성으로 보고 전체
+        if (writtenLength < 0) {
+            // 저장이 버려진 턴 -> 길이를 모르므로 마스터의 마지막 W-1 개를 읽는다 (질문이 저장되지 않았으니 이전 대화뿐이다)
+            // W=1 이면 -(W-1) 이 0 이 되어 "처음부터" 로 읽히므로 읽지 않는다
+            if (historyWindow == 1) {
+                return List.of();
+            }
+            long start = historyWindow > 0 ? -(historyWindow - 1L) : 0;
+            return withoutPartial(timedFetch("master", masterRedisTemplate, sessionId, start, -1));
+        }
+
+        // 질문(마지막 항목) 직전까지의 절대 인덱스 [from, L-2] -> 음수 인덱스는 그 사이 쓰기가 끼면 한 칸씩 밀린다
+        long from = historyWindow > 0 ? Math.max(0, writtenLength - historyWindow) : 0;
+        long to = writtenLength - 2;
+        long expected = to - from + 1;
+        if (expected <= 0) {
+            return List.of();
+        }
+
+        List<String> raw = timedRange("replica", redisTemplate, sessionId, from, to);
+        // 기대보다 짧다 = 복제본이 방금 쓴 항목까지 못 따라왔다 -> 마스터에서 같은 범위를 한 번만 다시 읽는다
+        // 짧은 결과를 그대로 쓰면 직전 LLM 답이 프롬프트에서 빠진다
+        if (raw.size() < expected) {
+            meterRegistry.counter("chat.redis.history.fallback").increment();
+            raw = timedRange("master-fallback", masterRedisTemplate, sessionId, from, to);
+        }
+        // 길이는 partial 을 제외하기 전 항목 수로 판정했다 -> partial 도 정상적으로 저장된 한 항목이다
+        return withoutPartial(parseMessages(sessionId, raw));
+    }
+
+    // partial 표식 메시지는 프롬프트에서 뺀다 -> 끊긴 문장을 모델이 자기 답으로 이어 쓰지 않게 한다
+    // 영속화 읽기(getSessionMessages)는 그대로 둬 소비자가 표식을 보고 직접 제외한다
+    private List<RedisMessageDto> withoutPartial(List<RedisMessageDto> messages) {
+        return messages.stream().filter(message -> !message.partial()).toList();
+    }
+
+    private List<RedisMessageDto> timedFetch(
+            String route, StringRedisTemplate template, Long sessionId, long start, long end) {
+        return parseMessages(sessionId, timedRange(route, template, sessionId, start, end));
+    }
+
+    private List<String> timedRange(
+            String route, StringRedisTemplate template, Long sessionId, long start, long end) {
+        return meterRegistry.timer("chat.redis.read", "route", route)
+                .record(() -> readRange(template, sessionId, start, end));
     }
 
     // 조회 범위만 다르고 역직렬화/예외 처리는 동일 -> 중복 대신 범위를 인자로 받아 한 곳에서 처리
     private List<RedisMessageDto> fetchMessages(
             StringRedisTemplate template, Long sessionId, long start, long end) {
+        return parseMessages(sessionId, readRange(template, sessionId, start, end));
+    }
+
+    // 원문 그대로 읽는다 -> 복제 지연 판정이 역직렬화로 걸러진 개수가 아니라 Redis 가 돌려준 개수를 봐야 한다
+    private List<String> readRange(StringRedisTemplate template, Long sessionId, long start, long end) {
         String messageKey = getMessageKey(sessionId);
 
         try {
@@ -201,24 +251,27 @@ public class ChatRedisServiceImpl implements ChatRedisService {
             }
 
             log.debug("[Redis Cluster] 세션 메시지 조회 성공 - sessionId: {}, 메시지 수: {}", sessionId, jsonMessages.size());
-
-            // JSON 문자열을 MessageDto로 변환
-            return jsonMessages.stream()
-                    .map(json -> {
-                        try {
-                            return objectMapper.readValue(json, RedisMessageDto.class);
-                        } catch (Exception e) {
-                            log.error("[Redis Cluster] JSON 역직렬화 실패 - sessionId: {}, json: {}", sessionId, json, e);
-                            return null;
-                        }
-                    })
-                    .filter(msg -> msg != null)
-                    .toList();
+            return jsonMessages;
 
         } catch (Exception e) {
             log.error("[Redis Cluster] 세션 메시지 조회 중 예외 발생 - sessionId: {}, key: {}", sessionId, messageKey, e);
             throw new BusinessException(ErrorCode.MESSAGE_INPUT_FAIL);
         }
+    }
+
+    // JSON 문자열을 MessageDto로 변환
+    private List<RedisMessageDto> parseMessages(Long sessionId, List<String> jsonMessages) {
+        return jsonMessages.stream()
+                .map(json -> {
+                    try {
+                        return objectMapper.readValue(json, RedisMessageDto.class);
+                    } catch (Exception e) {
+                        log.error("[Redis Cluster] JSON 역직렬화 실패 - sessionId: {}, json: {}", sessionId, json, e);
+                        return null;
+                    }
+                })
+                .filter(msg -> msg != null)
+                .toList();
     }
 
     @Override
@@ -324,20 +377,23 @@ public class ChatRedisServiceImpl implements ChatRedisService {
 
     // 저장 실패는 스트리밍을 끊을 사유가 아니다 -> 이번 턴 프롬프트는 ChatPromptAssembler 가 질문을 보장한다
     // 버려진 사실을 메트릭으로 남겨 조용한 유실이 되지 않게 한다
+    // 버려진 저장은 -1 -> 호출자가 길이를 모르는 턴으로 보고 마스터에서 최근 W-1 개를 읽는다
     @SuppressWarnings("unused")
-    private void saveMessageFallback(Long sessionId, RedisMessageDto message, CallNotPermittedException ex) {
+    private long saveMessageFallback(Long sessionId, RedisMessageDto message, CallNotPermittedException ex) {
         log.warn("[Redis Cluster] Circuit OPEN - 메시지 저장 생략 - sessionId: {}", sessionId);
         meterRegistry.counter("chat.redis.save.dropped", "reason", "circuit_open").increment();
+        return -1L;
     }
 
     @SuppressWarnings("unused")
-    private void saveMessageFallback(Long sessionId, RedisMessageDto message, Throwable t) {
+    private long saveMessageFallback(Long sessionId, RedisMessageDto message, Throwable t) {
         if (t instanceof BusinessException be) {
             throw be;
         }
         log.error("[Redis Cluster] 메시지 저장 실패(CB 카운트됨) - sessionId: {}, cause: {}",
                 sessionId, t.getMessage());
         meterRegistry.counter("chat.redis.save.dropped", "reason", "io_error").increment();
+        return -1L;
     }
 
     // 선점도 인가 게이트라 fail-close -> 못 만든 세션을 만든 것처럼 통과시키지 않는다
@@ -375,7 +431,11 @@ public class ChatRedisServiceImpl implements ChatRedisService {
     }
 
     // private fallback 을 단위 테스트에서 직접 부르기 위한 위임
-    void saveMessageFallbackForTest(Long sessionId, RedisMessageDto message, Throwable t) {
-        saveMessageFallback(sessionId, message, t);
+    long saveMessageFallbackForTest(Long sessionId, RedisMessageDto message, Throwable t) {
+        return saveMessageFallback(sessionId, message, t);
+    }
+
+    long saveMessageFallbackForTest(Long sessionId, RedisMessageDto message, CallNotPermittedException ex) {
+        return saveMessageFallback(sessionId, message, ex);
     }
 }

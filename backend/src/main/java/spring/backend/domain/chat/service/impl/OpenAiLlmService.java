@@ -40,7 +40,7 @@ import spring.backend.domain.chat.util.ChatPromptAssembler;
 public class OpenAiLlmService implements LlmService {
 
     private final ChatClient.Builder chatClientBuilder;
-    // 대화 이력 조회 -> 프롬프트용(getRecentHistory)과 요약용(getFullHistory)을 메서드로 구분
+    // 대화 이력 조회 -> 프롬프트용(getHistoryBefore)과 요약용(getFullHistory)을 메서드로 구분
     private final ChatHistoryProvider chatHistoryProvider;
     private final VectorStore vectorStore; // RAG 검색용 -> 시험 문제 맥락에 맞는 근거 자료 확보
     private final spring.backend.domain.chat.util.PromptLoader promptLoader;
@@ -82,33 +82,28 @@ public class OpenAiLlmService implements LlmService {
     // @CircuitBreaker -> OpenAI 장애 누적 시 호출 차단, 느린 외부 API 가 SSE 스레드를 잡아 전체 지연되는 것 방지
     @Override
     @CircuitBreaker(name = "llm-chat", fallbackMethod = "chatStreamFallback")
-    public Flux<String> chatStream(String sessionId, String userMessage) {
+    public Flux<String> chatStream(String sessionId, String userMessage, long writtenLength) {
         // defer -> 히스토리 조회와 벡터 검색을 구독 시점으로 미룬다
         // 조립 시점에 던지면 (1) 리액터 서킷은 구독 시점만 세므로 집계되지 않고
         // (2) 호출자의 doOnError 가 돌지 않아 세션이 PROCESSING 에 갇혀 다음 요청이 전부 거부된다
-        return Flux.defer(() -> buildStream(sessionId, userMessage));
+        return Flux.defer(() -> buildStream(sessionId, userMessage, writtenLength));
     }
 
-    private Flux<String> buildStream(String sessionId, String userMessage) {
+    private Flux<String> buildStream(String sessionId, String userMessage, long writtenLength) {
         // 히스토리 주입 -> 멀티턴 맥락 유지, 이전 대화 모르면 답변 일관성 깨짐
-        List<Message> chatHistory = chatHistoryProvider.getRecentHistory(sessionId);
- 
+        // 질문 직전까지만 읽는다 -> 현재 질문은 요청에서 받은 원문을 아래에서 한 번 붙인다
+        List<Message> chatHistory = chatHistoryProvider.getHistoryBefore(sessionId, writtenLength);
+
         log.debug("[LLM+RAG] 대화 히스토리 조회 완료 - sessionId: {}, 메시지 수: {}",
                 sessionId, chatHistory.size());
 
-        // 최근 사용자 메시지로 검색 -> 전체 히스토리보다 현재 질문에 집중해 검색 정확도 향상
-        String lastUserMessage = chatHistory.stream()
-                .filter(m -> m instanceof UserMessage)
-                .reduce((first, second) -> second)
-                .map(Message::getText)
-                .orElse(userMessage);
-
+        // 현재 질문으로 검색 -> 히스토리에는 이번 질문이 없고, 히스토리의 마지막 사용자 메시지로 검색하면 이전 턴의 근거가 실린다
         log.info("[LLM+RAG] VectorStore 검색 시작 - 쿼리 길이: {}, topK: {}, threshold: {}",
-                lastUserMessage.length(), topK, similarityThreshold);
+                userMessage.length(), topK, similarityThreshold);
 
         // VectorStore에서 유사 문서 검색
         SearchRequest searchRequest = SearchRequest.builder()
-                .query(lastUserMessage)
+                .query(userMessage)
                 .topK(topK)
                 .similarityThreshold(similarityThreshold)
                 .build();
@@ -121,7 +116,7 @@ public class OpenAiLlmService implements LlmService {
                 similarDocuments.size(), similarityThreshold);
 
         if (similarDocuments.isEmpty()) {
-            logDebugSearchInfo(lastUserMessage);
+            logDebugSearchInfo(userMessage);
         }
 
         // RAG 컨텍스트를 포함한 메시지 리스트 구성
@@ -146,8 +141,8 @@ public class OpenAiLlmService implements LlmService {
             log.warn("[LLM+RAG] 유사 문서를 찾지 못했습니다. 규칙 프롬프트만 적용하여 진행합니다.");
         }
 
-        // 히스토리는 master 에서 읽어 정상 경로에는 방금 질문이 들어 있지만 저장이 실패한 턴은 빠진다
-        // 호출자가 넘긴 원문을 여기서 보장해야 프롬프트에서 질문이 통째로 사라지는 경로가 닫힌다
+        // 히스토리는 질문 직전까지만 읽으므로 호출자가 넘긴 원문을 여기서 한 번 붙인다
+        // 저장이 실패한 턴도 같은 경로라 프롬프트에서 질문이 통째로 사라지는 경로가 없다
         messagesWithRag.addAll(ChatPromptAssembler.withCurrentQuestion(chatHistory, userMessage));
 
         ChatClient chatClient = chatClientBuilder.build();
@@ -193,14 +188,14 @@ public class OpenAiLlmService implements LlmService {
     }
 
     @SuppressWarnings("unused")
-    private Flux<String> chatStreamFallback(String sessionId, String userMessage,
+    private Flux<String> chatStreamFallback(String sessionId, String userMessage, long writtenLength,
                                             CallNotPermittedException ex) {
         log.warn("[LLM+RAG] Circuit OPEN - 즉시 실패 반환 - sessionId: {}", sessionId);
         return Flux.error(new BusinessException(ErrorCode.LLM_CIRCUIT_OPEN));
     }
 
     @SuppressWarnings("unused")
-    private Flux<String> chatStreamFallback(String sessionId, String userMessage,
+    private Flux<String> chatStreamFallback(String sessionId, String userMessage, long writtenLength,
                                             Throwable t) {
         log.error("[LLM+RAG] LLM 호출 실패(CB 카운트됨) - sessionId: {}, cause: {}",
                 sessionId, t.getMessage());

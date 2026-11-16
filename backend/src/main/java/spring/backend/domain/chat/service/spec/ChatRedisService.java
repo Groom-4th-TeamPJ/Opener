@@ -9,14 +9,15 @@ public interface ChatRedisService {
     // 세션 초기화
     void initializeSession(Long sessionId, UUID userId);
 
-    // 메시지 저장
-    void saveMessage(Long sessionId, RedisMessageDto message);
+    // 메시지 저장 -> push 후 목록 길이를 돌려준다, 서킷이 저장을 버렸으면 -1
+    long saveMessage(Long sessionId, RedisMessageDto message);
 
     // 세션의 모든 메시지 조회 (영속화용 — 전량)
     List<RedisMessageDto> getSessionMessages(Long sessionId);
 
-    // 세션의 최근 메시지 조회 (LLM 컨텍스트용 — 윈도우 적용)
-    List<RedisMessageDto> getRecentSessionMessages(Long sessionId);
+    // 방금 저장한 메시지 직전까지의 최근 메시지 조회 (LLM 컨텍스트용 — 윈도우 적용)
+    // writtenLength = saveMessage 가 돌려준 길이, 음수면 저장이 버려진 턴
+    List<RedisMessageDto> getHistoryBefore(Long sessionId, long writtenLength);
 
     // 세션 삭제
     void deleteSession(Long sessionId);
