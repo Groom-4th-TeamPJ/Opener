@@ -13,7 +13,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDateTime;
 import java.util.Optional;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
+import org.springframework.amqp.AmqpConnectException;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -25,17 +28,19 @@ import spring.backend.domain.chat.dto.message_dto.ChatMessageSaveEvent;
 import spring.backend.domain.chat.mapper.RedisMessageMapper;
 import spring.backend.domain.chat.repository.spec.ChatMessageRepository;
 import spring.backend.domain.chat.service.spec.ChatRedisService;
-import spring.backend.domain.chat.service.spec.LlmService;
 import spring.backend.domain.exam.repository.spec.QuestionResultRepository;
 import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -50,7 +55,7 @@ class ChatMessageConsumerTest {
     @Mock private ChatRedisService chatRedisService;
     @Mock private ChatMessageRepository chatMessageRepository;
     @Mock private QuestionResultRepository questionResultRepository;
-    @Mock private LlmService llmService;
+    @Mock private ChatMessageProducer chatMessageProducer;
     @Mock private TransactionTemplate transactionTemplate;
     @Mock private TransactionStatus transactionStatus;
     @Mock private QuestionResult questionResult;
@@ -59,7 +64,7 @@ class ChatMessageConsumerTest {
 
     @BeforeEach
     void setUp() {
-        // 소유권 검증을 통과시킨다 -> 이 클래스의 케이스는 버퍼 판정과 요약 순서를 보는 테스트다
+        // 소유권 검증을 통과시킨다 -> 이 클래스의 케이스는 버퍼 판정과 저장 후 요약 이벤트 순서를 보는 테스트다
         lenient().when(questionResultRepository.existsByIdAndExamResultUserId(QUESTION_RESULT_ID, USER_ID))
                 .thenReturn(true);
     }
@@ -70,7 +75,7 @@ class ChatMessageConsumerTest {
                 new RedisMessageMapper(),
                 chatMessageRepository,
                 questionResultRepository,
-                llmService,
+                chatMessageProducer,
                 meterRegistry,
                 transactionTemplate);
     }
@@ -147,33 +152,52 @@ class ChatMessageConsumerTest {
         });
     }
 
-    @Test
-    @DisplayName("요약 LLM 호출이 DB 트랜잭션을 열기 전에 끝난다")
-    void handleSaveMessageEvent_요약호출_트랜잭션밖에서선행한다() {
-        when(chatRedisService.getSessionMessages(SESSION_ID)).thenReturn(List.of(userMessage(), llmMessage()));
-        when(questionResultRepository.findById(QUESTION_RESULT_ID)).thenReturn(Optional.of(questionResult));
-        when(llmService.summaryChat(SESSION_ID.toString())).thenReturn("요약");
-        runTransactionInline();
-
-        consumer().handleSaveMessageEvent(event(Instant.now()));
-
-        // 순서가 뒤집히면 십수 초짜리 외부 호출이 DB 커넥션 점유 시간에 그대로 더해진다
-        InOrder order = inOrder(llmService, transactionTemplate);
-        order.verify(llmService).summaryChat(SESSION_ID.toString());
-        order.verify(transactionTemplate).execute(any());
+    // 저장 호출이 행 id 를 얻은 것처럼 만든다 -> 요약 이벤트는 이 id 를 싣는다
+    private void saveAssignsId(Long id) {
+        when(chatMessageRepository.save(any(ChatMessage.class))).thenAnswer(invocation -> {
+            ChatMessage message = invocation.getArgument(0);
+            ReflectionTestUtils.setField(message, "id", id);
+            return message;
+        });
     }
 
     @Test
-    @DisplayName("요약 서킷이 열려 요약이 없어도 대화는 저장된다")
-    void handleSaveMessageEvent_요약없음_대화는저장된다() {
+    @DisplayName("저장은 요약 없이 끝나고 버퍼 삭제 뒤에 저장된 행 id 로 요약 이벤트 하나를 발행한다")
+    void handleSaveMessageEvent_저장후버퍼삭제후요약이벤트를발행한다() {
         when(chatRedisService.getSessionMessages(SESSION_ID)).thenReturn(List.of(userMessage(), llmMessage()));
         when(questionResultRepository.findById(QUESTION_RESULT_ID)).thenReturn(Optional.of(questionResult));
-        when(llmService.summaryChat(SESSION_ID.toString())).thenReturn(null);
+        saveAssignsId(77L);
         runTransactionInline();
 
         consumer().handleSaveMessageEvent(event(Instant.now()));
 
-        verify(chatMessageRepository).save(any(ChatMessage.class));
+        // 순서가 뒤집히면 요약 소비자가 아직 없는 행을 찾는다
+        InOrder order = inOrder(transactionTemplate, chatRedisService, chatMessageProducer);
+        order.verify(transactionTemplate).execute(any());
+        order.verify(chatRedisService).deleteMessage(SESSION_ID);
+        order.verify(chatMessageProducer).publishSummaryEvent(77L);
+        verify(chatMessageProducer, times(1)).publishSummaryEvent(any());
+
+        ArgumentCaptor<ChatMessage> saved = ArgumentCaptor.forClass(ChatMessage.class);
+        verify(chatMessageRepository).save(saved.capture());
+        // 요약은 이 경로에서 만들지 않는다 -> 요약 소비자가 채울 때까지 null
+        assertNull(saved.getValue().getSummary());
+    }
+
+    @Test
+    @DisplayName("요약 이벤트 발행이 실패해도 저장은 성공으로 끝나고 실패는 메트릭에 남는다")
+    void handleSaveMessageEvent_요약이벤트발행실패_저장은성공한다() {
+        when(chatRedisService.getSessionMessages(SESSION_ID)).thenReturn(List.of(userMessage(), llmMessage()));
+        when(questionResultRepository.findById(QUESTION_RESULT_ID)).thenReturn(Optional.of(questionResult));
+        saveAssignsId(77L);
+        runTransactionInline();
+        doThrow(new AmqpConnectException(new RuntimeException("broker down")))
+                .when(chatMessageProducer).publishSummaryEvent(77L);
+
+        // 행은 이미 저장됐고 버퍼도 지웠다 -> 저장 이벤트를 재시도하면 빈 버퍼로 CHAT_BUFFER_LOST 가 되어 DLQ 로만 간다
+        assertDoesNotThrow(() -> consumer().handleSaveMessageEvent(event(Instant.now())));
+
+        assertEquals(1.0, meterRegistry.counter("chat.summary.publish_failed").count());
     }
 
     // 요약 읽기는 소비자가 영구 저장에서 뺀 턴을 같은 규칙으로 뺀다

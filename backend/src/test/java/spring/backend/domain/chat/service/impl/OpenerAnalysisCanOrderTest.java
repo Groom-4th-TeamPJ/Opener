@@ -129,7 +129,7 @@ class OpenerAnalysisCanOrderTest {
                 new RedisMessageMapper(),
                 chatMessageRepository,
                 questionResultRepository,
-                llmService,
+                chatMessageProducer,
                 meterRegistry,
                 transactionTemplate);
     }
@@ -213,7 +213,7 @@ class OpenerAnalysisCanOrderTest {
     }
 
     @Test
-    @DisplayName("답이 하나도 없는 버퍼는 DB 에 쓰지도 요약하지도 않는다")
+    @DisplayName("답이 하나도 없는 버퍼는 DB 에 쓰지도 요약 이벤트를 내지도 않는다")
     void handleSaveMessageEvent_답이하나도없는버퍼_저장하지않는다() {
         when(chatRedisService.getSessionMessages(SESSION_ID))
                 .thenReturn(List.of(message(ChatRole.USER, "질문", false)));
@@ -221,7 +221,7 @@ class OpenerAnalysisCanOrderTest {
         consumer().handleSaveMessageEvent(event());
 
         verify(chatMessageRepository, never()).save(any());
-        verify(llmService, never()).summaryChat(any());
+        verify(chatMessageProducer, never()).publishSummaryEvent(any());
     }
 
     @Test
@@ -232,7 +232,7 @@ class OpenerAnalysisCanOrderTest {
         when(questionResultRepository.findById(QUESTION_RESULT_ID)).thenReturn(Optional.empty());
         runTransactionInline();
 
-        // 재시도해도 같은 결과인데 재시도 횟수만큼 summaryChat 을 다시 부른다
+        // 재시도해도 같은 결과인데 재시도 횟수만큼 같은 실패를 반복한다
         assertThrows(AmqpRejectAndDontRequeueException.class, () -> consumer().handleSaveMessageEvent(event()));
     }
 
