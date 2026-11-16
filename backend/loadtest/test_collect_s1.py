@@ -81,6 +81,16 @@ class RoundTripRuleTest(unittest.TestCase):
         self.assertEqual(5, collect_s1.client_round_trips("master", calls, self.WRITES))
 
 
+class VusPeakTest(unittest.TestCase):
+    def test_vus_peak_는_관찰한_SSE_연결_최댓값(self):
+        samples = [{"sse_active": 3.0}, {"sse_active": None}, {"sse_active": 7.0}, {"sse_active": 5.0}]
+        self.assertEqual(7, collect_s1.vus_peak(samples))
+
+    def test_표집이_없거나_값이_없으면_0(self):
+        self.assertEqual(0, collect_s1.vus_peak([]))
+        self.assertEqual(0, collect_s1.vus_peak([{"sse_active": None}]))
+
+
 class TurnStatsTest(unittest.TestCase):
     def test_측정_구간의_성공_턴만_집계한다(self):
         turns = [
