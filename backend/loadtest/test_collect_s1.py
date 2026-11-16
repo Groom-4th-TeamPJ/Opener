@@ -1,4 +1,5 @@
 """수집기 순수 함수 시험 - commandstats 파싱·스크립트 내부 명령 제외·분위수·프로세스 CPU 시간·턴 통계"""
+import json
 import os
 import sys
 import unittest
@@ -227,6 +228,16 @@ class SaveSummaryBlocksTest(unittest.TestCase):
         self.assertEqual(1, save["not_durable"])
 
 
+def write_json(path, obj):
+    with open(path, "w") as f:
+        json.dump(obj, f)
+
+
+def read_json(path):
+    with open(path) as f:
+        return json.load(f)
+
+
 def prom_of(**metrics):
     """이름 -> 값 (라벨 없음) 형태의 프로메테우스 스냅샷"""
     return {(n, ()): v for n, v in metrics.items()}
@@ -369,15 +380,12 @@ class ActivityTest(unittest.TestCase):
 
 class RawBlocksTest(unittest.TestCase):
     def setUp(self):
-        import json
         import tempfile
-        self.json = json
         self.dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.dir.cleanup)
         self.out = self.dir.name
         # 행 둘 - 1번은 요약 있음, 2번은 요약 누락
-        json.dump({"rows_raw": "1|2.0|2.003|f\n2|3.0|3.0|t\n", "host_gmtoff_s": 0, "clock_offset_ms": 12},
-                  open(os.path.join(self.out, "drain.json"), "w"))
+        write_json(os.path.join(self.out, "drain.json"), {"rows_raw": "1|2.0|2.003|f\n2|3.0|3.0|t\n", "host_gmtoff_s": 0, "clock_offset_ms": 12})
         self.sessions = [{"save_code": 200, "save_sent_ms": 1500.0, "question_result_id": 1},
                          {"save_code": 200, "save_sent_ms": 2500.0, "question_result_id": 2},
                          {"save_code": 500, "save_sent_ms": 2600.0, "question_result_id": 3},   # 실패 응답은 제외
@@ -415,21 +423,19 @@ class RawBlocksTest(unittest.TestCase):
 
 class ResummarizeTest(unittest.TestCase):
     def setUp(self):
-        import json
         import tempfile
-        self.json = json
         self.dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.dir.cleanup)
         self.out = self.dir.name
         self.old = {"code": "AB", "ttft_ms": {"p50": 1}, "save": {"rows": 0}, "summary": {"queue_published": 5, "queue_consumed": 4, "lag_ms": None}}
-        json.dump(self.old, open(os.path.join(self.out, "summary.json"), "w"))
-        json.dump({"hold_start": 1.0, "hold_end": 3.0}, open(os.path.join(self.out, "window.json"), "w"))
-        json.dump({"rows_raw": "1|2.0|2.003|f\n", "host_gmtoff_s": 0, "clock_offset_ms": 12}, open(os.path.join(self.out, "drain.json"), "w"))
+        write_json(os.path.join(self.out, "summary.json"), self.old)
+        write_json(os.path.join(self.out, "window.json"), {"hold_start": 1.0, "hold_end": 3.0})
+        write_json(os.path.join(self.out, "drain.json"), {"rows_raw": "1|2.0|2.003|f\n", "host_gmtoff_s": 0, "clock_offset_ms": 12})
         with open(os.path.join(self.out, "sessions-0.jsonl"), "w") as f:
             f.write(json.dumps({"save_code": 200, "save_sent_ms": 1500.0, "question_result_id": 1}) + "\n")
 
     def read(self, name):
-        return self.json.load(open(os.path.join(self.out, name)))
+        return read_json(os.path.join(self.out, name))
 
     def test_저장_요약_블록만_다시_쓰고_나머지는_그대로_둔다(self):
         collect_s1.resummarize(self.out)
