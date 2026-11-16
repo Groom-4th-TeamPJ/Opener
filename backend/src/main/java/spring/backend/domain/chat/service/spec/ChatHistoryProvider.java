@@ -13,9 +13,10 @@ import org.springframework.ai.chat.messages.Message;
 // - 그래서 인터페이스만 구현해두고 어드바이저를 안 붙인 상태였고, add/clear 가 호출되지 않는 死 코드로 남아 있었다
 public interface ChatHistoryProvider {
 
-    // 최근 N 턴만 조회 (app.chat.history-window) — LLM 프롬프트 컨텍스트 전용
+    // 방금 저장한 질문 직전까지의 최근 메시지만 조회 (app.chat.history-window) — LLM 프롬프트 컨텍스트 전용
     // 전량을 실으면 턴이 쌓일수록 프롬프트가 선형 증가해 비용과 첫 토큰 지연이 함께 나빠진다
-    List<Message> getRecentHistory(String conversationId);
+    // writtenLength = 질문 저장이 돌려준 목록 길이, 음수면 저장이 버려진 턴
+    List<Message> getHistoryBefore(String conversationId, long writtenLength);
 
     // 전체 대화 이력 조회 — 요약/영속화 전용
     // 요약은 PostgreSQL 에 영구 저장되므로 윈도우로 자르면 대화 기록이 영구히 반쪽이 된다

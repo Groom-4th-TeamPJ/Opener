@@ -30,25 +30,25 @@ public class RedisChatHistoryAdapter implements ChatHistoryProvider {
 
     // 윈도우 적용본 -> LLM 프롬프트에 실릴 컨텍스트는 최근 N 개면 충분
     @Override
-    public List<Message> getRecentHistory(String conversationId) {
-        return loadHistory(conversationId, true);
+    public List<Message> getHistoryBefore(String conversationId, long writtenLength) {
+        return loadHistory(conversationId, true, writtenLength);
     }
 
     // 전량 -> 요약은 영구 저장되므로 윈도우로 자르면 20턴 넘는 대화가 조용히 반쪽으로 남음
     @Override
     public List<Message> getFullHistory(String conversationId) {
-        return loadHistory(conversationId, false);
+        return loadHistory(conversationId, false, 0L);
     }
 
     // 조회 범위만 다르고 변환/예외 처리는 동일 -> 두 경로가 갈라져 한쪽만 고쳐지는 일이 없도록 한 곳에서 처리
-    private List<Message> loadHistory(String conversationId, boolean windowed) {
+    private List<Message> loadHistory(String conversationId, boolean windowed, long writtenLength) {
         try {
             Long sessionId = Long.parseLong(conversationId);
 
             // 요약은 소비자가 영구 저장에서 뺀 턴(끊긴 응답 · 답 없는 질문)을 같은 규칙으로 뺀다
-            // 프롬프트 읽기는 지금 보내는 질문이 끝에 있으므로 이 규칙을 쓰지 않는다 (partial 은 서비스 읽기가 이미 뺀다)
+            // 프롬프트 읽기는 지금 보내는 질문 직전까지만 읽어 그 질문이 들어 있지 않으므로 이 규칙을 쓰지 않는다 (partial 은 서비스 읽기가 이미 뺀다)
             List<RedisMessageDto> redisMessages = windowed
-                    ? chatRedisService.getRecentSessionMessages(sessionId)
+                    ? chatRedisService.getHistoryBefore(sessionId, writtenLength)
                     : RedisMessageDto.completeTurnsOf(chatRedisService.getSessionMessages(sessionId));
 
             List<Message> messages = new ArrayList<>();

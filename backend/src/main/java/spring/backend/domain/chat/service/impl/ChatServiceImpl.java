@@ -292,7 +292,8 @@ public class ChatServiceImpl implements ChatService {
 
         // 사용자 메시지를 Redis에 저장
         RedisMessageDto userRedisMessageDto = redisMessageMapper.toDtoUser(req);
-        chatRedisService.saveMessage(sessionId, userRedisMessageDto);
+        // 반환 길이 = 이 질문의 목록 위치 -> LLM 이 그 직전까지의 이전 대화만 복제본에서 읽는다
+        long written = chatRedisService.saveMessage(sessionId, userRedisMessageDto);
 
         // LLM 응답 수집용
         StringBuilder llmResponseBuilder = new StringBuilder();
@@ -303,7 +304,7 @@ public class ChatServiceImpl implements ChatService {
         // 그 세션은 재연결 전까지 모든 메시지가 SESSION_EXPIRED 로 거부된다 - 실측으로 확인한 증상이다
         Flux<String> stream;
         try {
-            stream = llmService.chatStream(sessionId.toString(), userMessage);
+            stream = llmService.chatStream(sessionId.toString(), userMessage, written);
         } catch (RuntimeException e) {
             recoverFromStreamFailure(sessionId, e);
             throw e;

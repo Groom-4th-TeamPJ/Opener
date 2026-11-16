@@ -18,12 +18,13 @@ import spring.backend.domain.chat.service.spec.ChatRedisService;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 // 조회 범위 회귀 테스트
-// getRecentHistory() 가 전량을 읽으면 프롬프트 비용이 선형 증가하고, getFullHistory() 가 윈도우를 읽으면
+// getHistoryBefore() 가 전량을 읽으면 프롬프트 비용이 선형 증가하고, getFullHistory() 가 윈도우를 읽으면
 // 요약이 잘린 채 PostgreSQL 에 영구 저장된다 -> 두 방향 모두 고정한다
 @ExtendWith(MockitoExtension.class)
 class RedisChatHistoryAdapterTest {
@@ -37,18 +38,34 @@ class RedisChatHistoryAdapterTest {
     private RedisChatHistoryAdapter adapter;
 
     @Test
-    @DisplayName("getRecentHistory() 은 윈도우 적용본만 조회한다")
-    void get_usesRecentWindow() {
-        when(chatRedisService.getRecentSessionMessages(SESSION_ID)).thenReturn(messages());
+    @DisplayName("getHistoryBefore() 는 저장 길이를 서비스에 넘겨 질문 직전까지만 조회한다")
+    void getHistoryBefore_usesWrittenLength() {
+        when(chatRedisService.getHistoryBefore(SESSION_ID, 5L)).thenReturn(messages());
 
-        List<Message> result = adapter.getRecentHistory(CONVERSATION_ID);
+        List<Message> result = adapter.getHistoryBefore(CONVERSATION_ID, 5L);
 
         assertEquals(2, result.size());
         assertInstanceOf(UserMessage.class, result.get(0));
         assertInstanceOf(AssistantMessage.class, result.get(1));
 
-        verify(chatRedisService).getRecentSessionMessages(SESSION_ID);
+        verify(chatRedisService).getHistoryBefore(SESSION_ID, 5L);
         verify(chatRedisService, never()).getSessionMessages(SESSION_ID);
+    }
+
+    @Test
+    @DisplayName("getHistoryBefore() 는 conversationId 가 숫자가 아니면 조회 없이 빈 목록을 반환한다")
+    void getHistoryBefore_invalidConversationId_returnsEmpty() {
+        assertTrue(adapter.getHistoryBefore("not-a-number", 5L).isEmpty());
+
+        verify(chatRedisService, never()).getHistoryBefore(anyLong(), anyLong());
+    }
+
+    @Test
+    @DisplayName("getHistoryBefore() 는 서비스가 예외를 던져도 빈 목록으로 흡수한다")
+    void getHistoryBefore_serviceThrows_returnsEmpty() {
+        when(chatRedisService.getHistoryBefore(SESSION_ID, 5L)).thenThrow(new IllegalStateException("redis down"));
+
+        assertTrue(adapter.getHistoryBefore(CONVERSATION_ID, 5L).isEmpty());
     }
 
     @Test
@@ -61,7 +78,7 @@ class RedisChatHistoryAdapterTest {
         assertEquals(2, result.size());
 
         verify(chatRedisService).getSessionMessages(SESSION_ID);
-        verify(chatRedisService, never()).getRecentSessionMessages(SESSION_ID);
+        verify(chatRedisService, never()).getHistoryBefore(anyLong(), anyLong());
     }
 
     @Test

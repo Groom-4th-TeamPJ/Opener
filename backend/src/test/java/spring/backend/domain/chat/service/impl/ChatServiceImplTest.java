@@ -43,6 +43,8 @@ import spring.backend.domain.user.repository.spec.UserRepository;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -120,7 +122,7 @@ class ChatServiceImplTest {
     @Test
     @DisplayName("청크가 순서대로 SSE 로 전달되고 STREAM_START/STREAM_COMPLETE 가 발화된다")
     void processMessage_streamsChunksInOrder() {
-        when(llmService.chatStream(SESSION_ID.toString(), "질문"))
+        when(llmService.chatStream(eq(SESSION_ID.toString()), eq("질문"), anyLong()))
                 .thenReturn(Flux.just("토큰1", "토큰2"));
 
         StepVerifier.create(service.connectSession(SESSION_ID, USER_ID))
@@ -145,9 +147,45 @@ class ChatServiceImplTest {
     }
 
     @Test
+    @DisplayName("사용자 메시지 저장이 돌려준 목록 길이를 LLM 호출에 넘긴다")
+    void processMessage_저장길이_LLM호출로전달한다() {
+        when(chatRedisService.saveMessage(eq(SESSION_ID), any(RedisMessageDto.class))).thenReturn(7L);
+        when(llmService.chatStream(eq(SESSION_ID.toString()), eq("질문"), anyLong()))
+                .thenReturn(Flux.just("토큰1"));
+
+        StepVerifier.create(service.connectSession(SESSION_ID, USER_ID))
+                .assertNext(sse -> assertEquals("connected", sse.event()))
+                .then(() -> service.processMessage(request(), USER_ID))
+                .assertNext(sse -> assertEquals("message", sse.event()))
+                .thenCancel()
+                .verify(TIMEOUT);
+
+        // 이 길이로 복제본에서 질문 직전까지만 읽는다 -> 값이 틀리면 히스토리 범위가 어긋난다
+        verify(llmService).chatStream(SESSION_ID.toString(), "질문", 7L);
+    }
+
+    @Test
+    @DisplayName("사용자 메시지 저장이 버려지면(-1) 그 값을 그대로 LLM 호출에 넘긴다")
+    void processMessage_저장버려짐_마이너스1을전달한다() {
+        when(chatRedisService.saveMessage(eq(SESSION_ID), any(RedisMessageDto.class))).thenReturn(-1L);
+        when(llmService.chatStream(eq(SESSION_ID.toString()), eq("질문"), anyLong()))
+                .thenReturn(Flux.just("토큰1"));
+
+        StepVerifier.create(service.connectSession(SESSION_ID, USER_ID))
+                .assertNext(sse -> assertEquals("connected", sse.event()))
+                .then(() -> service.processMessage(request(), USER_ID))
+                .assertNext(sse -> assertEquals("message", sse.event()))
+                .thenCancel()
+                .verify(TIMEOUT);
+
+        // -1 이면 서비스가 마스터에서 최근 W-1 개를 읽는다 -> 0 으로 바뀌면 히스토리가 통째로 빠진다
+        verify(llmService).chatStream(SESSION_ID.toString(), "질문", -1L);
+    }
+
+    @Test
     @DisplayName("빈 스트림이면 STREAM_COMPLETE 가 아니라 STREAM_ERROR 로 상태를 회수한다")
     void processMessage_emptyStream_recoversWithStreamError() {
-        when(llmService.chatStream(SESSION_ID.toString(), "질문"))
+        when(llmService.chatStream(eq(SESSION_ID.toString()), eq("질문"), anyLong()))
                 .thenReturn(Flux.empty());
 
         StepVerifier.create(service.connectSession(SESSION_ID, USER_ID))
@@ -169,7 +207,7 @@ class ChatServiceImplTest {
     @Test
     @DisplayName("스트림이 에러로 끝나면 error 이벤트를 내보내고 STREAM_ERROR 로 전이한다")
     void processMessage_errorStream_emitsError() {
-        when(llmService.chatStream(SESSION_ID.toString(), "질문"))
+        when(llmService.chatStream(eq(SESSION_ID.toString()), eq("질문"), anyLong()))
                 .thenReturn(Flux.error(new RuntimeException("LLM 다운")));
 
         StepVerifier.create(service.connectSession(SESSION_ID, USER_ID))
@@ -191,7 +229,7 @@ class ChatServiceImplTest {
     @Test
     @DisplayName("서킷 OPEN 으로 실패하면 SSE error 이벤트에 C_010 이 실린다")
     void processMessage_서킷오픈_에러코드가전달된다() {
-        when(llmService.chatStream(SESSION_ID.toString(), "질문"))
+        when(llmService.chatStream(eq(SESSION_ID.toString()), eq("질문"), anyLong()))
                 .thenReturn(Flux.error(new BusinessException(ErrorCode.LLM_CIRCUIT_OPEN)));
 
         StepVerifier.create(service.connectSession(SESSION_ID, USER_ID))
@@ -211,7 +249,7 @@ class ChatServiceImplTest {
     void processMessage_조립단계예외_상태를회수한다() {
         // 조립 시점 예외는 doOnError 를 타지 않는다
         // 상태를 되돌리지 않으면 그 세션은 재연결 전까지 모든 메시지가 SESSION_EXPIRED 로 거부된다
-        when(llmService.chatStream(SESSION_ID.toString(), "질문"))
+        when(llmService.chatStream(eq(SESSION_ID.toString()), eq("질문"), anyLong()))
                 .thenThrow(new IllegalStateException("벡터 검색 실패"));
 
         StepVerifier.create(service.connectSession(SESSION_ID, USER_ID))
@@ -245,7 +283,7 @@ class ChatServiceImplTest {
     @Test
     @DisplayName("스트리밍 도중 끊기면 이미 받은 부분 응답을 저장한다")
     void processMessage_스트리밍중단_부분응답이저장된다() {
-        when(llmService.chatStream(SESSION_ID.toString(), "질문"))
+        when(llmService.chatStream(eq(SESSION_ID.toString()), eq("질문"), anyLong()))
                 .thenReturn(Flux.concat(
                         Flux.just("앞부분"),
                         Flux.error(new IllegalStateException("stream broke"))));
@@ -272,7 +310,7 @@ class ChatServiceImplTest {
     @DisplayName("연결이 해제되면 LLM 구독도 취소한다")
     void disconnectSession_연결해제_LLM구독이취소된다() {
         AtomicBoolean cancelled = new AtomicBoolean(false);
-        when(llmService.chatStream(SESSION_ID.toString(), "질문"))
+        when(llmService.chatStream(eq(SESSION_ID.toString()), eq("질문"), anyLong()))
                 .thenReturn(Flux.<String>never().doOnCancel(() -> cancelled.set(true)));
 
         StepVerifier.create(service.connectSession(SESSION_ID, USER_ID))
@@ -298,7 +336,7 @@ class ChatServiceImplTest {
         CountDownLatch callbackRan = new CountDownLatch(1);
 
         try {
-            when(llmService.chatStream(SESSION_ID.toString(), "질문"))
+            when(llmService.chatStream(eq(SESSION_ID.toString()), eq("질문"), anyLong()))
                     .thenReturn(Flux.just("토큰1", "토큰2")
                             .subscribeOn(fakeResponseLoop)
                             // publishOn 앞이라 여기는 소스 스레드
@@ -343,9 +381,9 @@ class ChatServiceImplTest {
         long startedAt;
 
         try {
-            when(llmService.chatStream(SESSION_ID.toString(), "질문"))
+            when(llmService.chatStream(eq(SESSION_ID.toString()), eq("질문"), anyLong()))
                     .thenReturn(Flux.just("A").subscribeOn(sharedLoop));
-            when(llmService.chatStream(OTHER.toString(), "질문"))
+            when(llmService.chatStream(eq(OTHER.toString()), eq("질문"), anyLong()))
                     .thenReturn(Flux.just("B").subscribeOn(sharedLoop));
 
             when(stateMachineService.sendEvent(OTHER, ChatSessionEvent.SEND_MESSAGE)).thenReturn(true);

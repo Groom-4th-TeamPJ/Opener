@@ -45,6 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
@@ -107,7 +108,7 @@ class ChatServiceImplTerminationTest {
         when(stateMachineService.sendEvent(SESSION_ID, ChatSessionEvent.SEND_MESSAGE)).thenReturn(true);
         // 세션 생성 시 examResultId 소유 검사를 통과시킨다
         when(examResultRepository.existsByIdAndUserId(SESSION_ID, USER_ID)).thenReturn(true);
-        when(llmService.chatStream(SESSION_ID.toString(), "질문"))
+        when(llmService.chatStream(eq(SESSION_ID.toString()), eq("질문"), anyLong()))
                 .thenReturn(llm.asFlux().doOnCancel(upstreamCancelled::countDown));
     }
 
