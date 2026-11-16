@@ -178,7 +178,17 @@ class MockServer:
                 lines = head.decode("latin-1").split("\r\n")
                 method, path, _ = lines[0].split(" ", 2)
                 headers = {k.lower(): v.strip() for k, v in (l.split(":", 1) for l in lines[1:] if ":" in l)}
-                body = await reader.readexactly(int(headers.get("content-length", "0")))
+                if headers.get("expect", "").lower() == "100-continue":
+                    writer.write(b"HTTP/1.1 100 Continue\r\n\r\n")
+                if headers.get("transfer-encoding", "").lower() == "chunked":
+                    body = b""  # JDK HttpClient 가 본문 길이를 모를 때 쓰는 방식
+                    while True:
+                        size = int((await reader.readuntil(b"\r\n")).split(b";")[0], 16)
+                        body += (await reader.readexactly(size + 2))[:-2]
+                        if size == 0:
+                            break
+                else:
+                    body = await reader.readexactly(int(headers.get("content-length", "0")))
                 keep = headers.get("connection", "keep-alive").lower() != "close"
                 await self._route(method, path.split("?")[0], body, writer)
                 if not keep:

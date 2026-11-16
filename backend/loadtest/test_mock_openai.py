@@ -209,6 +209,19 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(1, st["prompt_missing"])
         self.assertEqual({"answer_missing": 1}, st["prompt_missing_by_reason"])
 
+    def test_본문이_청크_전송이어도_임베딩_입력을_읽는다(self):
+        self.reset()
+        raw = json.dumps({"input": ["가나다", "라마바", "사아자"]}).encode()
+        c = self.conn()
+        c.putrequest("POST", "/v1/embeddings")
+        c.putheader("Transfer-Encoding", "chunked")
+        c.putheader("Content-Type", "application/json")
+        c.endheaders()
+        c.send(b"%x\r\n" % 10 + raw[:10] + b"\r\n" + b"%x\r\n" % (len(raw) - 10) + raw[10:] + b"\r\n0\r\n\r\n")
+        body = json.loads(c.getresponse().read())
+        c.close()
+        self.assertEqual(3, len(body["data"]))
+
     def test_stats_reset이_집계를_0으로_되돌린다(self):
         self.post("/v1/embeddings", {"input": "x"})[1].read()
         self.reset()
