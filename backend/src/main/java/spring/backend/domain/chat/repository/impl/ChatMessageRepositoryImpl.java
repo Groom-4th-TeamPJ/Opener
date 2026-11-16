@@ -1,7 +1,10 @@
 package spring.backend.domain.chat.repository.impl;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 import spring.backend.domain.chat.model.entity.ChatMessage;
 import spring.backend.domain.chat.repository.jpa.JpaChatMessageRepository;
@@ -28,6 +31,11 @@ public class ChatMessageRepositoryImpl implements ChatMessageRepository {
     @Override
     public Optional<ChatMessage> findById(Long id) {
         return jpaChatMessageRepository.findById(id);
+    }
+
+    @Override
+    public List<Long> findPendingSummaryIds(LocalDateTime cutoff, int limit) {
+        return jpaChatMessageRepository.findPendingSummaryIds(cutoff, PageRequest.of(0, limit));
     }
 
 }

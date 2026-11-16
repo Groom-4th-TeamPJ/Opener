@@ -3,8 +3,8 @@ package spring.backend.domain.chat.service.spec;
 import java.util.List;
 import org.springframework.ai.chat.messages.Message;
 
-// 대화 이력 조회 계약 -> 조회 "범위"가 소비자마다 다르다는 사실을 타입이 아니라 메서드로 드러냄
-// 같은 메서드를 공유하면 한쪽 요구(윈도우)를 만족시키는 순간 다른 쪽(요약)이 조용히 깨진다
+// 대화 이력 조회 계약 -> LLM 프롬프트용 최근 메시지 읽기만 제공한다
+// 요약은 저장된 행의 메시지를 읽으므로 이 계약을 거치지 않는다
 //
 // Spring AI 의 ChatMemory 를 구현하지 않는 이유
 // - ChatMemory 는 add/get/clear 를 한 묶음으로 요구하는데 우리는 get 만 쓴다
@@ -17,8 +17,4 @@ public interface ChatHistoryProvider {
     // 전량을 실으면 턴이 쌓일수록 프롬프트가 선형 증가해 비용과 첫 토큰 지연이 함께 나빠진다
     // writtenLength = 질문 저장이 돌려준 목록 길이, 음수면 저장이 버려진 턴
     List<Message> getHistoryBefore(String conversationId, long writtenLength);
-
-    // 전체 대화 이력 조회 — 요약/영속화 전용
-    // 요약은 PostgreSQL 에 영구 저장되므로 윈도우로 자르면 대화 기록이 영구히 반쪽이 된다
-    List<Message> getFullHistory(String conversationId);
 }

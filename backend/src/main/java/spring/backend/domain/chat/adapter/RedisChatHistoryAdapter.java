@@ -31,25 +31,11 @@ public class RedisChatHistoryAdapter implements ChatHistoryProvider {
     // 윈도우 적용본 -> LLM 프롬프트에 실릴 컨텍스트는 최근 N 개면 충분
     @Override
     public List<Message> getHistoryBefore(String conversationId, long writtenLength) {
-        return loadHistory(conversationId, true, writtenLength);
-    }
-
-    // 전량 -> 요약은 영구 저장되므로 윈도우로 자르면 20턴 넘는 대화가 조용히 반쪽으로 남음
-    @Override
-    public List<Message> getFullHistory(String conversationId) {
-        return loadHistory(conversationId, false, 0L);
-    }
-
-    // 조회 범위만 다르고 변환/예외 처리는 동일 -> 두 경로가 갈라져 한쪽만 고쳐지는 일이 없도록 한 곳에서 처리
-    private List<Message> loadHistory(String conversationId, boolean windowed, long writtenLength) {
         try {
             Long sessionId = Long.parseLong(conversationId);
 
-            // 요약은 소비자가 영구 저장에서 뺀 턴(끊긴 응답 · 답 없는 질문)을 같은 규칙으로 뺀다
-            // 프롬프트 읽기는 지금 보내는 질문 직전까지만 읽어 그 질문이 들어 있지 않으므로 이 규칙을 쓰지 않는다 (partial 은 서비스 읽기가 이미 뺀다)
-            List<RedisMessageDto> redisMessages = windowed
-                    ? chatRedisService.getHistoryBefore(sessionId, writtenLength)
-                    : RedisMessageDto.completeTurnsOf(chatRedisService.getSessionMessages(sessionId));
+            // 지금 보내는 질문 직전까지만 읽는다 (partial 은 서비스 읽기가 이미 뺀다)
+            List<RedisMessageDto> redisMessages = chatRedisService.getHistoryBefore(sessionId, writtenLength);
 
             List<Message> messages = new ArrayList<>();
             for (RedisMessageDto redisMsg : redisMessages) {
@@ -59,18 +45,16 @@ public class RedisChatHistoryAdapter implements ChatHistoryProvider {
                 }
             }
 
-            log.debug("[ChatHistory] 조회 완료 - conversationId: {}, windowed: {}, 메시지 수: {}",
-                    conversationId, windowed, messages.size());
+            log.debug("[ChatHistory] 조회 완료 - conversationId: {}, 메시지 수: {}", conversationId, messages.size());
 
             return messages;
 
-        // 조회 실패를 빈 리스트로 흡수 -> 히스토리 누락이 LLM 응답 자체를 막지는 않게 함
-        // 단 요약 경로에서 빈 리스트는 "대화 없음"과 구분되지 않으므로 로그로 원인을 남긴다
+        // 조회 실패를 빈 리스트로 흡수 -> 히스토리 누락이 LLM 응답 자체를 막지는 않게 함, 원인은 로그로 남긴다
         } catch (NumberFormatException e) {
             log.error("[ChatHistory] 잘못된 conversationId 형식 - conversationId: {}", conversationId, e);
             return List.of();
         } catch (Exception e) {
-            log.error("[ChatHistory] 조회 실패 - conversationId: {}, windowed: {}", conversationId, windowed, e);
+            log.error("[ChatHistory] 조회 실패 - conversationId: {}", conversationId, e);
             return List.of();
         }
     }
