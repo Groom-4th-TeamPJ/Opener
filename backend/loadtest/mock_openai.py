@@ -108,6 +108,8 @@ class Stats:
         self.by_reason = {}
         self.active_streams = 0
         self.active_streams_peak = 0
+        self.nonstream_inflight = 0
+        self.nonstream_inflight_peak = 0
 
     def as_dict(self):
         return {
@@ -118,6 +120,7 @@ class Stats:
             "prompt_missing": self.prompt_missing,
             "prompt_missing_by_reason": dict(self.by_reason),
             "active_streams_peak": self.active_streams_peak,
+            "nonstream_inflight_peak": self.nonstream_inflight_peak,
         }
 
 
@@ -298,9 +301,15 @@ class MockServer:
         writer.write(b"%x\r\n" % len(frame) + frame + b"\r\n")
 
     async def _chat_once(self, writer, payload):
-        self.stats.chat_nonstream += 1
+        st = self.stats
+        st.chat_nonstream += 1
+        st.nonstream_inflight += 1
+        st.nonstream_inflight_peak = max(st.nonstream_inflight_peak, st.nonstream_inflight)
         llm = self.llm
-        await asyncio.sleep(llm["nonstream_first_ms"] / 1000 + llm["nonstream_tokens"] / llm["tokens_per_s"])
+        try:
+            await asyncio.sleep(llm["nonstream_first_ms"] / 1000 + llm["nonstream_tokens"] / llm["tokens_per_s"])
+        finally:
+            st.nonstream_inflight -= 1
         messages = payload.get("messages", [])
         text = "".join(self._tokens(llm["nonstream_tokens"], ""))
         self._json(writer, 200, {

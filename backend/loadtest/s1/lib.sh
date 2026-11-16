@@ -1,6 +1,7 @@
 #!/bin/bash
 # S1 공통 함수 - stack.sh · run.sh · seed/build_template.sh 가 source 한다
 # 모든 포트·JVM 옵션은 s1/scenario.json 한 곳에서 읽는다
+S1_APP_ENV="${S1_APP_ENV:-}"
 S1_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOADTEST_DIR="$(dirname "$S1_DIR")"
 SCENARIO="$S1_DIR/scenario.json"
@@ -59,7 +60,8 @@ start_app() {
   opts=$(sc "' '.join(s['jvm_opts'])")
   ulimit -n 65536 2>/dev/null || ulimit -n "$(ulimit -Hn)"
   # 서브셸이 exec 로 java 로 바뀌어야 $! 가 java PID 가 된다
-  (cd "$dir" && exec "$JAVA_HOME_21/bin/java" $opts -jar "$jar") > "$dir/app.log" 2>&1 &
+  # S1_APP_ENV="K=V K2=V2" - 시나리오 파일을 건드리지 않고 앱 환경 변수를 더한다 (A 측정의 리스너 동시성)
+  (cd "$dir" && exec env $S1_APP_ENV "$JAVA_HOME_21/bin/java" $opts -jar "$jar") > "$dir/app.log" 2>&1 &
   echo $! > "$dir/app.pid"
 }
 

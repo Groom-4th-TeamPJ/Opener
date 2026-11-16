@@ -2,8 +2,9 @@
 """S1 수집기 - 측정 구간(hold) 시작·끝에 Redis·앱·RabbitMQ·모의 서버를 스냅샷하고 summary.json 을 만든다
 
 watch      : window.json 이 가리키는 hold 구간 동안 5초마다 CPU 를 표집하고 시작·끝 스냅샷을 collector.json 에 쓴다
-summarize  : 생성기 원자료(turns-*.jsonl 등) + collector.json -> summary.json
-사용: collect_s1.py watch --out DIR | collect_s1.py summarize --out DIR --code base|new --commit HASH [--tiny]
+drain      : 생성기가 끝난 뒤 저장·요약 큐를 5초마다 최대 300초 표집하고 chat_messages 행을 읽어 drain.json 에 쓴다
+summarize  : 생성기 원자료(turns-*.jsonl 등) + collector.json + drain.json -> summary.json
+사용: collect_s1.py watch --out DIR | collect_s1.py drain --out DIR | collect_s1.py summarize --out DIR --code base|new|A|AB --commit HASH [--app-env "K=V ..."]
 """
 import argparse
 import base64
@@ -145,6 +146,72 @@ def history_fallback(p0, p1, code):
     return int(now - (prom_sum(p0, "chat_redis_history_fallback_total") or 0))
 
 
+SAVE_Q, SUMMARY_Q = "chat.message.save.queue", "chat.message.summary.queue"
+SAVE_DLQ, SUMMARY_DLQ = "chat.message.save.dlq", "chat.message.summary.dlq"
+DRAIN_MAX_S = 300
+
+
+def parse_queue_depths(text):
+    """rabbitmqctl list_queues name messages 출력 -> {큐 이름: 깊이}"""
+    out = {}
+    for line in text.splitlines():
+        parts = line.split()
+        if len(parts) == 2 and parts[1].isdigit():
+            out[parts[0]] = int(parts[1])
+    return out
+
+
+def depth_pair(depths):
+    """저장·요약 큐와 각 DLQ 의 깊이 - 요약 큐는 B 이전 코드에 없으므로 None"""
+    return {"save": depths.get(SAVE_Q), "summary": depths.get(SUMMARY_Q),
+            "save_dlq": depths.get(SAVE_DLQ), "summary_dlq": depths.get(SUMMARY_DLQ)}
+
+
+def drain_seconds(series, step=SAMPLE_S):
+    """저장·요약 큐가 모두 처음 빈 표본의 순번 x 간격(초), 끝까지 안 비면 None - 없는 큐(None)는 빈 것으로 본다"""
+    for k, d in enumerate(series):
+        if not (d.get("save") or 0) and not (d.get("summary") or 0):
+            return k * step
+    return None
+
+
+def clock_offset_ms(host_before, host_after, db_epoch_s):
+    """DB 가 답한 시각 - 호스트 왕복 중간 시각 (밀리초) - 도커 안 psql 왕복 시간의 절반이 오차"""
+    return round((db_epoch_s - (host_before + host_after) / 2) * 1000)
+
+
+def parse_rows(text, host_gmtoff_s):
+    """psql -At 행 'qrid|created_epoch|updated_epoch|summary_null' -> 호스트 시계 기준 밀리초
+    created_at 은 시간대 없는 timestamp 라 UTC 로 읽은 에포크가 오므로 호스트 UTC 오프셋을 뺀다 (앱 JVM 이 호스트 시간대의 LocalDateTime 을 쓴다)"""
+    rows = []
+    for line in text.splitlines():
+        parts = line.strip().split("|")
+        if len(parts) != 4:
+            continue
+        rows.append({
+            "qrid": int(parts[0]), "created_ms": (float(parts[1]) - host_gmtoff_s) * 1000,
+            "updated_ms": (float(parts[2]) - host_gmtoff_s) * 1000 if parts[2] else None, "summary_null": parts[3] == "t",
+        })
+    return rows
+
+
+def ms_stats(values):
+    return {"p50": percentile(values, 50), "p95": percentile(values, 95), "count": len(values)}
+
+
+def save_summary_blocks(posts, rows, offset_ms):
+    """posts: {question_result_id: 저장 요청 전송 시각(호스트 ms)}, rows: parse_rows 결과, offset_ms: DB 시계 - 호스트 시계"""
+    created = {r["qrid"]: r["created_ms"] for r in rows}
+    durable = [created[q] - offset_ms - sent for q, sent in posts.items() if q in created]
+    # 요약과 함께 저장된 행은 updated_at 이 없거나 created_at 과 같아 지연 0, 나중에 채운 행은 둘의 차이
+    lags = [max(0.0, (r["updated_ms"] or r["created_ms"]) - r["created_ms"]) for r in rows if not r["summary_null"]]
+    missing = sum(1 for r in rows if r["summary_null"])
+    not_durable = sum(1 for q in posts if q not in created)
+    save = {"rows": len(rows), "posts": len(posts), "not_durable": not_durable, "durable_ms": ms_stats(durable)}
+    summary = {"lag_ms": ms_stats(lags), "missing_at_end": missing, "missing_incl_unsaved": missing + not_durable}
+    return save, summary
+
+
 def pct3(values):
     return {"p50": percentile(values, 50), "p95": percentile(values, 95), "p99": percentile(values, 99)}
 
@@ -242,6 +309,7 @@ def snapshot(sc):
         "prom": prom_snapshot(ports["app"]),
         "rabbit": {q["name"]: {"messages": q.get("messages", 0), "stats": q.get("message_stats", {})} for q in queues},
         "mock": http_json(f"http://{HOST}:{ports['mock']}/stats"),
+        "depths_at_hold_end": rabbit_depths(sc),
     }
 
 
@@ -304,6 +372,53 @@ def watch(out, sc):
     snap1 = snapshot(sc)
     json.dump({"window": w, "snap0": snap0, "snap1": snap1, "samples": samples, "write_cmds": write_cmds},
               open(os.path.join(out, "collector.json"), "w"))
+
+
+def rabbit_depths(sc):
+    """정확한 큐 깊이 - 관리 API 의 messages 는 5초 간격 갱신이라 뒤처지므로 rabbitmqctl 을 쓰고, 실패하면 관리 API"""
+    out = subprocess.run(["docker", "exec", "r125s1-rabbitmq", "rabbitmqctl", "list_queues", "name", "messages", "--quiet"],
+                         capture_output=True, text=True)
+    depths = parse_queue_depths(out.stdout) if out.returncode == 0 else {}
+    if not depths:
+        queues = http_json(f"http://{HOST}:{sc['ports']['rabbit_mgmt']}/api/queues", "guest:guest") or []
+        depths = {q["name"]: q.get("messages", 0) for q in queues}
+    return depth_pair(depths)
+
+
+def psql_text(sql):
+    out = subprocess.run(["docker", "exec", "-i", "r125s1-db", "psql", "-U", "dev", "-d", "opener_s1", "-At", "-c", sql],
+                         capture_output=True, text=True)
+    if out.returncode != 0:
+        raise RuntimeError("psql 실패: " + out.stderr.strip())
+    return out.stdout
+
+
+def measure_clock_offset_ms():
+    before = time.time()
+    db = float(psql_text("SELECT EXTRACT(EPOCH FROM clock_timestamp())").strip())
+    return clock_offset_ms(before, time.time(), db)
+
+
+def drain(out, sc):
+    """생성기가 끝난 직후부터 큐를 5초마다 최대 300초 표집하고, 끝나면 이번 회차의 chat_messages 행을 읽는다"""
+    w = json.load(open(os.path.join(out, "window.json")))
+    series, nxt = [], time.time()
+    while True:
+        row = {"t": time.time(), **rabbit_depths(sc)}
+        series.append(row)
+        if drain_seconds([row]) is not None or len(series) > DRAIN_MAX_S // SAMPLE_S:
+            break
+        nxt += SAMPLE_S
+        time.sleep(max(0.0, nxt - time.time()))
+    offset = measure_clock_offset_ms()
+    gmtoff = time.localtime().tm_gmtoff
+    # 회차 시작(t0) 이후 만들어진 행만 - 시드 템플릿에 있던 행은 제외, 시작 전 10초 여유
+    since = (w["t0"] - 10) + gmtoff
+    sql = ("SELECT question_result_id, EXTRACT(EPOCH FROM created_at), COALESCE(EXTRACT(EPOCH FROM updated_at)::text, ''), "
+           "CASE WHEN summary IS NULL THEN 't' ELSE 'f' END FROM chat_messages WHERE EXTRACT(EPOCH FROM created_at) >= %f" % since)
+    text = psql_text(sql)
+    json.dump({"series": series, "end": rabbit_depths(sc), "clock_offset_ms": offset, "host_gmtoff_s": gmtoff, "rows_raw": text},
+              open(os.path.join(out, "drain.json"), "w"))
 
 
 # ---------- 요약 ----------
@@ -369,7 +484,7 @@ def read_jsonl(out, prefix):
     return rows
 
 
-def summarize(out, code, commit, sc):
+def summarize(out, code, commit, sc, app_env=None):
     col = json.load(open(os.path.join(out, "collector.json")))
     w, s0, s1, samples = col["window"], col["snap0"], col["snap1"], col["samples"]
     turns, sessions, errors = read_jsonl(out, "turns"), read_jsonl(out, "sessions"), read_jsonl(out, "errors")
@@ -403,7 +518,22 @@ def summarize(out, code, commit, sc):
     gen_max_proc = [max(r["gen_cpu_pct"]) for r in samples if r["gen_cpu_pct"]]
     cpu_vals = [r["process_cpu_usage"] for r in samples if r["process_cpu_usage"] is not None]
     app_ps = [sum(r["app_cpu_pct"]) for r in samples if r["app_cpu_pct"]]
-    q0, q1 = s0["rabbit"].get("chat.message.save.queue", {}), s1["rabbit"].get("chat.message.save.queue", {})
+    q0, q1 = s0["rabbit"].get(SAVE_Q, {}), s1["rabbit"].get(SAVE_Q, {})
+    sq0, sq1 = s0["rabbit"].get(SUMMARY_Q, {}), s1["rabbit"].get(SUMMARY_Q, {})
+    dr_path = os.path.join(out, "drain.json")
+    dr = json.load(open(dr_path)) if os.path.exists(dr_path) else None
+    rows = parse_rows(dr["rows_raw"], dr["host_gmtoff_s"]) if dr else []
+    # 같은 결과 id 로 저장 요청이 둘이면 먼저 보낸 것 - 행은 결과 id 당 하나뿐
+    posts = {}
+    for sess in sorted((x for x in sessions if x.get("save_code") == 200), key=lambda x: x["save_sent_ms"]):
+        posts.setdefault(sess["question_result_id"], sess["save_sent_ms"])
+    save_block, summary_block = save_summary_blocks(posts, rows, dr["clock_offset_ms"] if dr else 0)
+    save_block["clock_offset_ms"] = dr["clock_offset_ms"] if dr else None
+    summary_block["queue_published"] = (sq1.get("stats", {}).get("publish", 0)) - (sq0.get("stats", {}).get("publish", 0)) if sq1 else None
+    summary_block["queue_consumed"] = (sq1.get("stats", {}).get("ack", 0)) - (sq0.get("stats", {}).get("ack", 0)) if sq1 else None
+    depth_end = depth_pair({k: v["messages"] for k, v in s1["rabbit"].items()})
+    if "depths_at_hold_end" in s1:
+        depth_end = s1["depths_at_hold_end"]
     final_rabbit = http_json(f"http://{HOST}:{sc['ports']['rabbit_mgmt']}/api/queues", "guest:guest") or []
     final_mock = http_json(f"http://{HOST}:{sc['ports']['mock']}/stats")
     sess_done = [s for s in sessions if s.get("ok") and s.get("t_end") and window[0] <= s["t_end"] <= window[1]]
@@ -446,7 +576,16 @@ def summarize(out, code, commit, sc):
             "dlq_depth_end": s1["rabbit"].get("chat.message.save.dlq", {}).get("messages", 0),
             "dlq_depth_after_run": next((q.get("messages", 0) for q in final_rabbit if q["name"] == "chat.message.save.dlq"), None),
             "save_queue_depth_after_run": next((q.get("messages", 0) for q in final_rabbit if q["name"] == "chat.message.save.queue"), None),
+            "depth_at_hold_end": {"save": depth_end["save"], "summary": depth_end["summary"]},
+            "dlq_at_hold_end": {"save": depth_end["save_dlq"], "summary": depth_end["summary_dlq"]},
+            "drain_s": drain_seconds(dr["series"]) if dr else None,
+            "drain_watch_s": (len(dr["series"]) - 1) * SAMPLE_S if dr else None,
+            "dlq": {"save": dr["end"]["save_dlq"], "summary": dr["end"]["summary_dlq"]} if dr else None,
+            "depth_at_drain_end": {"save": dr["end"]["save"], "summary": dr["end"]["summary"]} if dr else None,
         },
+        "save": save_block,
+        "summary": summary_block,
+        "app_env": app_env,
         "mock": final_mock,
         "mock_hold_delta": {k: (s1["mock"] or {}).get(k, 0) - (s0["mock"] or {}).get(k, 0)
                             for k in ("chat_streams", "chat_nonstream", "embeddings", "prompt_checked", "prompt_missing")},
@@ -467,20 +606,23 @@ def summarize(out, code, commit, sc):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("mode", choices=["watch", "summarize", "idle"])
+    ap.add_argument("mode", choices=["watch", "drain", "summarize", "idle"])
     ap.add_argument("--seconds", type=float, default=20)
     ap.add_argument("--out", required=True)
     ap.add_argument("--scenario", default=os.path.join(HERE, "s1", "scenario.json"))
     ap.add_argument("--code")
     ap.add_argument("--commit")
+    ap.add_argument("--app-env", default="")
     args = ap.parse_args()
     sc = json.load(open(args.scenario, encoding="utf-8"))
     if args.mode == "watch":
         watch(args.out, sc)
+    elif args.mode == "drain":
+        drain(args.out, sc)
     elif args.mode == "idle":
         idle_baseline(args.out, sc, args.seconds)
     else:
-        summarize(args.out, args.code, args.commit, sc)
+        summarize(args.out, args.code, args.commit, sc, dict(kv.split("=", 1) for kv in args.app_env.split() if "=" in kv))
 
 
 if __name__ == "__main__":

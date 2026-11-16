@@ -128,6 +128,85 @@ class TurnStatsTest(unittest.TestCase):
         self.assertAlmostEqual(0.5, collect_s1.errors_rate(errors, window, attempts=4))
         self.assertIsNone(collect_s1.errors_rate(errors, window, attempts=0))
 
+class DrainTest(unittest.TestCase):
+    def test_처음_빈_표본의_순번에_5초를_곱한_시간이_드레인_시간(self):
+        series = [{"save": 9, "summary": 2}, {"save": 4, "summary": 1}, {"save": 0, "summary": 0}, {"save": 0, "summary": 0}]
+        self.assertEqual(10, collect_s1.drain_seconds(series))
+
+    def test_첫_표본이_이미_비었으면_0(self):
+        self.assertEqual(0, collect_s1.drain_seconds([{"save": 0, "summary": None}]))
+
+    def test_끝까지_안_비면_null(self):
+        self.assertIsNone(collect_s1.drain_seconds([{"save": 3, "summary": 0}, {"save": 1, "summary": 0}]))
+        self.assertIsNone(collect_s1.drain_seconds([]))
+
+    def test_요약_큐가_없으면_빈_것으로_보되_저장_큐가_남으면_빈_것이_아니다(self):
+        self.assertIsNone(collect_s1.drain_seconds([{"save": 5, "summary": None}]))
+        self.assertEqual(5, collect_s1.drain_seconds([{"save": 5, "summary": None}, {"save": 0, "summary": None}]))
+
+    def test_요약_큐만_남아도_빈_것이_아니다(self):
+        self.assertEqual(10, collect_s1.drain_seconds([{"save": 0, "summary": 7}, {"save": 0, "summary": 2}, {"save": 0, "summary": 0}]))
+
+
+class QueueDepthTest(unittest.TestCase):
+    OUT = "chat.message.save.queue\t6799\nchat.message.save.dlq\t0\nother\t5\n"
+
+    def test_rabbitmqctl_출력을_큐별_깊이로_푼다(self):
+        d = collect_s1.parse_queue_depths(self.OUT)
+        self.assertEqual({"chat.message.save.queue": 6799, "chat.message.save.dlq": 0, "other": 5}, d)
+
+    def test_저장_요약_큐와_DLQ_네_값으로_고르고_없는_큐는_null(self):
+        d = collect_s1.parse_queue_depths(self.OUT)
+        self.assertEqual({"save": 6799, "summary": None, "save_dlq": 0, "summary_dlq": None}, collect_s1.depth_pair(d))
+
+
+class ClockOffsetTest(unittest.TestCase):
+    def test_DB_시각에서_호스트_왕복_중간_시각을_뺀_값이_오프셋(self):
+        # 호스트 100.0 -> 100.2 사이에 DB 가 100.6 이라고 답했다면 중간 100.1 과 0.5초 차이
+        self.assertEqual(500, collect_s1.clock_offset_ms(100.0, 100.2, 100.6))
+
+    def test_psql_행을_밀리초_에포크로_바꾸고_호스트_UTC_오프셋을_뺀다(self):
+        # timestamp(시간대 없음)를 UTC 로 읽은 에포크 초 -> 실제 호스트 시각은 KST(+32400) 만큼 앞서 읽힌 값
+        text = "9001|%f|%f|f\n9002|%f||t\n" % (33400.5, 33405.25, 33407.75)
+        rows = collect_s1.parse_rows(text, 32400)
+        self.assertEqual({"qrid": 9001, "created_ms": 1000500.0, "updated_ms": 1005250.0, "summary_null": False}, rows[0])
+        self.assertEqual({"qrid": 9002, "created_ms": 1007750.0, "updated_ms": None, "summary_null": True}, rows[1])
+
+
+class SaveSummaryBlocksTest(unittest.TestCase):
+    ROWS = [
+        {"qrid": 1, "created_ms": 1500.0, "updated_ms": None, "summary_null": False},    # 요약과 함께 저장
+        {"qrid": 2, "created_ms": 3000.0, "updated_ms": 7600.0, "summary_null": False},  # 요약이 4.6초 뒤 채워짐
+        {"qrid": 3, "created_ms": 4000.0, "updated_ms": 4000.0, "summary_null": True},   # 요약 누락
+    ]
+    POSTS = {1: 1000.0, 2: 2000.0, 3: 3000.0, 4: 3500.0}  # 4번은 끝까지 행이 안 생김
+
+    def test_저장_시간과_요약_지연과_누락_수가_정해진_키로_나온다(self):
+        save, summary = collect_s1.save_summary_blocks(self.POSTS, self.ROWS, 0)
+        self.assertEqual(3, save["rows"])
+        self.assertEqual(4, save["posts"])
+        self.assertEqual(1, save["not_durable"])
+        self.assertEqual({"p50": 1000.0, "p95": 1000.0, "count": 3}, save["durable_ms"])
+        self.assertEqual(2, summary["lag_ms"]["count"])
+        self.assertEqual(1, summary["missing_at_end"])
+        self.assertEqual(2, summary["missing_incl_unsaved"])
+
+    def test_요약과_함께_저장된_행의_지연은_0(self):
+        _, summary = collect_s1.save_summary_blocks(self.POSTS, self.ROWS, 0)
+        self.assertEqual(0.0, summary["lag_ms"]["p50"])
+        self.assertEqual(4600.0, summary["lag_ms"]["p95"])
+
+    def test_측정한_DB_시계_오프셋만큼_행_시각을_보정한다(self):
+        save, _ = collect_s1.save_summary_blocks({1: 1000.0}, self.ROWS[:1], 300)
+        self.assertEqual({"p50": 200.0, "p95": 200.0, "count": 1}, save["durable_ms"])
+
+    def test_행이_없으면_백분위는_null_개수는_0(self):
+        save, summary = collect_s1.save_summary_blocks({1: 1000.0}, [], 0)
+        self.assertEqual({"p50": None, "p95": None, "count": 0}, save["durable_ms"])
+        self.assertEqual({"p50": None, "p95": None, "count": 0}, summary["lag_ms"])
+        self.assertEqual(0, summary["missing_at_end"])
+        self.assertEqual(1, save["not_durable"])
+
 
 if __name__ == "__main__":
     unittest.main()

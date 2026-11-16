@@ -229,6 +229,15 @@ class VuFlowTest(unittest.TestCase):
         self.assertEqual({"login": 1, "message": 3, "save": 1, "disconnect": 1}, app.counts)
         self.assertEqual(1, len(rec.sessions))
 
+    def test_저장_요청의_전송_시각과_질문_결과_id를_세션_기록에_남긴다(self):
+        before = time.time() * 1000
+        _, rec = self.with_app("ok")
+        after = time.time() * 1000
+        info = rec.sessions[0]
+        self.assertEqual(9001, info["question_result_id"])
+        self.assertEqual(200, info["save_code"])
+        self.assertTrue(before <= info["save_sent_ms"] <= after, info)
+
     def test_SSE_error_이벤트는_오류_1건으로_센다(self):
         _, rec = self.with_app("error_event", turns_per_session=1)
         self.assertEqual(1, rec.errors["sse_error_event"])

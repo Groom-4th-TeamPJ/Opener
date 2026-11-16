@@ -1,6 +1,6 @@
 #!/bin/bash
-# 사용: run.sh <code: base|new> <체크아웃 경로> <결과 폴더> [tiny]
-# 한 회차: 스택 reset -> bootJar -> 모의 서버·앱 기동 -> 생성기·수집기 -> 앱 정지(PID 만) -> summary.json
+# 사용: [S1_APP_ENV="K=V K2=V2"] run.sh <code: base|new|A|AB> <체크아웃 경로> <결과 폴더> [tiny]
+# 한 회차: 스택 reset -> bootJar -> 모의 서버·앱 기동 -> 생성기·수집기 -> 큐 드레인 표집(최대 300초)·DB 행 읽기 -> 앱 정지(PID 만) -> summary.json
 # 측정 회차는 cpu-lock.sh 로 감싸서 부른다 (tiny 는 잠금 없이)
 set -u
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -46,7 +46,9 @@ if [ "$GEN_RC" -ne 0 ] || [ "$COL_RC" -ne 0 ]; then
   exit 1
 fi
 
-# 생성기가 끝난 뒤에도 저장 이벤트 소비가 남아 있으면 잠시 기다린다 (큐가 비는 시점 기록용)
-python3 "$LOADTEST_DIR/collect_s1.py" summarize --out "$OUT" --code "$CODE" --commit "$COMMIT" || exit 1
+# 생성기가 끝난 뒤에도 앱을 켜 둔 채 저장·요약 큐가 비는 시간을 재고 이번 회차의 chat_messages 행을 읽는다
+rm -f "$OUT/drain.json"
+python3 "$LOADTEST_DIR/collect_s1.py" drain --out "$OUT" > "$OUT/drain.log" 2>&1 || { echo "[run] FAILED: drain watch (see $OUT/drain.log), no summary.json" >&2; exit 1; }
+python3 "$LOADTEST_DIR/collect_s1.py" summarize --out "$OUT" --code "$CODE" --commit "$COMMIT" --app-env "$S1_APP_ENV" || exit 1
 grep -c "" "$OUT/app.log" | sed 's/^/[run] app.log lines: /'
 echo "[run] summary: $OUT/summary.json"
