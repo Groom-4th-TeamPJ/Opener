@@ -275,6 +275,37 @@ class HikariBlockTest(unittest.TestCase):
         self.assertIsNone(collect_s1.hikari_block({}, {}, [])["timeouts"])
 
 
+class EmbeddingBlockTest(unittest.TestCase):
+    OK = 'application="backend",error="none",gen_ai_operation_name="embedding",gen_ai_request_model="m",gen_ai_system="openai"'
+    ERR = 'application="backend",error="WebClientRequestException",gen_ai_operation_name="embedding",gen_ai_request_model="m",gen_ai_system="openai"'
+    CHAT = 'application="backend",error="none",gen_ai_operation_name="chat",gen_ai_request_model="m",gen_ai_system="openai"'
+
+    def prom(self, ok_count, ok_sum, err_count=0, chat_count=500, chat_sum=900.0):
+        text = (f"gen_ai_client_operation_seconds_count{{{self.OK}}} {ok_count}\ngen_ai_client_operation_seconds_sum{{{self.OK}}} {ok_sum}\n"
+                f"gen_ai_client_operation_seconds_count{{{self.ERR}}} {err_count}\ngen_ai_client_operation_seconds_sum{{{self.ERR}}} 0.5\n"
+                f"gen_ai_client_operation_seconds_count{{{self.CHAT}}} {chat_count}\ngen_ai_client_operation_seconds_sum{{{self.CHAT}}} {chat_sum}\n")
+        return collect_s1.parse_prom(text)
+
+    def test_평균은_구간_합_증가분을_개수_증가분으로_나눈_밀리초이고_채팅_호출은_섞지_않는다(self):
+        b = collect_s1.embedding_block(self.prom(100, 15.0), self.prom(300, 75.0, chat_count=9999, chat_sum=1e6), [])
+        self.assertEqual(200, b["count"])
+        self.assertAlmostEqual(300.0, b["mean_ms"])    # (75-15)/200 s
+
+    def test_최댓값은_표집한_embed_max_s_중_가장_큰_값의_밀리초(self):
+        b = collect_s1.embedding_block(self.prom(1, 1.0), self.prom(2, 2.0), [{"embed_max_s": 0.4}, {"embed_max_s": 6.85}, {"embed_max_s": None}])
+        self.assertAlmostEqual(6850.0, b["max_ms"])
+
+    def test_오류로_끝난_임베딩_호출은_평균에_넣지_않고_개수만_센다(self):
+        b = collect_s1.embedding_block(self.prom(10, 1.0, err_count=1), self.prom(20, 3.0, err_count=5), [])
+        self.assertEqual(10, b["count"])
+        self.assertAlmostEqual(200.0, b["mean_ms"])
+        self.assertEqual(4, b["failed_count"])
+
+    def test_지표가_없으면_모두_null(self):
+        b = collect_s1.embedding_block({}, {}, [])
+        self.assertEqual({"count": None, "mean_ms": None, "max_ms": None, "failed_count": None}, b)
+
+
 class ActivityTest(unittest.TestCase):
     # psql -At 행 '상태|상태_경과초|질의문(한 줄)'
     TEXT = ("active|0.5|select v1_0.id from vector_store v1_0 order by v1_0.embedding <=> ?\n"
@@ -420,6 +451,154 @@ class ResummarizeTest(unittest.TestCase):
         self.assertEqual(self.old, self.read("summary.v1.json"))
         collect_s1.resummarize(self.out)
         self.assertEqual(self.old, self.read("summary.v1.json"))
+
+
+def breaker_text(name, state, not_permitted, failed, successful=100):
+    """resilience4j 지표 한 개 차단기분의 프로메테우스 본문 - state 게이지는 상태마다 한 줄, 현재 상태만 1"""
+    lines = [f'resilience4j_circuitbreaker_state{{application="backend",name="{name}",state="{st}"}} {1.0 if st == state.lower() else 0.0}'
+             for st in ("closed", "open", "half_open", "disabled", "forced_open", "metrics_only")]
+    lines += [
+        f'resilience4j_circuitbreaker_not_permitted_calls_total{{application="backend",kind="not_permitted",name="{name}"}} {float(not_permitted)}',
+        f'resilience4j_circuitbreaker_calls_seconds_count{{application="backend",kind="failed",name="{name}"}} {failed}',
+        f'resilience4j_circuitbreaker_calls_seconds_count{{application="backend",kind="successful",name="{name}"}} {successful}',
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def circuit_sample_at(t, **by_name):
+    """by_name: 차단기 이름 -> (상태, 허용 안 된 호출, 실패 호출), 이름의 밑줄은 하이픈으로 바꾼다"""
+    return {"t": t, "breakers": {n.replace("_", "-"): {"state": v[0], "not_permitted": v[1], "failed": v[2]} for n, v in by_name.items()}}
+
+
+class CircuitSampleTest(unittest.TestCase):
+    def test_circuit_표본은_차단기_셋의_상태_허용_안_된_호출_실패_호출을_읽는다(self):
+        text = (breaker_text("llm-chat", "OPEN", 12, 30) + breaker_text("llm-rag", "HALF_OPEN", 1, 4)
+                + breaker_text("llm-summary", "CLOSED", 0, 0) + breaker_text("redis-chat", "OPEN", 99, 99))
+        row = collect_s1.circuit_sample(collect_s1.parse_prom(text), 123.5)
+        self.assertEqual(123.5, row["t"])
+        self.assertEqual({"state": "OPEN", "not_permitted": 12, "failed": 30}, row["breakers"]["llm-chat"])
+        self.assertEqual("HALF_OPEN", row["breakers"]["llm-rag"]["state"])
+        self.assertEqual("CLOSED", row["breakers"]["llm-summary"]["state"])
+        self.assertNotIn("redis-chat", row["breakers"])
+
+    def test_circuit_성공_호출은_실패_호출로_세지_않는다(self):
+        row = collect_s1.circuit_sample(collect_s1.parse_prom(breaker_text("llm-chat", "CLOSED", 0, 3, successful=500)), 1.0)
+        self.assertEqual(3, row["breakers"]["llm-chat"]["failed"])
+
+    def test_circuit_지표가_없는_차단기는_표본에서_뺀다(self):
+        row = collect_s1.circuit_sample(collect_s1.parse_prom(breaker_text("llm-chat", "CLOSED", 0, 0)), 1.0)
+        self.assertEqual(["llm-chat"], list(row["breakers"]))
+
+    def test_circuit_본문을_못_읽으면_표본은_None(self):
+        self.assertIsNone(collect_s1.circuit_sample({}, 1.0))
+
+
+class CircuitBlockTest(unittest.TestCase):
+    FAULT = {"start_ms": 100_000, "end_ms": 160_000}
+
+    def block(self, samples):
+        return collect_s1.circuit_block(self.FAULT, samples)
+
+    def test_circuit_열림까지_시간은_장애_시작에서_처음_OPEN_표본까지(self):
+        b = self.block([circuit_sample_at(95, llm_chat=("CLOSED", 0, 0)), circuit_sample_at(100, llm_chat=("CLOSED", 0, 2)),
+                        circuit_sample_at(103, llm_chat=("OPEN", 0, 9)), circuit_sample_at(104, llm_chat=("OPEN", 5, 9))])
+        self.assertEqual(3.0, b["llm-chat"]["open_after_fault_s"])
+
+    def test_circuit_장애_시작_전에_OPEN_이던_표본은_열림으로_세지_않는다(self):
+        b = self.block([circuit_sample_at(90, llm_chat=("OPEN", 0, 0)), circuit_sample_at(101, llm_chat=("CLOSED", 0, 0))])
+        self.assertIsNone(b["llm-chat"]["open_after_fault_s"])
+
+    def test_circuit_닫힘까지_시간은_장애_끝에서_다시_CLOSED_가_된_표본까지(self):
+        # 장애 시작(100) 기준이면 80, 끝(160) 기준이면 20
+        b = self.block([circuit_sample_at(103, llm_chat=("OPEN", 0, 9)), circuit_sample_at(170, llm_chat=("OPEN", 50, 9)),
+                        circuit_sample_at(178, llm_chat=("HALF_OPEN", 50, 9)), circuit_sample_at(180, llm_chat=("CLOSED", 50, 9))])
+        self.assertEqual(20.0, b["llm-chat"]["closed_after_fault_end_s"])
+
+    def test_circuit_장애_끝_뒤에도_열려_있고_마지막_표본까지_안_닫히면_null(self):
+        b = self.block([circuit_sample_at(103, llm_chat=("OPEN", 0, 9)), circuit_sample_at(300, llm_chat=("OPEN", 50, 9))])
+        self.assertEqual(3.0, b["llm-chat"]["open_after_fault_s"])
+        self.assertIsNone(b["llm-chat"]["closed_after_fault_end_s"])
+
+    def test_circuit_한_번도_안_열렸으면_열림도_닫힘도_null(self):
+        b = self.block([circuit_sample_at(t, llm_chat=("CLOSED", 0, t - 90)) for t in (95, 120, 170)])
+        self.assertIsNone(b["llm-chat"]["open_after_fault_s"])
+        self.assertIsNone(b["llm-chat"]["closed_after_fault_end_s"])
+
+    def test_circuit_허용_안_된_호출과_실패_호출은_첫_표본에서_마지막_표본까지의_증가분(self):
+        b = self.block([circuit_sample_at(90, llm_chat=("CLOSED", 5, 10)), circuit_sample_at(130, llm_chat=("OPEN", 20, 40)),
+                        circuit_sample_at(200, llm_chat=("CLOSED", 45, 70))])
+        self.assertEqual(40, b["llm-chat"]["not_permitted"])
+        self.assertEqual(60, b["llm-chat"]["failed_calls"])
+
+    def test_circuit_차단기마다_따로_계산한다(self):
+        b = self.block([circuit_sample_at(95, llm_chat=("CLOSED", 0, 0), llm_rag=("CLOSED", 0, 0), llm_summary=("CLOSED", 0, 0)),
+                        circuit_sample_at(110, llm_chat=("CLOSED", 0, 3), llm_rag=("OPEN", 0, 20), llm_summary=("CLOSED", 0, 0)),
+                        circuit_sample_at(165, llm_chat=("CLOSED", 0, 3), llm_rag=("CLOSED", 7, 20), llm_summary=("CLOSED", 0, 0))])
+        self.assertEqual(10.0, b["llm-rag"]["open_after_fault_s"])
+        self.assertEqual(5.0, b["llm-rag"]["closed_after_fault_end_s"])
+        self.assertIsNone(b["llm-chat"]["open_after_fault_s"])
+        self.assertIsNone(b["llm-summary"]["open_after_fault_s"])
+
+    def test_circuit_상태가_바뀐_시점을_장애_시작_기준_초로_남긴다(self):
+        b = self.block([circuit_sample_at(95, llm_chat=("CLOSED", 0, 0)), circuit_sample_at(103, llm_chat=("OPEN", 0, 9)),
+                        circuit_sample_at(104, llm_chat=("OPEN", 1, 9)), circuit_sample_at(175, llm_chat=("HALF_OPEN", 9, 9))])
+        self.assertEqual([[-5.0, "CLOSED"], [3.0, "OPEN"], [75.0, "HALF_OPEN"]], b["llm-chat"]["transitions"])
+
+    def test_circuit_표본이_없으면_차단기_셋_모두_null(self):
+        b = self.block([])
+        self.assertEqual({"llm-chat", "llm-rag", "llm-summary"}, set(b))
+        self.assertIsNone(b["llm-chat"]["open_after_fault_s"])
+        self.assertIsNone(b["llm-chat"]["not_permitted"])
+
+
+class FaultTurnsTest(unittest.TestCase):
+    @staticmethod
+    def turn(t_start, ok=True, error=None, turn_ms=9000.0, ttft_ms=1500.0):
+        return {"t_start": t_start, "ok": ok, "error": error, "turn_ms": turn_ms, "ttft_ms": ttft_ms if ok else None}
+
+    def test_fault_턴은_장애_시작부터_장애_끝_60초_뒤까지_시작한_턴만_센다(self):
+        turns = [self.turn(99.9), self.turn(100.0), self.turn(130.0), self.turn(220.0), self.turn(220.1)]
+        t = collect_s1.fault_turns(turns, 100_000, 160_000)
+        self.assertEqual(3, t["attempted"])
+
+    def test_fault_성공_실패_수와_실패_종류별_수(self):
+        turns = [self.turn(110), self.turn(111, ok=False, error="sse_error_event", turn_ms=800.0),
+                 self.turn(112, ok=False, error="sse_error_event", turn_ms=900.0), self.turn(113, ok=False, error="turn_timeout", turn_ms=60000.0)]
+        t = collect_s1.fault_turns(turns, 100_000, 160_000)
+        self.assertEqual((4, 1, 3), (t["attempted"], t["ok"], t["failed"]))
+        self.assertEqual({"sse_error_event": 2, "turn_timeout": 1}, t["by_kind"])
+
+    def test_fault_실패한_턴_시간은_턴_시작에서_오류까지의_p50_p95(self):
+        turns = [self.turn(110 + i, ok=False, error="sse_error_event", turn_ms=float(ms)) for i, ms in enumerate((100, 200, 300, 400, 5000))]
+        t = collect_s1.fault_turns(turns, 100_000, 160_000)
+        self.assertEqual(300.0, t["failed_turn_ms"]["p50"])
+        self.assertEqual(5000.0, t["failed_turn_ms"]["p95"])
+
+    def test_fault_성공한_턴의_첫_토큰_p95는_성공_턴만으로_구한다(self):
+        turns = [self.turn(110, ttft_ms=1000.0), self.turn(111, ttft_ms=2000.0), self.turn(112, ok=False, error="sse_error_event", turn_ms=50.0)]
+        self.assertEqual(2000.0, collect_s1.fault_turns(turns, 100_000, 160_000)["ok_ttft_p95_ms"])
+
+    def test_fault_구간에_턴이_없으면_0과_null(self):
+        t = collect_s1.fault_turns([self.turn(10)], 100_000, 160_000)
+        self.assertEqual((0, 0, 0), (t["attempted"], t["ok"], t["failed"]))
+        self.assertEqual({}, t["by_kind"])
+        self.assertIsNone(t["failed_turn_ms"]["p50"])
+        self.assertIsNone(t["ok_ttft_p95_ms"])
+
+
+class FaultBlockTest(unittest.TestCase):
+    def test_fault_블록은_구간과_모의_서버의_경로별_실패_수와_턴_집계를_담는다(self):
+        mock = {"fault": {"start_ms": 100_000, "end_ms": 160_000, "failed_by_route": {"chat_stream": 4, "chat_nonstream": 2, "embeddings": 9}}}
+        f = collect_s1.fault_block({"start_ms": 100_000, "end_ms": 160_000}, mock, [FaultTurnsTest.turn(110)])
+        self.assertEqual(100_000, f["start_ms"])
+        self.assertEqual(160_000, f["end_ms"])
+        self.assertEqual({"chat_stream": 4, "chat_nonstream": 2, "embeddings": 9}, f["failed_by_route"])
+        self.assertEqual(1, f["turns"]["attempted"])
+
+    def test_fault_모의_서버_통계를_못_읽으면_실패_수는_null(self):
+        f = collect_s1.fault_block({"start_ms": 100_000, "end_ms": 160_000}, None, [])
+        self.assertIsNone(f["failed_by_route"])
+        self.assertEqual(100_000, f["start_ms"])
 
 
 if __name__ == "__main__":

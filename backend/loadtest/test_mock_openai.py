@@ -252,5 +252,114 @@ class ServerTest(unittest.TestCase):
         self.assertEqual({}, st["prompt_missing_by_reason"])
 
 
+FAULT_BODY = {"error": {"message": "mock fault", "type": "server_error", "param": None, "code": None}}
+
+
+class FaultWindowTest(unittest.TestCase):
+    """장애 구간 - 구간 안에서는 채팅(스트림·비스트림)과 임베딩이 HTTP 500 과 OpenAI 형식 오류 본문으로 답한다"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.server = mock_openai.MockServer(SCENARIO, port=0)
+        cls.server.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.stop()
+
+    def setUp(self):
+        self.call("POST", "/stats/reset")
+        self.set_window(None, None)
+
+    def call(self, method, path, payload=None):
+        c = http.client.HTTPConnection("127.0.0.1", self.server.port, timeout=30)
+        c.request(method, path, None if payload is None else json.dumps(payload), {"Content-Type": "application/json"})
+        r = c.getresponse()
+        body = json.loads(r.read() or b"null")
+        c.close()
+        return r.status, body
+
+    def set_window(self, start_ms, end_ms):
+        return self.call("POST", "/fault", {"start_ms": start_ms, "end_ms": end_ms})
+
+    def window_around_now(self):
+        now = time.time() * 1000
+        self.set_window(now - 60_000, now + 60_000)
+
+    def stats(self):
+        return self.call("GET", "/stats")[1]
+
+    CHAT = ("/v1/chat/completions", {"model": "m", "stream": False, "messages": [SYSTEM, q(5, 1)]})
+    STREAM = ("/v1/chat/completions", {"model": "m", "stream": True, "messages": [SYSTEM, q(5, 1)]})
+    EMBED = ("/v1/embeddings", {"input": "가나다"})
+
+    def test_fault_구간_안에서_세_경로가_500_과_오류_본문으로_답한다(self):
+        self.window_around_now()
+        for name, (path, payload) in (("stream", self.STREAM), ("nonstream", self.CHAT), ("embeddings", self.EMBED)):
+            status, body = self.call("POST", path, payload)
+            self.assertEqual(500, status, name)
+            self.assertEqual(FAULT_BODY, body, name)
+
+    def test_fault_구간_밖에서는_정상_응답(self):
+        now = time.time() * 1000
+        for start, end in ((now - 120_000, now - 60_000), (now + 60_000, now + 120_000)):
+            self.set_window(start, end)
+            status, body = self.call("POST", *self.EMBED)
+            self.assertEqual(200, status)
+            self.assertEqual(1536, len(body["data"][0]["embedding"]))
+
+    def test_fault_구간을_안_정하면_정상_응답(self):
+        self.assertEqual(200, self.call("POST", *self.EMBED)[0])
+
+    def test_fault_구간_끝_시각_이후와_빈_구간은_정상_응답(self):
+        now = time.time() * 1000
+        self.set_window(now - 50, now - 1)
+        self.assertEqual(200, self.call("POST", *self.EMBED)[0])
+        self.set_window(now + 60_000, now + 60_000)
+        self.assertEqual(200, self.call("POST", *self.EMBED)[0])
+
+    def test_fault_stats_가_구간_시작_끝과_경로별_실패_수를_보고한다(self):
+        self.window_around_now()
+        self.call("POST", *self.EMBED)
+        self.call("POST", *self.EMBED)
+        self.call("POST", *self.CHAT)
+        self.call("POST", *self.STREAM)
+        f = self.stats()["fault"]
+        self.assertEqual({"chat_stream": 1, "chat_nonstream": 1, "embeddings": 2}, f["failed_by_route"])
+        self.assertIsInstance(f["start_ms"], (int, float))
+        self.assertEqual(120_000, f["end_ms"] - f["start_ms"])
+
+    def test_fault_구간이_없으면_stats_의_시작_끝은_null_실패_수는_0(self):
+        f = self.stats()["fault"]
+        self.assertIsNone(f["start_ms"])
+        self.assertIsNone(f["end_ms"])
+        self.assertEqual({"chat_stream": 0, "chat_nonstream": 0, "embeddings": 0}, f["failed_by_route"])
+
+    def test_fault_로_실패시킨_요청은_정상_호출_집계에_넣지_않는다(self):
+        self.window_around_now()
+        for path, payload in (self.STREAM, self.CHAT, self.EMBED):
+            self.call("POST", path, payload)
+        st = self.stats()
+        self.assertEqual(0, st["chat_streams"])
+        self.assertEqual(0, st["chat_nonstream"])
+        self.assertEqual(0, st["embeddings"])
+        self.assertEqual(0, st["prompt_checked"])
+
+    def test_fault_stats_reset_은_실패_수만_0으로_하고_구간은_둔다(self):
+        self.window_around_now()
+        self.call("POST", *self.EMBED)
+        start = self.stats()["fault"]["start_ms"]
+        self.call("POST", "/stats/reset")
+        f = self.stats()["fault"]
+        self.assertEqual(0, f["failed_by_route"]["embeddings"])
+        self.assertEqual(start, f["start_ms"])
+
+    def test_fault_구간을_null_로_지우면_다시_정상_응답(self):
+        self.window_around_now()
+        self.assertEqual(500, self.call("POST", *self.EMBED)[0])
+        self.set_window(None, None)
+        self.assertEqual(200, self.call("POST", *self.EMBED)[0])
+
+
 if __name__ == "__main__":
     unittest.main()
