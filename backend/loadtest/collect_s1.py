@@ -146,6 +146,86 @@ def history_fallback(p0, p1, code):
     return int(now - (prom_sum(p0, "chat_redis_history_fallback_total") or 0))
 
 
+def prom_max(prom, name):
+    """같은 이름 계열 중 가장 큰 값 - 풀이 둘 이상이어도 가장 나쁜 쪽"""
+    vals = [v for (n, _), v in prom.items() if n == name]
+    return max(vals) if vals else None
+
+
+def _largest(samples, key):
+    return max([r[key] for r in samples if r.get(key) is not None] or [None])
+
+
+def _timer_mean_ms(p0, p1, base):
+    """구간 합 증가분 / 개수 증가분 (밀리초) - 개수가 안 늘었으면 None"""
+    c1, s1 = prom_sum(p1, base + "_count"), prom_sum(p1, base + "_sum")
+    if c1 is None or s1 is None:
+        return None
+    n = c1 - (prom_sum(p0, base + "_count") or 0)
+    return (s1 - (prom_sum(p0, base + "_sum") or 0)) / n * 1000 if n else None
+
+
+def _seconds_to_ms(v):
+    return None if v is None else v * 1000
+
+
+def hikari_block(p0, p1, samples):
+    """측정 구간의 풀 대기 수 최댓값, 획득·사용 시간(평균은 구간 시작·끝 스냅샷 차이, 최댓값은 5초 표본의 _max 게이지), 타임아웃 증가분
+    pending 이 0 이 아니면 연결을 못 받고 기다린 요청이 있었다는 뜻 - active 가 최대여도 pending 0 이면 풀이 찬 것일 뿐 기다림은 없다"""
+    timeouts = prom_sum(p1, "hikaricp_connections_timeout_total")
+    return {
+        "pending_peak": _largest(samples, "hikari_pending"),
+        "acquire_ms": {"mean": _timer_mean_ms(p0, p1, "hikaricp_connections_acquire_seconds"),
+                       "max": _seconds_to_ms(_largest(samples, "hikari_acquire_max_s"))},
+        "usage_ms": {"mean": _timer_mean_ms(p0, p1, "hikaricp_connections_usage_seconds"),
+                     "max": _seconds_to_ms(_largest(samples, "hikari_usage_max_s"))},
+        "timeouts": None if timeouts is None else int(timeouts - (prom_sum(p0, "hikaricp_connections_timeout_total") or 0)),
+    }
+
+
+# 질의문 종류 - 위에서부터 처음 맞는 것 (vector_store 가 chat_messages 보다 앞, insert·update 가 from 보다 앞)
+QUERY_CLASSES = (("vector", "vector_store"), ("chat_insert", "insert into chat_messages"),
+                 ("chat_update", "update chat_messages"), ("chat_select", "from chat_messages"))
+CLASS_NAMES = [c for c, _ in QUERY_CLASSES] + ["other"]
+ACTIVITY_STATES = {"active": "active", "idle in transaction": "idle_in_transaction"}
+ACTIVITY_SQL = ("SELECT state, COALESCE(EXTRACT(EPOCH FROM (now() - state_change)), 0), "
+                r"regexp_replace(query, E'[\r\n]+', ' ', 'g') FROM pg_stat_activity "
+                "WHERE datname = 'opener_s1' AND pid <> pg_backend_pid() AND state IN ('active', 'idle in transaction')")
+
+
+def query_class(query):
+    q = query.lower()
+    return next((name for name, needle in QUERY_CLASSES if needle in q), "other")
+
+
+def parse_activity(text):
+    """psql -At 행 '상태|상태 경과 초|질의문' -> 표본 한 번의 상태 x 종류 개수와 트랜잭션 안 유휴 최장 시간"""
+    out = {st: {c: 0 for c in CLASS_NAMES} for st in ACTIVITY_STATES.values()}
+    idle_max = None
+    for line in text.splitlines():
+        parts = line.split("|", 2)
+        if len(parts) != 3 or parts[0] not in ACTIVITY_STATES:
+            continue
+        out[ACTIVITY_STATES[parts[0]]][query_class(parts[2])] += 1
+        if parts[0] == "idle in transaction":
+            age = float(parts[1])
+            idle_max = age if idle_max is None else max(idle_max, age)
+    out["idle_in_tx_max_s"] = idle_max
+    return out
+
+
+def activity_block(samples):
+    """표본 목록(읽기 실패는 None) -> 상태 x 종류 연결 수 최댓값, 표본 한 번의 상태별 합계 최댓값, 유휴 최장 시간"""
+    ok = [x for x in samples if x]
+    block = {"samples": len(ok), "samples_failed": len(samples) - len(ok), "peak": None, "peak_total": None, "idle_in_tx_max_s": None}
+    if not ok:
+        return block
+    block["peak"] = {st: {c: max(x[st][c] for x in ok) for c in CLASS_NAMES} for st in ACTIVITY_STATES.values()}
+    block["peak_total"] = {st: max(sum(x[st].values()) for x in ok) for st in ACTIVITY_STATES.values()}
+    block["idle_in_tx_max_s"] = max([x["idle_in_tx_max_s"] for x in ok if x["idle_in_tx_max_s"] is not None] or [None])
+    return block
+
+
 SAVE_Q, SUMMARY_Q = "chat.message.save.queue", "chat.message.summary.queue"
 SAVE_DLQ, SUMMARY_DLQ = "chat.message.save.dlq", "chat.message.summary.dlq"
 DRAIN_MAX_S = 300
@@ -402,6 +482,10 @@ def watch(out, sc):
         row["process_cpu_usage"] = prom_value(prom, "process_cpu_usage")
         row["sse_active"] = prom_value(prom, "chat_sse_active_connections")
         row["hikari_active"] = prom_value(prom, "hikaricp_connections_active")
+        row["hikari_pending"] = prom_sum(prom, "hikaricp_connections_pending")
+        row["hikari_acquire_max_s"] = prom_max(prom, "hikaricp_connections_acquire_seconds_max")
+        row["hikari_usage_max_s"] = prom_max(prom, "hikaricp_connections_usage_seconds_max")
+        row["activity"] = read_activity()
         samples.append(row)
         nxt += SAMPLE_S
         if nxt >= w["hold_end"]:
@@ -430,6 +514,14 @@ def psql_text(sql):
     if out.returncode != 0:
         raise RuntimeError("psql 실패: " + out.stderr.strip())
     return out.stdout
+
+
+def read_activity():
+    """pg_stat_activity 한 번 읽기 - 실패하면 None (표본 하나를 잃을 뿐 측정 구간 수집을 멈추지 않는다, 실패 수는 요약에 남는다)"""
+    try:
+        return parse_activity(psql_text(ACTIVITY_SQL))
+    except (RuntimeError, ValueError, OSError):
+        return None
 
 
 def measure_clock_offset_ms():
@@ -614,6 +706,7 @@ def summarize(out, code, commit, sc, app_env=None):
             "dlq": {"save": dr["end"]["save_dlq"], "summary": dr["end"]["summary_dlq"]} if dr else None,
             "depth_at_drain_end": {"save": dr["end"]["save"], "summary": dr["end"]["summary"]} if dr else None,
         },
+        "db": {"hikari": hikari_block(p0, p1, samples), "activity": activity_block([r.get("activity") for r in samples])},
         "save": save_block,
         "summary": summary_block,
         "app_env": app_env,
