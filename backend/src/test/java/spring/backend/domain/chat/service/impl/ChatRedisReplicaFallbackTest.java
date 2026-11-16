@@ -142,6 +142,33 @@ class ChatRedisReplicaFallbackTest {
         assertEquals(0.0, replicaErrors("history"));
     }
 
+    @Test
+    @DisplayName("history: replica 범위 읽기의 Redis 외 예외는 MESSAGE_INPUT_FAIL 로 바뀌고 master 를 읽지 않으며 오류를 세지 않는다")
+    void getHistoryBefore_replicaRedis외예외_MESSAGE_INPUT_FAIL이고_master를치지않는다() {
+        doReturn(listOperations).when(redisTemplate).opsForList();
+        when(listOperations.range(MESSAGE_KEY, 0L, 5L)).thenThrow(new IllegalStateException("unexpected"));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.getHistoryBefore(SESSION_ID, 7L));
+
+        // r128 이전 계약 -> 범위 읽기의 모든 예외는 MESSAGE_INPUT_FAIL, Redis 오류만 master 읽기로 넘어간다
+        assertEquals(ErrorCode.MESSAGE_INPUT_FAIL, ex.getErrorCode());
+        verify(masterRedisTemplate, never()).opsForList();
+        assertEquals(0.0, replicaErrors("history"));
+    }
+
+    @Test
+    @DisplayName("session_messages: replica 범위 읽기의 Redis 외 예외는 MESSAGE_INPUT_FAIL 로 바뀌고 master 를 읽지 않는다")
+    void getSessionMessages_replicaRedis외예외_MESSAGE_INPUT_FAIL이고_master를치지않는다() {
+        doReturn(listOperations).when(redisTemplate).opsForList();
+        when(listOperations.range(MESSAGE_KEY, 0L, -1L)).thenThrow(new IllegalStateException("unexpected"));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.getSessionMessages(SESSION_ID));
+
+        assertEquals(ErrorCode.MESSAGE_INPUT_FAIL, ex.getErrorCode());
+        verify(masterRedisTemplate, never()).opsForList();
+        assertEquals(0.0, replicaErrors("session_messages"));
+    }
+
     // ---- getSessionMessages ----
 
     @Test
