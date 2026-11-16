@@ -167,10 +167,10 @@ class ClockOffsetTest(unittest.TestCase):
 
     def test_psql_행을_밀리초_에포크로_바꾸고_호스트_UTC_오프셋을_뺀다(self):
         # timestamp(시간대 없음)를 UTC 로 읽은 에포크 초 -> 실제 호스트 시각은 KST(+32400) 만큼 앞서 읽힌 값
-        text = "9001|%f|%f|f\n9002|%f||t\n" % (1000032.5, 1000037.1, 1000040.0)
+        text = "9001|%f|%f|f\n9002|%f||t\n" % (33400.5, 33405.25, 33407.75)
         rows = collect_s1.parse_rows(text, 32400)
-        self.assertEqual({"qrid": 9001, "created_ms": 1000500.0, "updated_ms": 1005100.0, "summary_null": False}, rows[0])
-        self.assertEqual({"qrid": 9002, "created_ms": 1007600.0, "updated_ms": None, "summary_null": True}, rows[1])
+        self.assertEqual({"qrid": 9001, "created_ms": 1000500.0, "updated_ms": 1005250.0, "summary_null": False}, rows[0])
+        self.assertEqual({"qrid": 9002, "created_ms": 1007750.0, "updated_ms": None, "summary_null": True}, rows[1])
 
 
 class SaveSummaryBlocksTest(unittest.TestCase):
