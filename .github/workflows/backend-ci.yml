@@ -1,0 +1,98 @@
+name: Backend CI
+
+# PR 마다 백엔드 전체 시험을 돈다 -> 배포 워크플로는 이미지 빌드에서 시험을 건너뛰므로(-x test) 검증은 여기서만 한다
+on:
+  pull_request:
+    branches:
+      - backend
+      - stage
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 같은 PR 에 커밋이 연달아 올라오면 앞선 실행은 결과가 쓸모없다 -> 취소해 러너 시간을 아낀다
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+
+    # 컨텍스트 시험(Flyway 마이그레이션 + JPA 검증)에 필요한 것만 띄운다
+    # 채팅용 Redis Cluster 는 컨텍스트 로딩 때 연결하지 않아 없어도 통과한다 (로컬에서 .env·클러스터 없이 188건 실측)
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: dev
+          POSTGRES_PASSWORD: dev123
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dev"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+      rabbitmq:
+        image: rabbitmq:3-management-alpine
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      # dev 프로필 기본값은 localhost 의 DB·Redis 를 보지만 RabbitMQ 만 compose 서비스 이름(rabbitmq)이 기본값이다
+      RABBITMQ_HOST: localhost
+      # 실제 Redis 에서 Lua 스크립트를 확인하는 시험이 이 값이 있을 때만 돈다 -> 없으면 건너뛰어 통과로 보인다
+      REDIS_TEST_PORT: 6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Test
+        run: ./gradlew test --console=plain
+
+      # 건너뛴 시험은 종료 코드 0 이라 초록으로 보인다 -> REDIS_TEST_PORT 가 빠지면 Lua 시험이 조용히 빠지는 것을 막는다
+      - name: Fail on skipped tests
+        run: |
+          if grep -l 'skipped="[1-9]' build/test-results/test/TEST-*.xml; then
+            echo "skipped tests found - check REDIS_TEST_PORT and the service containers"
+            exit 1
+          fi
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: backend/build/test-results/test/*.xml
+          if-no-files-found: warn
