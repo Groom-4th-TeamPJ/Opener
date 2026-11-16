@@ -255,25 +255,36 @@ class SessionResetTest(unittest.TestCase):
 
 
 class SaturationTest(unittest.TestCase):
+    """R125-14 - 포화는 처리량 정체만으로 판정, CPU 비율은 판정에 쓰지 않는다"""
+
     @staticmethod
     def steps(*pairs):
         return [{"turns_per_s": t, "master_cpu_pct": c} for t, c in pairs]
 
-    def test_마스터_CPU_90퍼센트_이상이면_그_단계가_포화(self):
-        s = self.steps((1000, 20), (2000, 50), (3500, 91), (3600, 99))
-        self.assertEqual(tr.saturation_index(s), 2)
+    def test_마스터_CPU_가_높아도_처리량이_늘면_포화_아님(self):
+        s = self.steps((1000, 95), (2000, 96), (3900, 97))
+        self.assertIsNone(tr.saturation_index(s))
 
-    def test_처리량_증가가_5퍼센트_미만이면_포화(self):
+    def test_처리량_증가가_5퍼센트_미만이면_그_단계가_포화(self):
         s = self.steps((1000, 20), (2000, 50), (3000, 70), (3100, 80))
         self.assertEqual(tr.saturation_index(s), 3)
 
-    def test_계속_늘면_포화_아님(self):
-        s = self.steps((1000, 20), (2000, 40), (3900, 80))
+    def test_정확히_5퍼센트_늘면_포화_아님(self):
+        s = self.steps((1000, 20), (1050, 50))
         self.assertIsNone(tr.saturation_index(s))
 
     def test_처리량이_줄어도_포화(self):
         s = self.steps((1000, 20), (2000, 50), (1900, 60))
         self.assertEqual(tr.saturation_index(s), 2)
+
+    def test_추가_단계는_마지막_두_단계가_5퍼센트_이상_늘었을_때만(self):
+        self.assertTrue(tr.need_extra_step(self.steps((1000, 1), (1100, 1))))
+        self.assertFalse(tr.need_extra_step(self.steps((1000, 1), (1049, 1))))
+        self.assertFalse(tr.need_extra_step(self.steps((1000, 1))))
+
+    def test_단계_목록은_8에서_1024까지_추가_2048(self):
+        self.assertEqual(tr.STEPS, (8, 16, 32, 64, 128, 256, 512, 1024))
+        self.assertEqual(tr.EXTRA_STEP, 2048)
 
 
 class PercentileTest(unittest.TestCase):
@@ -281,6 +292,262 @@ class PercentileTest(unittest.TestCase):
         self.assertEqual(tr.percentile(list(range(1, 101)), 95), 95)
         self.assertEqual(tr.percentile([5], 95), 5)
         self.assertEqual(tr.percentile([], 95), 0.0)
+
+
+INFO_TEXT = """# Memory
+used_memory:1000
+# CPU
+used_cpu_sys:1.5
+used_cpu_user:2.25
+used_cpu_sys_children:0.1
+used_cpu_user_children:0.2
+# Commandstats
+cmdstat_rpush:calls=10,usec=30,usec_per_call=3.00,rejected_calls=0,failed_calls=0
+cmdstat_info:calls=2,usec=100,usec_per_call=50.00,rejected_calls=0,failed_calls=0
+"""
+
+
+class InfoParseTest(unittest.TestCase):
+    def test_parse_info_CPU_는_자식_프로세스를_빼고_sys_user_합(self):
+        got = tr.parse_info(INFO_TEXT)
+        self.assertAlmostEqual(got["cpu"], 3.75)
+        self.assertEqual(got["mem"], 1000)
+
+    def test_parse_info_명령별_호출수와_usec(self):
+        got = tr.parse_info(INFO_TEXT)
+        self.assertEqual(got["cmd"], {"rpush": (10, 30.0), "info": (2, 100.0)})
+
+
+class NodeDeltaTest(unittest.TestCase):
+    @staticmethod
+    def snap(t, cpu, cmd, mem=0):
+        return {"t": t, "cpu": cpu, "mem": mem, "cmd": cmd}
+
+    def test_CPU_와_명령_증가분과_CPU_퍼센트(self):
+        a = self.snap(10.0, 1.0, {"rpush": (10, 30.0)})
+        b = self.snap(12.0, 2.0, {"rpush": (110, 330.0), "expire": (5, 5.0)}, mem=7)
+        d = tr.node_delta(a, b)
+        self.assertAlmostEqual(d["cpu_s"], 1.0)
+        self.assertAlmostEqual(d["wall_s"], 2.0)
+        self.assertAlmostEqual(d["cpu_pct"], 50.0)
+        self.assertEqual(d["cmd"], {"rpush": {"calls": 100, "usec": 300.0},
+                                    "expire": {"calls": 5, "usec": 5.0}})
+        self.assertEqual(d["mem"], 7)
+
+    def test_늘지_않은_명령은_빠진다(self):
+        a = self.snap(0.0, 0.0, {"rpush": (10, 30.0)})
+        b = self.snap(1.0, 0.1, {"rpush": (10, 30.0)})
+        self.assertEqual(tr.node_delta(a, b)["cmd"], {})
+
+    def test_카운터가_초기화되면_음수가_아니라_새_값을_증가분으로(self):
+        a = self.snap(0.0, 5.0, {"rpush": (10, 30.0)})
+        b = self.snap(1.0, 0.5, {"rpush": (4, 12.0)})
+        d = tr.node_delta(a, b)
+        self.assertEqual(d["cmd"], {"rpush": {"calls": 4, "usec": 12.0}})
+        self.assertAlmostEqual(d["cpu_s"], 0.5)
+
+
+class CapacityTest(unittest.TestCase):
+    def test_capacity_는_1e6_을_턴당_usec_로_나눈_값(self):
+        self.assertEqual(tr.capacity(100.0), 10000.0)
+        self.assertEqual(tr.capacity(0), 0.0)
+
+
+class SplitCmdUsecTest(unittest.TestCase):
+    """commandstats usec 를 채팅 턴 몫과 세션 부담(UNLINK·선점 스크립트) 몫으로 가른다"""
+
+    @staticmethod
+    def cs(**kw):
+        return {k: {"calls": c, "usec": u} for k, (c, u) in kw.items()}
+
+    def test_master_before(self):
+        cs = self.cs(hget=(1, 2.0), rpush=(20, 60.0), expire=(42, 84.0), lrange=(10, 30.0),
+                     eval=(10, 150.0), unlink=(20, 28.0), hsetnx=(10, 18.0))
+        chat, overhead = tr.split_cmd_usec("master", "before", cs, 10)
+        # expire 42 호출 중 10 호출은 선점 스크립트 안쪽 -> 32/42 만 턴 몫
+        self.assertAlmostEqual(chat, 2.0 + 60.0 + 64.0 + 30.0)
+        self.assertAlmostEqual(overhead, 150.0 + 28.0)
+
+    def test_master_after_저장_스크립트_안쪽_명령은_EVALSHA_에_포함(self):
+        cs = self.cs(evalsha=(20, 300.0), rpush=(20, 70.0), expire=(42, 40.0), lrange=(1, 3.0),
+                     hget=(5, 5.0), eval=(10, 80.0), unlink=(20, 40.0))
+        chat, overhead = tr.split_cmd_usec("master", "after", cs, 10)
+        self.assertAlmostEqual(chat, 300.0 + 3.0 + 5.0)
+        self.assertAlmostEqual(overhead, 80.0 + 40.0)
+
+    def test_replica_before(self):
+        cs = self.cs(hget=(10, 20.0), rpush=(20, 60.0), pexpireat=(42, 42.0), unlink=(20, 30.0),
+                     exec=(10, 30.0), multi=(10, 1.0), hsetnx=(10, 10.0), hset=(10, 6.0))
+        chat, overhead = tr.split_cmd_usec("replica", "before", cs, 10)
+        self.assertAlmostEqual(chat, 20.0 + 60.0 + 32.0)
+        self.assertAlmostEqual(overhead, 30.0 + 30.0 + 1.0)
+
+    def test_replica_after_EXEC_안에_복제된_쓰기가_들어_있다(self):
+        cs = self.cs(hget=(10, 20.0), lrange=(8, 20.0), exec=(30, 90.0), multi=(30, 3.0),
+                     rpush=(20, 40.0), pexpireat=(42, 17.0), unlink=(20, 30.0), hsetnx=(10, 10.0))
+        chat, overhead = tr.split_cmd_usec("replica", "after", cs, 10)
+        self.assertAlmostEqual(chat, 20.0 + 20.0 + 93.0 * 20 / 30)
+        self.assertAlmostEqual(overhead, 30.0 + 93.0 * 10 / 30)
+
+    def test_세션_정리가_없으면_부담은_0(self):
+        cs = self.cs(hget=(1, 2.0), rpush=(2, 6.0), expire=(4, 8.0), lrange=(1, 3.0))
+        chat, overhead = tr.split_cmd_usec("master", "before", cs, 0)
+        self.assertAlmostEqual(chat, 19.0)
+        self.assertEqual(overhead, 0.0)
+
+
+def mk_step(clients, tps, **over):
+    """finish_pass · summarize_sequence 가 읽는 키만 채운 작은 단계 기록"""
+    st = {
+        "clients": clients, "procs": 8, "turns_per_s": float(tps), "cpu_quota": 0.3,
+        "master_cpu_pct": 95.0, "replica_cpu_pct": 50.0, "master_cpu_pct_raw": 28.5,
+        "master_cpu_pct_by_node": [95.0, 94.0, 96.0], "replica_cpu_pct_by_node": [50.0, 50.0, 50.0],
+        "master_round_trips_per_turn": 7.0, "replica_round_trips_per_turn": 1.0,
+        "turn_p95_ms": 10.0, "generator_cpu_pct": 200.0,
+        "master_cpu_us_per_turn": 100.0, "replica_cpu_us_per_turn": 50.0,
+        "master_cmd_usec_per_turn_chat_only": 30.0, "replica_cmd_usec_per_turn_chat_only": 15.0,
+        "master_turns_per_s_by_node": [tps / 3.0] * 3,
+        "history_reads": 0, "fallbacks": 0, "fallback_rate": 0.0,
+    }
+    st.update(over)
+    return st
+
+
+def mk_pass(seq, tps_list, us_list, **over):
+    clients = (8, 16, 32, 64, 128, 256, 512, 1024)
+    steps = [mk_step(clients[i], t, master_cpu_us_per_turn=u) for i, (t, u) in enumerate(zip(tps_list, us_list))]
+    for st in steps:
+        st.update(over)
+    return tr.finish_pass(seq, steps, cores=10)
+
+
+class FinishPassTest(unittest.TestCase):
+    def test_정체_단계와_최대_처리량_단계를_따로_고른다(self):
+        p = mk_pass("before", [1000, 1800, 2500, 2600, 2700, 2650], [200, 150, 120, 110, 100, 105])
+        self.assertEqual(p["saturation_step"], 3)
+        self.assertTrue(p["saturated"])
+        self.assertEqual(p["max_turns_per_s"], 2700)
+        self.assertEqual(p["max_step_clients"], 128)
+
+    def test_턴당_CPU_는_최대_처리량_단계_값_첫_단계_값은_따로(self):
+        p = mk_pass("before", [1000, 1800, 2500, 2600, 2700, 2650], [200, 150, 120, 110, 100, 105])
+        self.assertEqual(p["master_cpu_us_per_turn"], 100)
+        self.assertEqual(p["master_cpu_us_per_turn_at_first_step"], 200)
+        self.assertEqual(p["replica_cpu_us_per_turn_at_first_step"], 50)
+        self.assertAlmostEqual(p["master_capacity_turns_per_s_per_core"], 10000.0)
+        self.assertNotIn("master_cpu_us_per_turn_at_max", p)
+
+    def test_계속_늘면_포화_아님이고_최대는_마지막_단계(self):
+        p = mk_pass("after", [1000, 2000, 4000], [100, 80, 60])
+        self.assertFalse(p["saturated"])
+        self.assertIsNone(p["saturation_step"])
+        self.assertEqual(p["max_step_clients"], 32)
+        self.assertEqual(p["master_cpu_us_per_turn"], 60)
+
+    def test_마지막_두_단계가_정체면_앞에서_이미_정체였어도_포화(self):
+        p = mk_pass("after", [1000, 1010, 3000, 3050], [100, 100, 80, 80])
+        self.assertEqual(p["saturation_step"], 1)
+        self.assertTrue(p["saturated"])
+
+    def test_마스터_세_대의_쏠림은_최대_처리량_단계의_노드별_턴으로(self):
+        steps = [mk_step(8, 1000), mk_step(16, 1020, master_turns_per_s_by_node=[400.0, 330.0, 290.0])]
+        p = tr.finish_pass("before", steps, cores=10)
+        self.assertEqual(p["master_turns_per_s_by_node"], [400.0, 330.0, 290.0])
+        self.assertEqual(p["busiest_master_turns_per_s"], 400.0)
+        self.assertAlmostEqual(p["master_unevenness_pct"], (400 - 290) / (1020 / 3) * 100)
+
+
+class LimitedByTest(unittest.TestCase):
+    def test_마스터가_할당의_90퍼센트_이상이면_redis(self):
+        self.assertEqual(tr.derive_limited_by(mk_step(256, 1000, master_cpu_pct=90.0), 10), "redis")
+
+    def test_생성기가_쓸_수_있는_코어를_거의_다_쓰면_generator(self):
+        st = mk_step(256, 1000, master_cpu_pct=40.0, generator_cpu_pct=750.0,
+                     master_cpu_pct_by_node=[40.0] * 3, replica_cpu_pct_by_node=[20.0] * 3)
+        self.assertEqual(tr.derive_limited_by(st, 10), "generator")
+
+    def test_둘_다_아니면_unknown(self):
+        st = mk_step(256, 1000, master_cpu_pct=40.0, generator_cpu_pct=200.0,
+                     master_cpu_pct_by_node=[40.0] * 3, replica_cpu_pct_by_node=[20.0] * 3)
+        self.assertEqual(tr.derive_limited_by(st, 10), "unknown")
+
+    def test_Redis_가_쓰는_코어만큼_생성기가_쓸_코어가_줄어든다(self):
+        # 코어 10 · 생성기 프로세스 8 · Redis 3.5 코어 사용 -> 생성기 몫 6.5 코어, 5.2 코어 사용 = 0.8
+        st = mk_step(256, 1000, master_cpu_pct=73.0, cpu_quota=1.0, generator_cpu_pct=520.0,
+                     master_cpu_pct_by_node=[73.0] * 3, replica_cpu_pct_by_node=[43.0] * 3)
+        self.assertEqual(tr.derive_limited_by(st, 10), "generator")
+
+    def test_할당_정보가_없는_옛_기록은_한_코어_기준으로_읽는다(self):
+        st = mk_step(256, 1000, master_cpu_pct=73.0, generator_cpu_pct=520.0,
+                     master_cpu_pct_by_node=[73.0] * 3, replica_cpu_pct_by_node=[43.0] * 3)
+        del st["cpu_quota"]
+        self.assertEqual(tr.derive_limited_by(st, 10), "generator")
+
+    def test_pass_의_limited_by_는_최대_처리량_단계에서_유도한다(self):
+        p = mk_pass("before", [1000, 1800, 2500], [200, 150, 120])
+        self.assertEqual(p["limited_by"], "redis")
+        self.assertIn("90", p["limited_by_rule"])
+
+
+class SummarizeTest(unittest.TestCase):
+    def setUp(self):
+        self.b1 = mk_pass("before", [1000, 1800, 2500, 2600, 2700], [200, 150, 120, 110, 100],
+                          master_round_trips_per_turn=7.0, replica_round_trips_per_turn=1.0)
+        self.b2 = mk_pass("before", [1000, 1800, 2500, 2600, 2900], [200, 150, 120, 110, 110],
+                          master_round_trips_per_turn=7.0, replica_round_trips_per_turn=1.0)
+        extra = dict(master_round_trips_per_turn=2.0, replica_round_trips_per_turn=1.8,
+                     history_reads=1000, fallbacks=2, fallback_rate=0.002)
+        self.a1 = mk_pass("after", [2000, 3000, 3900, 4000, 4050], [60, 55, 50, 50, 50], **extra)
+        self.a2 = mk_pass("after", [2000, 3000, 3900, 4000, 4150], [60, 55, 50, 50, 50], **extra)
+
+    def test_steps_는_두_회차를_pass_번호로_이어붙인다(self):
+        s = tr.summarize_sequence([self.b1, self.b2])
+        self.assertEqual(len(s["steps"]), 10)
+        self.assertEqual([st["pass"] for st in s["steps"]], [1] * 5 + [2] * 5)
+
+    def test_최대_처리량은_회차_평균_회차별_값과_편차를_함께(self):
+        s = tr.summarize_sequence([self.b1, self.b2])
+        self.assertAlmostEqual(s["max_turns_per_s"], 2800.0)
+        self.assertEqual(s["max_turns_per_s_by_pass"], [2700, 2900])
+        self.assertAlmostEqual(s["max_turns_per_s_spread_pct"], 200 / 2800 * 100)
+
+    def test_턴당_CPU_는_최대_처리량_단계_기준_평균(self):
+        s = tr.summarize_sequence([self.b1, self.b2])
+        self.assertAlmostEqual(s["master_cpu_us_per_turn"], 105.0)
+        self.assertEqual(s["master_cpu_us_per_turn_by_pass"], [100, 110])
+        self.assertAlmostEqual(s["master_cpu_us_per_turn_at_first_step"], 200.0)
+        self.assertAlmostEqual(s["master_capacity_turns_per_s_per_core"], 1e6 / 105.0)
+        self.assertNotIn("master_cpu_us_per_turn_at_max", s)
+
+    def test_replica_몫은_왕복과_CPU_양쪽(self):
+        s = tr.summarize_sequence([self.a1, self.a2])
+        self.assertAlmostEqual(s["replica_round_trip_share"], 1.8 / 3.8)
+        self.assertAlmostEqual(s["replica_cpu_share"], 50.0 / (50.0 + 50.0))
+
+    def test_fallback_률은_전체_읽기_대비(self):
+        s = tr.summarize_sequence([self.a1, self.a2])
+        self.assertAlmostEqual(s["fallback_rate"], (2 * 5 * 2) / (1000 * 5 * 2))
+        self.assertEqual(s["fallbacks"], 20)
+        self.assertAlmostEqual(s["fallback_rate_at_max_step"], 0.002)
+
+    def test_limited_by_는_회차마다_유도한_값(self):
+        s = tr.summarize_sequence([self.b1, self.b2])
+        self.assertEqual(s["limited_by_by_pass"], ["redis", "redis"])
+
+    def test_build_summary_after_before_비와_unthrottled_유도값(self):
+        slow = mk_step(256, 26000, master_cpu_pct=73.0, cpu_quota=1.0, generator_cpu_pct=520.0,
+                       master_cpu_pct_by_node=[73.0] * 3, replica_cpu_pct_by_node=[43.0] * 3)
+        raw = {"sequence": "before", "steps": [mk_step(8, 6000), slow], "env": {"cpu_count": 10}}
+        out = tr.build_summary([self.b1, self.b2], [self.a1, self.a2], [raw])
+        r = out["ratio_new_over_base"]
+        self.assertAlmostEqual(r["max_turns_per_s"], 4100.0 / 2800.0)
+        self.assertAlmostEqual(r["master_cpu_us_per_turn"], 50.0 / 105.0)
+        self.assertAlmostEqual(r["master_cmd_usec_per_turn_chat_only"], 1.0)
+        self.assertEqual(out["base_unthrottled"]["limited_by_by_pass"], ["generator"])
+        self.assertEqual(out["base_unthrottled"]["max_turns_per_s"], 26000)
+        self.assertIn("fallback_rate", out["new"])
+        self.assertTrue(out["base"]["saturated"] and out["new"]["saturated"])
+
 
 
 if __name__ == "__main__":
