@@ -137,6 +137,14 @@ def vus_peak(samples):
     return int(max([r["sse_active"] for r in samples if r.get("sse_active") is not None] or [0]))
 
 
+def history_fallback(p0, p1, code):
+    """복제본 지연으로 마스터를 다시 읽은 횟수 - Micrometer 카운터는 처음 증가할 때 등록되므로 새 코드에서 없으면 0, 옛 코드는 지표 자체가 없어 None"""
+    now = prom_sum(p1, "chat_redis_history_fallback_total")
+    if now is None:
+        return None if code == "base" else 0
+    return int(now - (prom_sum(p0, "chat_redis_history_fallback_total") or 0))
+
+
 def pct3(values):
     return {"p50": percentile(values, 50), "p95": percentile(values, 95), "p99": percentile(values, 99)}
 
@@ -383,7 +391,7 @@ def summarize(out, code, commit, sc):
 
     auth = node_summary(s0["auth"], s1["auth"], col["write_cmds"], idle.get(str(sc["ports"]["redis_auth"]), 0.0))
     p0, p1 = prom_from_snapshot(s0["prom"]), prom_from_snapshot(s1["prom"])
-    fb1 = prom_sum(p1, "chat_redis_history_fallback_total")
+    fallback = history_fallback(p0, p1, code)
     routes = {}
     for d, _ in prom_series(p1, "chat_redis_read_seconds_count"):
         routes[d.get("route")] = timer_delta(p0, p1, "chat_redis_read_seconds", route=d.get("route"))
@@ -420,7 +428,8 @@ def summarize(out, code, commit, sc):
             "nodes": nodes, "auth": auth, "rule": RULE_TEXT,
         },
         "app": {
-            "history_fallback": None if fb1 is None else fb1 - (prom_sum(p0, "chat_redis_history_fallback_total") or 0),
+            "history_fallback": fallback,
+            "history_fallback_per_turn": None if fallback is None or not n_turns else fallback / n_turns,
             "redis_read_by_route": routes,
             "sse_ttft_server_ms": timer_delta(p0, p1, "chat_sse_ttft_seconds"),
             "rag_search_ms": timer_delta(p0, p1, "rag_vector_search_seconds", path="chat"),
