@@ -43,6 +43,16 @@ RULE_TEXT = ("왕복 = commandstats calls 합 - info·replconf·psync·sync - �
              "복제본은 쓰기 명령(복제 스트림으로 들어온 것)을 뺀 나머지")
 
 
+def load_json(path):
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def dump_json(path, obj, **kw):
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(obj, f, **kw)
+
+
 # ---------- 순수 함수 ----------
 def parse_commandstats(text):
     out = {}
@@ -398,7 +408,7 @@ def save_summary_blocks(posts, rows, hold_ms=None):
 def raw_blocks(out, sessions, window):
     """생성기 원자료(sessions)와 drain.json 에서 save·summary 블록을 만든다 - summarize 와 resummarize 가 같은 정의를 쓴다"""
     dr_path = os.path.join(out, "drain.json")
-    dr = json.load(open(dr_path)) if os.path.exists(dr_path) else None
+    dr = load_json(dr_path) if os.path.exists(dr_path) else None
     rows = parse_rows(dr["rows_raw"], dr["host_gmtoff_s"]) if dr else []
     # 같은 결과 id 로 저장 요청이 둘이면 먼저 보낸 것 - 행은 결과 id 당 하나뿐
     posts = {}
@@ -413,16 +423,16 @@ def resummarize(out):
     """이미 만든 summary.json 의 save·summary 블록만 원자료로 다시 계산한다 - 앱·모의 서버가 꺼진 뒤라 나머지 값은 건드리지 않는다
     (옛 파일은 summary.v1.json 으로 남긴다)"""
     path = os.path.join(out, "summary.json")
-    old = json.load(open(path))
+    old = load_json(path)
     v1 = os.path.join(out, "summary.v1.json")
     if not os.path.exists(v1):
-        json.dump(old, open(v1, "w"), ensure_ascii=False, indent=2)
-    w = json.load(open(os.path.join(out, "window.json")))
+        dump_json(v1, old, ensure_ascii=False, indent=2)
+    w = load_json(os.path.join(out, "window.json"))
     _, save_block, summary_block = raw_blocks(out, read_jsonl(out, "sessions"), (w["hold_start"], w["hold_end"]))
     summary_block["queue_published"] = old["summary"].get("queue_published")
     summary_block["queue_consumed"] = old["summary"].get("queue_consumed")
     old["save"], old["summary"] = save_block, summary_block
-    json.dump(old, open(path, "w"), ensure_ascii=False, indent=2)
+    dump_json(path, old, ensure_ascii=False, indent=2)
 
 
 def pct3(values):
@@ -528,7 +538,8 @@ def snapshot(sc):
 
 def read_pids(path):
     try:
-        return [int(x) for x in open(path).read().split()]
+        with open(path) as f:
+            return [int(x) for x in f.read().split()]
     except (OSError, ValueError):
         return []
 
@@ -552,7 +563,7 @@ def wait_window(out):
         if os.path.exists(wpath):
             break
         time.sleep(0.5)
-    return json.load(open(wpath))
+    return load_json(wpath)
 
 
 def post_json(url, obj, timeout=10):
@@ -582,7 +593,7 @@ def fault_run(out, sc, tiny):
             samples.append(row)
         nxt += 1
         time.sleep(max(0.0, nxt - time.time()))
-    json.dump({"fault": fault, "samples": samples, "tiny": tiny}, open(os.path.join(out, "circuit.json"), "w"))
+    dump_json(os.path.join(out, "circuit.json"), {"fault": fault, "samples": samples, "tiny": tiny})
 
 
 def watch(out, sc):
@@ -622,8 +633,8 @@ def watch(out, sc):
         time.sleep(max(0.0, nxt - time.time()))
     time.sleep(max(0.0, w["hold_end"] - time.time()))
     snap1 = snapshot(sc)
-    json.dump({"window": w, "snap0": snap0, "snap1": snap1, "samples": samples, "write_cmds": write_cmds},
-              open(os.path.join(out, "collector.json"), "w"))
+    dump_json(os.path.join(out, "collector.json"),
+              {"window": w, "snap0": snap0, "snap1": snap1, "samples": samples, "write_cmds": write_cmds})
 
 
 def rabbit_depths(sc):
@@ -661,7 +672,7 @@ def measure_clock_offset_ms():
 
 def drain(out, sc):
     """생성기가 끝난 직후부터 큐를 5초마다 최대 300초 표집하고, 끝나면 이번 회차의 chat_messages 행을 읽는다"""
-    w = json.load(open(os.path.join(out, "window.json")))
+    w = load_json(os.path.join(out, "window.json"))
     series, nxt = [], time.time()
     while True:
         row = {"t": time.time(), **rabbit_depths(sc)}
@@ -677,8 +688,8 @@ def drain(out, sc):
     sql = ("SELECT question_result_id, EXTRACT(EPOCH FROM created_at), COALESCE(EXTRACT(EPOCH FROM updated_at)::text, ''), "
            "CASE WHEN summary IS NULL THEN 't' ELSE 'f' END FROM chat_messages WHERE EXTRACT(EPOCH FROM created_at) >= %f" % since)
     text = psql_text(sql)
-    json.dump({"series": series, "end": rabbit_depths(sc), "clock_offset_ms": offset, "host_gmtoff_s": gmtoff, "rows_raw": text},
-              open(os.path.join(out, "drain.json"), "w"))
+    dump_json(os.path.join(out, "drain.json"),
+              {"series": series, "end": rabbit_depths(sc), "clock_offset_ms": offset, "host_gmtoff_s": gmtoff, "rows_raw": text})
 
 
 # ---------- 요약 ----------
@@ -726,7 +737,7 @@ def idle_baseline(out, sc, seconds):
     b = {p: node_snapshot(p) for p in ports}
     res = {str(p): ((b[p]["cpu_sys"] + b[p]["cpu_user"] - a[p]["cpu_sys"] - a[p]["cpu_user"]) * 1e6) / (b[p]["t"] - a[p]["t"])
            for p in ports}
-    json.dump(res, open(os.path.join(out, "idle.json"), "w"))
+    dump_json(os.path.join(out, "idle.json"), res)
 
 
 def host_info():
@@ -740,12 +751,13 @@ def host_info():
 def read_jsonl(out, prefix):
     rows = []
     for p in sorted(glob.glob(os.path.join(out, prefix + "-*.jsonl"))):
-        rows += [json.loads(l) for l in open(p) if l.strip()]
+        with open(p) as f:
+            rows += [json.loads(l) for l in f if l.strip()]
     return rows
 
 
 def summarize(out, code, commit, sc, app_env=None):
-    col = json.load(open(os.path.join(out, "collector.json")))
+    col = load_json(os.path.join(out, "collector.json"))
     w, s0, s1, samples = col["window"], col["snap0"], col["snap1"], col["samples"]
     turns, sessions, errors = read_jsonl(out, "turns"), read_jsonl(out, "sessions"), read_jsonl(out, "errors")
     window = (w["hold_start"], w["hold_end"])
@@ -757,7 +769,7 @@ def summarize(out, code, commit, sc, app_env=None):
     for e in errors:
         by_kind[e["kind"]] = by_kind.get(e["kind"], 0) + 1
     idle_path = os.path.join(out, "idle.json")
-    idle = json.load(open(idle_path)) if os.path.exists(idle_path) else {}
+    idle = load_json(idle_path) if os.path.exists(idle_path) else {}
     nodes = {p: node_summary(s0["chat"][p], s1["chat"][p], col["write_cmds"], idle.get(p, 0.0)) for p in s1["chat"]}
     agg = {r: [n for n in nodes.values() if (n["role"] == "master") == (r == "master")] for r in ("master", "replica")}
 
@@ -791,7 +803,7 @@ def summarize(out, code, commit, sc, app_env=None):
     fault = circuit = None
     circ_path = os.path.join(out, "circuit.json")
     if os.path.exists(circ_path):
-        circ = json.load(open(circ_path))
+        circ = load_json(circ_path)
         fault, circuit = fault_block(circ["fault"], final_mock, turns), circuit_block(circ["fault"], circ["samples"])
     sess_done = [s for s in sessions if s.get("ok") and s.get("t_end") and window[0] <= s["t_end"] <= window[1]]
     summary = {
@@ -861,7 +873,7 @@ def summarize(out, code, commit, sc, app_env=None):
         "errors_rate_def": "측정 구간 안 오류 수 / 측정 구간에 끝난 턴 시도 수(성공·실패 모두)",
         "top_samples": [r["top"] for r in samples if r.get("top")][:: max(1, len(samples) // 12)],
     }
-    json.dump(summary, open(os.path.join(out, "summary.json"), "w"), ensure_ascii=False, indent=2)
+    dump_json(os.path.join(out, "summary.json"), summary, ensure_ascii=False, indent=2)
     return summary
 
 
@@ -876,7 +888,7 @@ def main():
     ap.add_argument("--app-env", default="")
     ap.add_argument("--tiny", action="store_true")
     args = ap.parse_args()
-    sc = json.load(open(args.scenario, encoding="utf-8"))
+    sc = load_json(args.scenario)
     if args.mode == "watch":
         watch(args.out, sc)
     elif args.mode == "fault":
