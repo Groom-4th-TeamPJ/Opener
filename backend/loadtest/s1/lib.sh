@@ -4,7 +4,8 @@
 S1_APP_ENV="${S1_APP_ENV:-}"
 S1_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOADTEST_DIR="$(dirname "$S1_DIR")"
-SCENARIO="$S1_DIR/scenario.json"
+# S1_SCENARIO: 진단 실행에서 부하 인원 같은 값만 바꾼 시나리오 사본을 쓴다 (원본 scenario.json 은 건드리지 않는다)
+SCENARIO="${S1_SCENARIO:-$S1_DIR/scenario.json}"
 COMPOSE_FILE="$LOADTEST_DIR/compose/s1-stack.yml"
 COMPOSE_PROJECT=r125-s1
 JAVA_HOME_21=/Users/mskim/Library/Java/JavaVirtualMachines/temurin-21.0.13/Contents/Home
