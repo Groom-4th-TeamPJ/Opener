@@ -192,5 +192,29 @@ class LeakTest(unittest.TestCase):
         self.assertFalse(evalkit.leaks("그냥 글만 있는 문제", "그냥 글만 있는 문제와 풀이", 0.6))
 
 
+class PercentileTest(unittest.TestCase):
+    def test_r129_백분위는_가까운_순위_방식(self):
+        v = list(range(1, 101))
+        self.assertEqual(50, evalkit.percentile(v, 50))
+        self.assertEqual(95, evalkit.percentile(v, 95))
+        self.assertEqual(7, evalkit.percentile([7], 95))
+        self.assertIsNone(evalkit.percentile([], 50))
+
+    def test_r129_정렬되지_않은_입력도_받는다(self):
+        self.assertEqual(3, evalkit.percentile([5, 1, 3, 2, 4], 50))
+
+
+class OverlapTest(unittest.TestCase):
+    def test_r129_상위_5건_겹침_비율은_정확_탐색_5건_중_근사_탐색이_찾은_수(self):
+        self.assertAlmostEqual(0.8, evalkit.overlap_at_k(["a", "b", "c", "d", "x"], ["a", "b", "c", "d", "e"], 5))
+        self.assertAlmostEqual(1.0, evalkit.overlap_at_k(["e", "d", "c", "b", "a"], ["a", "b", "c", "d", "e"], 5))
+
+    def test_r129_근사_탐색이_5건보다_적게_돌려주면_그만큼_못_찾은_것(self):
+        self.assertAlmostEqual(0.4, evalkit.overlap_at_k(["a", "b"], ["a", "b", "c", "d", "e"], 5))
+
+    def test_r129_정확_탐색_결과가_없으면_None(self):
+        self.assertIsNone(evalkit.overlap_at_k(["a"], [], 5))
+
+
 if __name__ == "__main__":
     unittest.main()
