@@ -155,3 +155,20 @@ def leaks(held_problem, chunk_text, threshold):
     if total < MIN_MATH_CHARS:
         return False
     return sum(len(f) for f in held & chunk) / total >= threshold
+
+
+# ---------- HNSW vs 정확 탐색 (IX-1) ----------
+def percentile(values, p):
+    """가까운 순위 방식 백분위 (s1_load.percentile 과 같은 정의) - 비면 None"""
+    if not values:
+        return None
+    s = sorted(values)
+    return s[max(0, math.ceil(p / 100 * len(s)) - 1)]
+
+
+def overlap_at_k(approx_ids, exact_ids, k):
+    """정확 탐색 상위 k 건 중 근사 탐색 상위 k 건이 찾아낸 비율 - 정확 결과가 없으면 None"""
+    exact = list(exact_ids)[:k]
+    if not exact:
+        return None
+    return len(set(exact) & set(list(approx_ids)[:k])) / len(exact)

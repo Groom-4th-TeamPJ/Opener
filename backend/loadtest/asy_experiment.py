@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """[asy](Asymptote 그림 소스) 블록이 RAG 검색에 주는 영향 실험 (r129 AS-1)
 
-앱의 문서 로더(DocumentServiceImpl)는 이미 [asy] 블록을 색인 전에 걷어낸다 -> S1 vector_store 에는 [asy] 행이 없다
+앱의 문서 로더(DocumentServiceImpl)는 이미 [asy] 블록을 색인 전에 걷어낸다 -> 색인에는 [asy] 행이 없다
 그래서 두 갈래를 이렇게 만든다
-  stripped : S1 vector_store 복사본 그대로 (블록을 걷어낸 색인)
-  with_asy : 같은 복사본에서 MATH-ko-test.jsonl 의 [asy] 가진 레코드 행을, 블록을 남긴 본문을 다시 임베딩한 행으로 바꾼 것
-같은 20문항(threshold_sweep.py)을 한 번만 임베딩해 두 갈래에 쓰고, 임계값 0.0 과 앱 값에서 Hit@5 를 센다
-실제 OpenAI 호출은 이 스크립트가 유일하다 (키는 backend/.env, 출력하지 않는다)
+  stripped : 고른 Voyage 모델의 원본 벡터(opener_vec_gold)를 복사한 그대로 (블록을 걷어낸 색인)
+  with_asy : 같은 복사본에서 MATH-ko-test.jsonl 의 [asy] 가진 레코드 행을, 블록을 남긴 본문을 다시 임베딩(input_type document)한 행으로 바꾼 것
+같은 20문항(threshold_sweep.py)을 질문 임베딩 캐시(input_type query)로 한 번만 임베딩해 두 갈래에 쓰고, 임계값 0.0 과 앱 값에서 Hit@5 를 센다
+실제 Voyage 호출은 이 스크립트(와 eval/rag 의 색인·질문 스크립트)뿐이다 (키는 backend/.env, 출력하지 않는다)
 
-사용: asy_experiment.py --out DIR   (스크래치 DB r129_asy 를 r125s1-db 에 만들고 끝나면 지운다, S1 테이블은 쓰지 않는다)
+사용: asy_experiment.py --out DIR [--request-tokens N]   (scratch DB r129_asy 는 clone_db.sh 로 원본에서 복사하고 끝나면 drop_db.sh 로 지운다, 원본·S1 테이블에는 쓰지 않는다)
 """
 import argparse
 import importlib.util
@@ -24,10 +24,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
 DOCS = os.path.join(REPO, "backend", "src", "main", "resources", "documents", "MATH-ko-test.jsonl")
 APP_YML = os.path.join(REPO, "backend", "src", "main", "resources", "application-dev.yml")
-ENV_FILE = "/Users/mskim/Desktop/PJ/Opener/backend/.env"
+sys.path.insert(0, os.path.join(REPO, "backend", "eval", "rag"))
+import evalkit  # noqa: E402
+import ragio  # noqa: E402
+
 SWEEP = "/Users/mskim/Desktop/PJ/Opener/backend/report/threshold_sweep.py"
-DB_CONTAINER, SRC_DB, SCRATCH_DB = "r125s1-db", "opener_s1", "r129_asy"
-MODEL, TOPK, BATCH = "text-embedding-3-small", 5, 100
+DB_CONTAINER, SCRATCH_DB = "r125s1-db", "r129_asy"
+TOPK, BATCH = 5, 100
 MAX_INPUTS, MAX_REQUESTS = 1200, 100
 # shortcut: 진짜 TokenTextSplitter(800 토큰)를 재현하지 않고 레코드 한 건을 행 한 건으로 임베딩한다, 아래 글자 수를 넘는 레코드는 실제 로더라면 둘 이상으로 나뉠 수 있어 개수만 보고한다 - 분할까지 맞추려면 Java 로더를 돌린다
 LONG_CHARS = 1700
@@ -98,34 +101,28 @@ def arm_result(per_q, app_threshold):
 
 
 # ---------- 입출력 ----------
-def api_key():
-    with open(ENV_FILE, encoding="utf-8") as f:
-        for line in f:
-            if line.startswith("OPENAI_API_KEY="):
-                return line.split("=", 1)[1].strip()
-    raise SystemExit("OPENAI_API_KEY 부재")
-
-
 class Embedder:
-    """임베딩 호출 수를 입력 수와 요청 수로 따로 센다 - 상한을 넘기 전에 멈춘다"""
+    """Voyage 호출 수를 입력 수와 요청 수(429 재시도 포함)로 따로 센다 - 상한을 넘기 전에 멈춘다"""
 
-    def __init__(self, key):
-        self.key, self.inputs, self.requests = key, 0, 0
+    def __init__(self, key, model, request_tokens):
+        self.key, self.model, self.request_tokens, self.inputs, self.ledger = key, model, request_tokens, 0, []
 
-    def embed(self, texts):
-        out = []
-        for i in range(0, len(texts), BATCH):
-            chunk = texts[i:i + BATCH]
-            if self.inputs + len(chunk) > MAX_INPUTS or self.requests + 1 > MAX_REQUESTS:
-                raise SystemExit(f"임베딩 상한 초과: 입력 {self.inputs}+{len(chunk)} > {MAX_INPUTS} 또는 요청 {self.requests + 1} > {MAX_REQUESTS}")
-            req = urllib.request.Request(
-                "https://api.openai.com/v1/embeddings", data=json.dumps({"input": chunk, "model": MODEL}).encode(),
-                headers={"Authorization": f"Bearer {self.key}", "Content-Type": "application/json"})
-            with urllib.request.urlopen(req, timeout=120) as r:
-                data = json.loads(r.read())["data"]
-            self.requests += 1
-            self.inputs += len(chunk)
-            out += [d["embedding"] for d in sorted(data, key=lambda d: d["index"])]
+    @property
+    def requests(self):
+        return len(self.ledger)
+
+    def check(self, n_inputs):
+        if self.inputs + n_inputs > MAX_INPUTS or self.requests + 1 > MAX_REQUESTS:
+            raise SystemExit(f"임베딩 상한 초과: 입력 {self.inputs}+{n_inputs} > {MAX_INPUTS} 또는 요청 {self.requests + 1} > {MAX_REQUESTS}")
+
+    def embed(self, texts, input_type="document"):
+        out = [None] * len(texts)
+        for group in evalkit.batches([len(t) for t in texts], BATCH, self.request_tokens):
+            self.check(len(group))
+            vecs, _ = ragio.voyage_embed_retry(self.key, self.model, [texts[i] for i in group], input_type, self.ledger)
+            self.inputs += len(group)
+            for i, v in zip(group, vecs):
+                out[i] = v
         return out
 
 
@@ -227,23 +224,25 @@ def validate_stripped(recs):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True)
+    ap.add_argument("--request-tokens", type=int, default=80_000, help="Voyage 한 요청의 토큰 상한(글자 수로 어림), 무료 한도가 낮으면 voyage-limit.json 을 보고 낮춘다")
     args = ap.parse_args()
     os.makedirs(args.out, exist_ok=True)
     threshold = app_threshold()
     questions = load_questions()
     recs, unclosed = asy_records()
-    embedder = Embedder(api_key())
-    psql("postgres", f"DROP DATABASE IF EXISTS {SCRATCH_DB}; CREATE DATABASE {SCRATCH_DB};")
+    model = json.load(open(os.path.join(ragio.OUT_DIR, "models.json")))["chosen"]["model"]
+    embedder = Embedder(ragio.load_key("VOYAGE_API_KEY"), model, args.request_tokens)
+    ragio.clone_db("opener_vec_gold", SCRATCH_DB)
     try:
-        psql(SCRATCH_DB, "CREATE EXTENSION IF NOT EXISTS vector;")
-        dump = subprocess.run(["docker", "exec", DB_CONTAINER, "pg_dump", "-U", "dev", "-d", SRC_DB, "-t", "vector_store"], capture_output=True, text=True)
-        if dump.returncode != 0:
-            raise RuntimeError("pg_dump 실패: " + dump.stderr[:300])
-        psql(SCRATCH_DB, "", stdin_sql=dump.stdout)
+        # 원본 테이블 vector_store_<모델> 만 남기고 앱 이름(vector_store)으로 바꾼다 - id 기본값은 앱 테이블처럼 gen_random_uuid()
+        for t in set(ragio.GOLD_TABLES.values()) - {ragio.GOLD_TABLES[model]}:
+            psql(SCRATCH_DB, f"DROP TABLE IF EXISTS {t}")
+        psql(SCRATCH_DB, f"ALTER TABLE {ragio.GOLD_TABLES[model]} RENAME TO vector_store; ALTER TABLE vector_store ALTER COLUMN id SET DEFAULT gen_random_uuid();")
         corpus_before = int(psql(SCRATCH_DB, "SELECT count(*) FROM vector_store").strip())
         validation = validate_stripped(recs)
 
-        q_emb = embedder.embed([q for q, _ in questions])
+        cache, _ = ragio.query_embeddings(embedder.key, model, [{"id": f"asy-q{i}", "query": q} for i, (q, _) in enumerate(questions)], embedder.ledger)
+        q_emb = [cache[f"asy-q{i}"] for i in range(len(questions))]
         per_q = {"stripped": [], "with_asy": []}
         for (q, want), e in zip(questions, q_emb):
             per_q["stripped"].append({"q": q, "want": want, "rows": top_rows(SCRATCH_DB, e)})
@@ -256,13 +255,13 @@ def main():
             per_q["with_asy"].append({"q": q, "want": want, "rows": top_rows(SCRATCH_DB, e)})
         arms = {k: arm_result(v, threshold) for k, v in per_q.items()}
         result = {
-            "questions": len(questions), "app_threshold": threshold, "model": MODEL,
+            "questions": len(questions), "app_threshold": threshold, "model": model,
             "asy_records": len(recs), "asy_chunks": asy_rows, "unclosed_asy_blocks": unclosed,
             "with_asy_records_over_%d_chars" % LONG_CHARS: sum(1 for r in recs if len(r["with_asy"]) > LONG_CHARS),
             "corpus_rows": {"stripped": corpus_before, "with_asy": corpus_after},
             "asy_rows": {"stripped": asy_before, "with_asy": asy_rows},
             "validation": validation,
-            "embedding_inputs": embedder.inputs, "embedding_requests": embedder.requests, "embedding_calls": embedder.inputs,
+            "embedding_inputs": embedder.inputs, "embedding_requests": embedder.requests, "embedding_calls": embedder.inputs, "embedding_429": sum(1 for r in embedder.ledger if r["status"] == 429),
             **arms,
             "hit_flips": [{"q": a["q"], "want": a["want"], "stripped": [hit_at_5(a["rows"], a["want"], t) for t in (0.0, threshold)],
                            "with_asy": [hit_at_5(b["rows"], b["want"], t) for t in (0.0, threshold)]}
@@ -275,7 +274,7 @@ def main():
             json.dump(result, f, ensure_ascii=False, indent=2)
         print(json.dumps({k: result[k] for k in ("asy_chunks", "corpus_rows", "stripped", "with_asy", "embedding_inputs", "embedding_requests")}, ensure_ascii=False, indent=1))
     finally:
-        psql("postgres", f"DROP DATABASE IF EXISTS {SCRATCH_DB} WITH (FORCE);")
+        ragio.drop_db(SCRATCH_DB)
         left = psql("postgres", f"SELECT count(*) FROM pg_database WHERE datname = '{SCRATCH_DB}'").strip()
         print(f"[asy] 스크래치 DB 남음: {left}", file=sys.stderr)
 
