@@ -6,7 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Spring AI 설정 application.yml에서 다음 설정으로 제어: - spring.ai.openai: OpenAI API 설정 - spring.ai.vectorstore.pgvector:
+ * Spring AI 설정 application.yml에서 다음 설정으로 제어: - spring.ai.anthropic: Claude 채팅 설정 - app.voyage: Voyage 임베딩 설정 - spring.ai.vectorstore.pgvector:
  * PgVector 설정 - app.rag: RAG 기능 활성화 여부
  */
 @Configuration

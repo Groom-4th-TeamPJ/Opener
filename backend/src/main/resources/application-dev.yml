@@ -72,17 +72,15 @@ spring:
 
   # Spring AI 설정
   ai:
-    openai:
-      api-key: ${OPENAI_API_KEY}
+    # Claude 채팅 - 샘플링 값은 보내지 않고 effort low 는 ClaudeChatConfig 가 건다
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY}
+      base-url: ${ANTHROPIC_BASE_URL:https://api.anthropic.com}
+      max-retries: 1   # SDK 재시도가 장애 내내 호출을 붙잡는다(r128) -> 실패는 서킷이 다룬다
+      timeout: 180s    # 한 호출 전체 상한 - 최대 8000 토큰 응답이 끝까지 도착할 여유
       chat:
-        options:
-          model: ${OPENAI_CHAT_MODEL:gpt-4.1}
-          temperature: 0.7
-          max-tokens: 8000
-        base-url: https://api.openai.com
-      embedding:
-        options:
-          model: text-embedding-3-small
+        model: ${ANTHROPIC_CHAT_MODEL:claude-sonnet-5-5}
+        max-tokens: 8000
 
     # PgVector Store 설정 - 수동 설정 사용 (VectorStoreConfig.java)
     # VectorStoreConfig에서 PgVectorStore 빈을 수동으로 생성하므로 자동 설정 비활성화
@@ -160,4 +158,13 @@ app:
   rag:
     enabled: true                    # RAG 기능 활성화
     top-k: 5                         # 유사 문서 검색 시 반환할 최대 개수
+    # shortcut: tuned for OpenAI text-embedding-3-small, re-sweep with the r129 retrieval eval
     similarity-threshold: 0.2        # 스윕 실측 - 질문 20문항 최고 유사도 중앙값 0.40 이라 0.7 은 검색 0건, 0건 없는 상한은 1위 유사도 최솟값 0.275
+  # Voyage 임베딩 - Spring AI 에 Voyage 모듈이 없어 VoyageEmbeddingModel 이 REST 로 직접 호출한다
+  voyage:
+    api-key: ${VOYAGE_API_KEY:}
+    base-url: ${VOYAGE_BASE_URL:https://api.voyageai.com}
+    model: voyage-4                  # 모델 바꿔도 차원이 같으면 마이그레이션이 필요 없다 - 비교는 r129 검색 평가
+    output-dimension: 1024           # vector_store.embedding vector(1024) 와 일치해야 한다, HNSW 는 2,000 차원까지
+    max-attempts: 6                  # 429 재시도 횟수 - Retry-After, 없으면 1초부터 두 배(최대 60초)
+    max-request-tokens: 0            # 0 이면 모델 상한의 80%, 분당 토큰 한도가 낮은 키는 한도 이하로 낮춘다

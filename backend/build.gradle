@@ -28,7 +28,7 @@ repositories {
 
 dependencies {
     // Spring AI BOM
-    implementation platform('org.springframework.ai:spring-ai-bom:2.0.0-M1')
+    implementation platform('org.springframework.ai:spring-ai-bom:2.0.2')
 
     // Spring Boot Starters
     implementation 'org.springframework.boot:spring-boot-starter-web'
@@ -53,8 +53,8 @@ dependencies {
     // RabbitMQ
     implementation 'org.springframework.boot:spring-boot-starter-amqp'
 
-    // Spring AI
-    implementation 'org.springframework.ai:spring-ai-starter-model-openai'
+    // Spring AI - 채팅은 Claude(Anthropic), 임베딩은 Spring AI 에 Voyage 모듈이 없어 VoyageEmbeddingModel 을 직접 둔다
+    implementation 'org.springframework.ai:spring-ai-starter-model-anthropic'
     implementation 'org.springframework.ai:spring-ai-pdf-document-reader'
     implementation 'org.springframework.ai:spring-ai-pgvector-store'
 
@@ -119,7 +119,7 @@ tasks.named('test') {
 
         // .env 가 없는 환경(CI 등)을 위한 placeholder 기본값
         // 값이 유효할 필요는 없다 -> 미해결 placeholder 로 컨텍스트 로딩이 깨지는 것만 막는다
-        ['OPENAI_API_KEY', 'REST_API_KEY', 'CLIENT_SECRET_KEY'].each { key ->
+        ['ANTHROPIC_API_KEY', 'VOYAGE_API_KEY', 'REST_API_KEY', 'CLIENT_SECRET_KEY'].each { key ->
             if (!System.getenv(key) && !environment.containsKey(key)) {
                 environment(key, 'test-dummy')
             }
@@ -134,7 +134,7 @@ tasks.named('bootJar') {
 
 // .env 파일 로드 (로컬 개발용)
 // bootRun 과 test 가 공유 -> test 에만 주입 경로가 없으면 @SpringBootTest 가
-// ${OPENAI_API_KEY} 같은 placeholder 를 해결하지 못해 컨텍스트 로딩이 깨진다
+// ${ANTHROPIC_API_KEY} 같은 placeholder 를 해결하지 못해 컨텍스트 로딩이 깨진다
 ext.loadDotEnv = { task ->
     def envFile = file('.env')
     if (envFile.exists()) {

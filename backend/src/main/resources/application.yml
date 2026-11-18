@@ -84,15 +84,15 @@ app:
       # 색인에서 뺄 JSONL 파일명(쉼표 구분) - ko_math-500.jsonl 은 MATH-ko-test 와 수식 기준 176행 이상 겹치는 중복본
       exclude-files: ko_math-500.jsonl
   llm:
-    connect-timeout: 5s      # OpenAI 연결 수립 상한
+    connect-timeout: 5s      # 외부 API 연결 수립 상한 (Claude 호출에는 적용되지 않음 - spring.ai.anthropic.timeout)
     response-timeout: 20s    # 토큰 도착 사이의 최대 간격 - 총 응답 시간 상한이 아님
 
 # Virtual Thread 활성화 시 task.execution.pool 설정 무시
 # (Spring Boot가 VT 기반 SimpleAsyncTaskExecutor를 자동 제공)
 
 # Resilience4j Circuit Breaker
-# - llm-chat: 일반 채팅 OpenAI 스트리밍 보호
-# - llm-rag: 오프너 분석 OpenAI 스트리밍 보호
+# - llm-chat: 일반 채팅 Claude 스트리밍 보호
+# - llm-rag: 오프너 분석 Claude 스트리밍 보호
 # - redis-chat: Chat Redis Cluster 장애 시 빠른 실패
 resilience4j:
   circuitbreaker:

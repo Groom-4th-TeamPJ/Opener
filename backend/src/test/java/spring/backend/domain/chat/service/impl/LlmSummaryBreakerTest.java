@@ -45,7 +45,7 @@ class LlmSummaryBreakerTest {
     @Test
     @DisplayName("두 구현의 요약 실패는 llm-summary 무시 목록에 없는 예외로 던져진다")
     void summarize_업스트림실패_무시목록밖예외() throws Exception {
-        for (LlmService service : services(failingClientBuilder(new IllegalStateException("OpenAI 502")))) {
+        for (LlmService service : services(failingClientBuilder(new IllegalStateException("Anthropic 529")))) {
             assertCountedByBreaker(service);
         }
     }
@@ -68,7 +68,7 @@ class LlmSummaryBreakerTest {
     @Test
     @DisplayName("두 구현의 summarize 는 llm-summary 서킷과 summarizeFallback 폴백 아래에 있다")
     void summarize_두구현_llmSummary서킷아래에있다() throws Exception {
-        for (Class<?> type : List.of(OpenAiLlmService.class, OpenAiLlmServiceWithoutRag.class)) {
+        for (Class<?> type : List.of(RagLlmService.class, PlainLlmService.class)) {
             io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker breaker = type
                     .getMethod("summarize", List.class)
                     .getAnnotation(io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker.class);
@@ -106,9 +106,37 @@ class LlmSummaryBreakerTest {
         BusinessException rejection = new BusinessException(ErrorCode.MESSAGE_INPUT_FAIL);
         for (LlmService service : services(failingClientBuilder(new IllegalStateException("x")))) {
             assertNull(ReflectionTestUtils.invokeMethod(service, "summarizeFallback", HISTORY,
-                    new LlmUpstreamException("호출 실패", new IllegalStateException("OpenAI 502"))));
+                    new LlmUpstreamException("호출 실패", new IllegalStateException("Anthropic 529"))));
             assertSame(rejection, assertThrows(BusinessException.class,
                     () -> ReflectionTestUtils.invokeMethod(service, "summarizeFallback", HISTORY, rejection)));
+        }
+    }
+
+    // Anthropic SDK 는 429·5xx·연결 실패를 AnthropicException 계열 RuntimeException 으로 던진다 -> 무시 목록(BusinessException)에 걸리지 않고 서킷이 센다
+    @Test
+    @DisplayName("Anthropic SDK 예외로 요약이 실패하면 LlmUpstreamException 으로 감싸 서킷이 집계한다")
+    void summarize_AnthropicSDK예외_서킷이집계() throws Exception {
+        for (LlmService service : services(failingClientBuilder(new com.anthropic.errors.AnthropicException("rate limited")))) {
+            assertCountedByBreaker(service);
+            LlmUpstreamException thrown = assertThrows(LlmUpstreamException.class, () -> service.summarize(HISTORY));
+            assertTrue(thrown.getCause() instanceof com.anthropic.errors.AnthropicException);
+        }
+    }
+
+    // 거절 응답(stop_reason refusal)은 텍스트가 없다 -> 빈 요약이 저장되지 않게 null 로 돌려 소비자가 재시도·DLQ 로 보낸다
+    // 대화 하나의 거절은 업스트림 장애가 아니므로 서킷에는 실패로 세지 않는다
+    @Test
+    @DisplayName("요약 응답이 비어 있으면 빈 문자열 대신 null 을 돌려준다")
+    void summarize_빈응답_null반환() throws Exception {
+        for (String empty : new String[] {null, "", "   "}) {
+            ChatClient client = mock(ChatClient.class, RETURNS_DEEP_STUBS);
+            when(client.prompt().system("요약해").messages(HISTORY).call().content()).thenReturn(empty);
+            ChatClient.Builder builder = mock(ChatClient.Builder.class);
+            when(builder.build()).thenReturn(client);
+
+            for (LlmService service : services(builder)) {
+                assertNull(service.summarize(HISTORY));
+            }
         }
     }
 
@@ -120,9 +148,9 @@ class LlmSummaryBreakerTest {
             PromptLoader promptLoader = mock(PromptLoader.class);
             when(promptLoader.buildChatSummaryPrompt()).thenReturn("요약해");
             result.add(i == 0
-                    ? new OpenAiLlmService(builder, history, mock(VectorStore.class), promptLoader,
+                    ? new RagLlmService(builder, history, mock(VectorStore.class), promptLoader,
                             new SimpleMeterRegistry())
-                    : new OpenAiLlmServiceWithoutRag(builder, history, promptLoader));
+                    : new PlainLlmService(builder, history, promptLoader));
         }
         return result;
     }

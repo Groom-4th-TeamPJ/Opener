@@ -21,7 +21,8 @@ public class WebClientConfig {
   public WebClientConfig(
           @Value("${app.llm.connect-timeout:5s}") Duration connectTimeout,
           // responseTimeout 은 총 응답 시간이 아니라 read 사이의 최대 간격
-          // 토큰이 계속 도착하는 정상 스트리밍은 끊기지 않고 OpenAI 가 멈춘 경우만 끊긴다
+          // 토큰이 계속 도착하는 정상 스트리밍은 끊기지 않고 외부 API 가 멈춘 경우만 끊긴다
+          // Claude 호출은 Anthropic SDK 의 자체 클라이언트라 이 빌더를 쓰지 않는다 -> 채팅 제한 시간은 spring.ai.anthropic.timeout
           @Value("${app.llm.response-timeout:20s}") Duration responseTimeout
   ) {
     this.connectTimeout = connectTimeout;
