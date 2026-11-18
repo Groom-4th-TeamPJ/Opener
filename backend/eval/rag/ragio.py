@@ -142,14 +142,18 @@ def load_eval_items(path):
         return [json.loads(l) for l in f if l.strip()]
 
 
-def query_embeddings(key, model, items, ledger):
-    """질문 임베딩(input_type query)을 모델별 캐시 파일에 둔다 - 캐시에 있는 질문은 다시 부르지 않는다 -> {질문 id: 벡터}"""
+def query_embeddings(key, model, items, ledger, max_chars=4800, min_interval=20.0):
+    """질문 임베딩(input_type query)을 모델별 캐시 파일에 둔다 - 캐시에 있는 질문은 다시 부르지 않는다 -> ({질문 id: 벡터}, 새로 쓴 토큰)
+    무료 한도(분당 3회·1만 토큰)를 넘지 않게 한 요청을 max_chars 글자 이하로 묶고 요청 시작을 min_interval 초 이상 띄운다"""
+    from evalkit import batches  # 순환을 피하려고 함수 안에서 가져온다
     path = os.path.join(OUT_DIR, "query-embeddings-%s.json" % model)
     cache = json.load(open(path)) if os.path.exists(path) else {}
     todo = [it for it in items if it["id"] not in cache]
-    tokens = 0
-    for i in range(0, len(todo), 64):
-        chunk = todo[i:i + 64]
+    tokens, last = 0, 0.0
+    for group in batches([len(t["query"]) for t in todo], 64, max_chars):
+        chunk = [todo[i] for i in group]
+        time.sleep(max(0.0, min_interval - (time.time() - last)))
+        last = time.time()
         vecs, used = voyage_embed_retry(key, model, [c["query"] for c in chunk], "query", ledger)
         tokens += used
         for c, v in zip(chunk, vecs):
