@@ -26,8 +26,8 @@ public class VectorStoreConfig {
         return PgVectorStore.builder(jdbcTemplate, embeddingModel)
                 .schemaName("public")
                 .vectorTableName("vector_store")
-                // 1536 = text-embedding-3-small 출력 차원 -> 임베딩 모델과 반드시 일치해야 검색 동작
-                .dimensions(1536)
+                // 1024 = Voyage voyage-4 출력 차원(app.voyage.output-dimension) -> 임베딩 모델·V20 열 타입과 반드시 일치해야 검색 동작
+                .dimensions(1024)
                 // 코사인 거리 -> 문장 의미 유사도에 적합, 벡터 길이 영향 제거
                 .distanceType(PgVectorStore.PgDistanceType.COSINE_DISTANCE)
                 // HNSW 인덱스 -> 대량 벡터에서도 근사 최근접 탐색을 빠르게, 풀스캔 방지
