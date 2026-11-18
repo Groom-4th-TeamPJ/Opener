@@ -477,7 +477,7 @@ def circuit_sample_at(t, **by_name):
 
 
 class CircuitSampleTest(unittest.TestCase):
-    def test_circuit_표본은_차단기_셋의_상태_허용_안_된_호출_실패_호출을_읽는다(self):
+    def test_circuit_표본은_차단기_넷의_상태_허용_안_된_호출_실패_호출을_읽는다(self):
         text = (breaker_text("llm-chat", "OPEN", 12, 30) + breaker_text("llm-rag", "HALF_OPEN", 1, 4)
                 + breaker_text("llm-summary", "CLOSED", 0, 0) + breaker_text("redis-chat", "OPEN", 99, 99))
         row = collect_s1.circuit_sample(collect_s1.parse_prom(text), 123.5)
@@ -485,7 +485,7 @@ class CircuitSampleTest(unittest.TestCase):
         self.assertEqual({"state": "OPEN", "not_permitted": 12, "failed": 30}, row["breakers"]["llm-chat"])
         self.assertEqual("HALF_OPEN", row["breakers"]["llm-rag"]["state"])
         self.assertEqual("CLOSED", row["breakers"]["llm-summary"]["state"])
-        self.assertNotIn("redis-chat", row["breakers"])
+        self.assertEqual({"state": "OPEN", "not_permitted": 99, "failed": 99}, row["breakers"]["redis-chat"])
 
     def test_circuit_성공_호출은_실패_호출로_세지_않는다(self):
         row = collect_s1.circuit_sample(collect_s1.parse_prom(breaker_text("llm-chat", "CLOSED", 0, 3, successful=500)), 1.0)
@@ -550,9 +550,9 @@ class CircuitBlockTest(unittest.TestCase):
                         circuit_sample_at(104, llm_chat=("OPEN", 1, 9)), circuit_sample_at(175, llm_chat=("HALF_OPEN", 9, 9))])
         self.assertEqual([[-5.0, "CLOSED"], [3.0, "OPEN"], [75.0, "HALF_OPEN"]], b["llm-chat"]["transitions"])
 
-    def test_circuit_표본이_없으면_차단기_셋_모두_null(self):
+    def test_circuit_표본이_없으면_차단기_넷_모두_null(self):
         b = self.block([])
-        self.assertEqual({"llm-chat", "llm-rag", "llm-summary"}, set(b))
+        self.assertEqual({"llm-chat", "llm-rag", "llm-summary", "redis-chat"}, set(b))
         self.assertIsNone(b["llm-chat"]["open_after_fault_s"])
         self.assertIsNone(b["llm-chat"]["not_permitted"])
 
@@ -605,6 +605,187 @@ class FaultBlockTest(unittest.TestCase):
         f = collect_s1.fault_block({"start_ms": 100_000, "end_ms": 160_000}, None, [])
         self.assertIsNone(f["failed_by_route"])
         self.assertEqual(100_000, f["start_ms"])
+
+
+class ThreadsBlockR129Test(unittest.TestCase):
+    HOLD = (100.0, 160.0)
+
+    @staticmethod
+    def sample(t, live, busy=None):
+        return {"t": t, "jvm_threads_live": live, "tomcat_busy": busy}
+
+    @staticmethod
+    def turn(t_start, ttft_ms, turn_ms, ok=True):
+        return {"t_start": t_start, "ttft_ms": ttft_ms, "turn_ms": turn_ms, "ok": ok, "t_end": t_start + turn_ms / 1000}
+
+    def block(self, samples=(), turns=()):
+        return collect_s1.threads_block(list(samples), list(turns), self.HOLD)
+
+    def test_r129_플랫폼_스레드_최댓값과_중앙값은_표본의_jvm_threads_live_에서_구한다(self):
+        b = self.block([self.sample(100 + i, v) for i, v in enumerate((120, 140, 130, 500, 150))])
+        self.assertEqual(500, b["platform_live_max"])
+        self.assertEqual(140, b["platform_live_median"])
+
+    def test_r129_값이_없는_표본은_건너뛰고_표본이_없으면_null(self):
+        b = self.block([self.sample(100, None), self.sample(101, 90)])
+        self.assertEqual((90, 90), (b["platform_live_max"], b["platform_live_median"]))
+        empty = self.block()
+        self.assertIsNone(empty["platform_live_max"])
+        self.assertIsNone(empty["tomcat_busy_max"])
+
+    def test_r129_톰캣_바쁜_스레드_최댓값_지표가_없으면_null(self):
+        self.assertEqual(7, self.block([self.sample(100, 90, 3), self.sample(101, 90, 7)])["tomcat_busy_max"])
+        self.assertIsNone(self.block([self.sample(100, 90, None)])["tomcat_busy_max"])
+
+    def test_r129_동시_스트림은_첫_토큰부터_끝까지를_초_단위로_겹쳐_센다(self):
+        # 스트림 구간 = t_start + ttft -> t_end: A 110~118, B 112~120, C 115.5~116.5 -> 115초 칸에 셋
+        turns = [self.turn(108.0, 2000, 10000), self.turn(110.0, 2000, 10000), self.turn(114.0, 1500, 2500)]
+        self.assertEqual(3, self.block(turns=turns)["streams_concurrent_max"])
+
+    def test_r129_끝과_시작이_맞닿은_스트림은_같은_초에_겹치지_않는다(self):
+        turns = [self.turn(100.0, 1000, 3000), self.turn(103.0, 1000, 3000)]  # 101~103, 104~106
+        self.assertEqual(1, self.block(turns=turns)["streams_concurrent_max"])
+        touching = [self.turn(100.0, 1000, 4000), self.turn(102.0, 1000, 2000)]  # 101~104 와 103~104 는 겹침
+        self.assertEqual(2, self.block(turns=touching)["streams_concurrent_max"])
+        exact = [self.turn(100.0, 0, 2000), self.turn(102.0, 0, 2000)]  # 100~102, 102~104 는 한 초 칸에 하나씩
+        self.assertEqual(1, self.block(turns=exact)["streams_concurrent_max"])
+
+    def test_r129_첫_토큰이_없는_턴과_측정_구간_밖_스트림은_세지_않는다(self):
+        turns = [self.turn(110.0, None, 800, ok=False), self.turn(10.0, 1000, 8000), self.turn(110.0, 1000, 8000)]
+        self.assertEqual(1, self.block(turns=turns)["streams_concurrent_max"])
+        self.assertEqual(0, self.block()["streams_concurrent_max"])
+
+    def test_r129_스트림_도중_실패한_턴도_첫_토큰이_있으면_실패_시각까지_센다(self):
+        turns = [self.turn(110.0, 1000, 5000, ok=False), self.turn(112.0, 1000, 5000)]
+        self.assertEqual(2, self.block(turns=turns)["streams_concurrent_max"])
+
+
+class CircuitRedisChatR129Test(unittest.TestCase):
+    FAULT = {"start_ms": 100_000, "end_ms": 160_000}
+
+    def test_r129_redis_chat_차단기도_llm_과_같은_필드를_가진다(self):
+        b = collect_s1.circuit_block(self.FAULT, [
+            circuit_sample_at(95, redis_chat=("CLOSED", 0, 0)), circuit_sample_at(104, redis_chat=("OPEN", 0, 12)),
+            circuit_sample_at(120, redis_chat=("OPEN", 300, 12)), circuit_sample_at(172, redis_chat=("CLOSED", 410, 12))])
+        r = b["redis-chat"]
+        self.assertEqual({"open_after_fault_s", "closed_after_fault_end_s", "not_permitted", "failed_calls", "transitions"}, set(r))
+        self.assertEqual((4.0, 12.0, 410, 12), (r["open_after_fault_s"], r["closed_after_fault_end_s"], r["not_permitted"], r["failed_calls"]))
+        self.assertEqual([[-5.0, "CLOSED"], [4.0, "OPEN"], [72.0, "CLOSED"]], r["transitions"])
+        self.assertIsNone(b["llm-chat"]["open_after_fault_s"])
+
+    def test_r129_redis_chat_는_llm_chat_과_따로_센다(self):
+        b = collect_s1.circuit_block(self.FAULT, [
+            circuit_sample_at(95, llm_chat=("CLOSED", 0, 0), redis_chat=("CLOSED", 0, 0)),
+            circuit_sample_at(110, llm_chat=("CLOSED", 0, 0), redis_chat=("OPEN", 5, 20))])
+        self.assertEqual(10.0, b["redis-chat"]["open_after_fault_s"])
+        self.assertIsNone(b["llm-chat"]["open_after_fault_s"])
+
+
+def node_line(node_id, name, flags, master_id="-", slots="", ip="172.31.0.9", port=27380):
+    return f"{node_id} {ip}:{port}@3{port},{name} {flags} {master_id} 0 1794979982241 2 connected {slots}".rstrip()
+
+
+def cluster_text(*lines):
+    return "\n".join(lines) + "\n"
+
+
+def cluster_sample(t, *lines):
+    return {"t": t, "nodes": collect_s1.parse_cluster_nodes(cluster_text(*lines))}
+
+
+class ClusterNodesR129Test(unittest.TestCase):
+    def test_r129_cluster_nodes_줄을_이름_플래그_마스터_슬롯으로_푼다(self):
+        nodes = collect_s1.parse_cluster_nodes(cluster_text(
+            node_line("a1", "redis-chat-1", "myself,master", slots="0-5460 7000"),
+            node_line("b1", "redis-chat-5", "slave", master_id="a1"),
+            node_line("c1", "redis-chat-2", "master,fail", slots="5461-6000")))
+        self.assertEqual(3, len(nodes))
+        n1 = nodes[0]
+        self.assertEqual(("a1", "redis-chat-1", ["master", "myself"], None), (n1["id"], n1["name"], sorted(n1["flags"]), n1["master_id"]))
+        self.assertEqual([[0, 5460], [7000, 7000]], n1["slots"])
+        self.assertEqual("a1", nodes[1]["master_id"])
+        self.assertEqual([], nodes[1]["slots"])
+        self.assertIn("fail", nodes[2]["flags"])
+
+    def test_r129_호스트명이_없는_주소도_읽는다(self):
+        nodes = collect_s1.parse_cluster_nodes("zz 10.0.0.1:7000@17000 master - 0 1 1 connected 0-10\n")
+        self.assertEqual("10.0.0.1:7000", nodes[0]["name"])
+
+
+class FailoverBlockR129Test(unittest.TestCase):
+    FAULT = {"start_ms": 100_000, "end_ms": 160_000, "kind": "master-stop", "stopped_node": "redis-chat-2"}
+
+    BEFORE = (node_line("m2", "redis-chat-2", "master", slots="5461-10922"),
+              node_line("r6", "redis-chat-6", "slave", master_id="m2"))
+
+    def block(self, samples):
+        return collect_s1.failover_block(self.FAULT, samples)
+
+    def test_r129_승격_시간은_장애_시작에서_복제본이_그_슬롯을_마스터로_가진_표본까지(self):
+        b = self.block([
+            cluster_sample(95, *self.BEFORE),
+            cluster_sample(101, node_line("m2", "redis-chat-2", "master,fail?", slots="5461-10922"), node_line("r6", "redis-chat-6", "slave", master_id="m2")),
+            cluster_sample(107, node_line("m2", "redis-chat-2", "master,fail", slots="5461-10922"), node_line("r6", "redis-chat-6", "master", slots="5461-10922"))])
+        self.assertEqual("redis-chat-2", b["stopped_node"])
+        self.assertEqual(7.0, b["promoted_after_s"])
+        self.assertEqual("redis-chat-6", b["promoted_node"])
+
+    def test_r129_fail_표시가_붙은_옛_마스터는_승격으로_세지_않는다(self):
+        b = self.block([cluster_sample(95, *self.BEFORE),
+                        cluster_sample(110, node_line("m2", "redis-chat-2", "master,fail", slots="5461-10922"), node_line("r6", "redis-chat-6", "slave", master_id="m2"))])
+        self.assertIsNone(b["promoted_after_s"])
+        self.assertIsNone(b["promoted_node"])
+        self.assertFalse(b["rejoined_as_replica"])
+
+    def test_r129_멈춘_노드가_시작_뒤_승격한_노드의_복제본으로_돌아오면_rejoined_as_replica(self):
+        b = self.block([
+            cluster_sample(95, *self.BEFORE),
+            cluster_sample(106, node_line("m2", "redis-chat-2", "master,fail", slots="5461-10922"), node_line("r6", "redis-chat-6", "master", slots="5461-10922")),
+            cluster_sample(158, node_line("m2", "redis-chat-2", "master,fail", slots="5461-10922"), node_line("r6", "redis-chat-6", "master", slots="5461-10922")),
+            cluster_sample(171, node_line("m2", "redis-chat-2", "slave", master_id="r6"), node_line("r6", "redis-chat-6", "master", slots="5461-10922"))])
+        self.assertTrue(b["rejoined_as_replica"])
+        self.assertEqual(11.0, b["rejoined_after_s"])
+
+    def test_r129_장애_끝_전에_replica_로_보인_표본은_돌아온_것으로_세지_않는다(self):
+        b = self.block([
+            cluster_sample(95, *self.BEFORE),
+            cluster_sample(106, node_line("m2", "redis-chat-2", "slave", master_id="r6"), node_line("r6", "redis-chat-6", "master", slots="5461-10922"))])
+        self.assertFalse(b["rejoined_as_replica"])
+        self.assertIsNone(b["rejoined_after_s"])
+
+    def test_r129_표본이_없으면_모두_null_또는_False(self):
+        b = self.block([])
+        self.assertEqual(("redis-chat-2", None, False), (b["stopped_node"], b["promoted_after_s"], b["rejoined_as_replica"]))
+
+
+class FaultBlockR129Test(unittest.TestCase):
+    def test_r129_redis_장애_구간의_턴을_센다(self):
+        turns = [FaultTurnsTest.turn(110), FaultTurnsTest.turn(111, ok=False, error="sse_error_event", turn_ms=300.0),
+                 FaultTurnsTest.turn(112, ok=False, error="conn_error", turn_ms=900.0), FaultTurnsTest.turn(400)]
+        f = collect_s1.fault_block({"start_ms": 100_000, "end_ms": 160_000, "kind": "master-stop", "stopped_node": "redis-chat-2"}, None, turns)
+        self.assertEqual("master-stop", f["kind"])
+        t = f["turns"]
+        self.assertEqual((3, 1, 2), (t["attempted"], t["ok"], t["failed"]))
+        self.assertEqual({"sse_error_event": 1, "conn_error": 1}, t["by_kind"])
+        self.assertEqual(900.0, t["failed_turn_ms"]["p95"])
+        self.assertIsNone(f["failed_by_route"])
+
+    def test_r129_멈춤_시간은_기록한_값이_있으면_그_값_없으면_끝_빼기_시작(self):
+        f = collect_s1.fault_block({"start_ms": 100_000, "end_ms": 160_400, "kind": "cluster-pause", "paused_ms": 60_123}, None, [])
+        self.assertEqual(60_123, f["paused_ms"])
+        g = collect_s1.fault_block({"start_ms": 100_000, "end_ms": 160_400, "kind": "cluster-pause"}, None, [])
+        self.assertEqual(60_400, g["paused_ms"])
+
+    def test_r129_종류를_안_적은_장애는_mock_이고_멈춤_시간을_안_적는다(self):
+        f = collect_s1.fault_block({"start_ms": 100_000, "end_ms": 160_000}, None, [])
+        self.assertEqual("mock", f["kind"])
+        self.assertNotIn("paused_ms", f)
+
+    def test_r129_장애_구간의_모의_서버_요청_수는_끝_빼기_시작(self):
+        a = {"chat_streams": 100, "chat_nonstream": 10, "embeddings": 50, "prompt_missing": 0}
+        b = {"chat_streams": 130, "chat_nonstream": 10, "embeddings": 90, "prompt_missing": 0}
+        self.assertEqual({"chat_streams": 30, "chat_nonstream": 0, "embeddings": 40}, collect_s1.mock_delta(a, b))
+        self.assertIsNone(collect_s1.mock_delta(None, b))
 
 
 if __name__ == "__main__":
