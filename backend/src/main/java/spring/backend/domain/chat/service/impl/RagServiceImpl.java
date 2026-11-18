@@ -46,7 +46,7 @@ public class RagServiceImpl implements RagService {
     @Value("${app.rag.similarity-threshold:0.2}")
     private double similarityThreshold;
 
-    // @CircuitBreaker -> OpenAI 장애·지연이 길어지면 즉시 실패시켜, SSE 스레드가 응답 대기에 묶이는 연쇄 지연 차단
+    // @CircuitBreaker -> Claude 장애·지연이 길어지면 즉시 실패시켜, SSE 스레드가 응답 대기에 묶이는 연쇄 지연 차단
     @Override
     @CircuitBreaker(name = "llm-rag", fallbackMethod = "generateSimilarProblemStreamFallback")
     public Flux<String> generateSimilarProblemStream(String problemContext) {
@@ -96,8 +96,8 @@ public class RagServiceImpl implements RagService {
                 .prompt()
                 .user(prompt)
                 .stream()
-                .content()
-                .filter(chunk -> chunk != null && !chunk.isEmpty())
+                .chatResponse()
+                .transform(ClaudeStreams::text)
                 .doOnError(error -> log.error("[RAG] 스트리밍 중 에러 발생", error))
                 .doOnComplete(() -> log.info("[RAG] 스트리밍 완료"));
     }

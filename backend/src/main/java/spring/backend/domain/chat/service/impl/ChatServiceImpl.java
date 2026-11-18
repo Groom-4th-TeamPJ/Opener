@@ -84,7 +84,7 @@ public class ChatServiceImpl implements ChatService {
     // ConcurrentHashMap -> 동시 연결/해제가 같은 Map 을 건드려도 락 없이 스레드 안전
     private final ConcurrentHashMap<Long, Sinks.Many<ServerSentEvent<String>>> sinks = new ConcurrentHashMap<>();
 
-    // 구독을 보관하지 않으면 클라이언트가 끊어도 OpenAI 스트림은 끝까지 돌며 토큰을 소비한다
+    // 구독을 보관하지 않으면 클라이언트가 끊어도 Claude 스트림은 끝까지 돌며 토큰을 소비한다
     private final ConcurrentHashMap<Long, Disposable> subscriptions = new ConcurrentHashMap<>();
 
     // 버퍼 크기를 명시 -> 기본값에 의존하면 문서에 크기를 적을 근거가 없다
@@ -246,7 +246,7 @@ public class ChatServiceImpl implements ChatService {
             }
 
             // 진행 중인 LLM 구독을 끊고 받은 만큼 저장한 뒤 sink · 상태 머신을 걷는다
-            // 구독을 두면 제거된 sink 로 토큰이 계속 흘러 OpenAI 비용이 이어진다
+            // 구독을 두면 제거된 sink 로 토큰이 계속 흘러 Claude 비용이 이어진다
             closeSession(sessionId, sink, CloseReason.DISCONNECT, "");
 
             // Redis 세션 키와 메시지 목록은 지우지 않는다 -> 대화 저장 소비자는 이벤트가 도착한 뒤에 목록을 읽고
@@ -313,7 +313,7 @@ public class ChatServiceImpl implements ChatService {
         // non-blocking subscribe -> 요청 스레드를 붙잡지 않고 청크가 올 때마다 콜백 실행, 동시성 확보
         Disposable subscription = stream
                 // publishOn -> 이후 콜백을 boundedElastic 으로 옮김
-                // 콜백 안에 Redis 저장·blockLast 상태 전이 같은 블로킹이 있어 OpenAI 응답을 읽는 이벤트 루프에서 실행되면
+                // 콜백 안에 Redis 저장·blockLast 상태 전이 같은 블로킹이 있어 Claude 응답을 읽는 이벤트 루프에서 실행되면
                 // 그 루프가 담당하는 다른 커넥션까지 함께 멈춤
                 .publishOn(Schedulers.boundedElastic())
                 .doOnNext(chunk -> {

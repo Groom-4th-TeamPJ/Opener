@@ -62,11 +62,11 @@ class LlmServiceProviderConfigTest {
     void effort_low_샘플링값과thinking비어있음() {
         ChatClient.Builder builder = mock(ChatClient.Builder.class);
 
-        new ClaudeChatConfig().claudeChatClientCustomizer().customize(builder);
+        new ClaudeChatConfig().claudeChatClientBuilderCustomizer().customize(builder);
 
-        ArgumentCaptor<ChatOptions> options = ArgumentCaptor.forClass(ChatOptions.class);
+        ArgumentCaptor<ChatOptions.Builder> options = ArgumentCaptor.forClass(ChatOptions.Builder.class);
         verify(builder).defaultOptions(options.capture());
-        AnthropicChatOptions claude = (AnthropicChatOptions) options.getValue();
+        AnthropicChatOptions claude = (AnthropicChatOptions) options.getValue().build();
         assertNotNull(claude.getOutputConfig());
         assertEquals(OutputConfig.Effort.LOW, claude.getOutputConfig().effort().orElseThrow());
         assertNull(claude.getTemperature());
