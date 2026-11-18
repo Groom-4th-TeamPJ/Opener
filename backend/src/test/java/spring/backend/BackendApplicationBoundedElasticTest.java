@@ -28,10 +28,10 @@ class BackendApplicationBoundedElasticTest {
   }
 
   @Test
-  void raiseBoundedElasticCap_속성없음_2000으로설정한다() {
+  void raiseBoundedElasticCap_속성없음_4000으로설정한다() {
     BackendApplication.raiseBoundedElasticCap();
 
-    assertEquals("2000", System.getProperty(KEY));
+    assertEquals("4000", System.getProperty(KEY));
   }
 
   @Test
