@@ -12,7 +12,7 @@ import evalkit  # noqa: E402
 class CopyCheckTest(unittest.TestCase):
     def test_r129_30자_이상_이어진_구간이_원문에_있으면_복사로_본다(self):
         gold = "함수 f(x)=x^2+3x+2 의 그래프와 직선 y=2x+5 가 만나는 점의 개수를 구하시오 " * 2
-        q = "선생님 " + gold[10:45] + " 이 문제 도와주세요"
+        q = "선생님 " + gold[3:60] + " 이 문제 도와주세요"
         self.assertTrue(evalkit.shares_run(q, gold, 30))
 
     def test_r129_29자까지만_겹치면_복사가_아니다(self):
@@ -103,8 +103,17 @@ class PickThresholdTest(unittest.TestCase):
         self.assertEqual(0.3, t)
 
     def test_r129_허용_오차를_키우면_더_높은_임계값을_고른다(self):
+        # 앞 셋은 0.2 짜리 정답 위에 0.9 짜리 오답이 있다 - 임계값 0.5 이상이면 Recall 이 1.0 -> 0.25 로 떨어지지만 빈 질문은 없다
+        runs = [run({"a"}, [("x", 0.9), ("a", 0.2)]), run({"b"}, [("x", 0.9), ("b", 0.2)]),
+                run({"c"}, [("x", 0.9), ("c", 0.2)]), run({"d"}, [("d", 0.9)])]
+        cands = [0.0, 0.2, 0.5, 0.9]
+        self.assertEqual(0.2, evalkit.pick_threshold(runs, cands, k=5, tolerance=0.01))
+        self.assertEqual(0.9, evalkit.pick_threshold(runs, cands, k=5, tolerance=0.80))
+
+    def test_r129_빈_질문이_생기면_Recall_이_허용_안이어도_그_임계값은_버린다(self):
+        # 임계값 0.4 에서 넷째 질문(정답 0.3)이 0건 -> 허용 오차 0.30 이어도 0.4 는 못 고른다
         t = evalkit.pick_threshold(self.runs(), [0.0, 0.1, 0.2, 0.3, 0.4, 0.5], k=5, tolerance=0.30)
-        self.assertEqual(0.4, t)
+        self.assertEqual(0.3, t)
 
     def test_r129_0_0_밖에_조건을_만족하는_값이_없으면_0_0(self):
         runs = [run({"a"}, [("x", 0.5), ("a", 0.1)]), run({"b"}, [("b", 0.2)])]
