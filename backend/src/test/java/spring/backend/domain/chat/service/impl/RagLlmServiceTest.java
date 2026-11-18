@@ -22,8 +22,13 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import reactor.core.publisher.Flux;
+import org.springframework.ai.chat.model.Generation;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.metadata.ChatGenerationMetadata;
 import reactor.test.StepVerifier;
 import spring.backend.domain.chat.service.spec.ChatHistoryProvider;
+import spring.backend.shared.response.codes.ErrorCode;
+import spring.backend.shared.response.exception.BusinessException;
 import spring.backend.domain.chat.util.PromptLoader;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -38,7 +43,7 @@ import static org.mockito.Mockito.when;
 // 서킷은 구독 시점 오류만 센다 -> 검색·조립이 메서드 본문에서 동기로 던지면 집계 자체가 불가능하다
 // 실패 주입 측정에서 이 경로가 실제로 드러났다(2026-08-08): 임베딩 I/O 오류가 500 으로 새고 세션이 갇혔다
 @ExtendWith(MockitoExtension.class)
-class OpenAiLlmServiceTest {
+class RagLlmServiceTest {
 
     private static final Duration TIMEOUT = Duration.ofSeconds(3);
 
@@ -47,12 +52,12 @@ class OpenAiLlmServiceTest {
     @Mock private VectorStore vectorStore;
     @Mock private PromptLoader promptLoader;
 
-    private OpenAiLlmService service;
+    private RagLlmService service;
 
     @BeforeEach
     void setUp() {
         // 실제 SimpleMeterRegistry 를 넣는다 -> 목이면 timer(...).record(Supplier) 가 null 을 돌려줘 검색 결과가 사라진다
-        service = new OpenAiLlmService(chatClientBuilder, chatHistoryProvider, vectorStore, promptLoader,
+        service = new RagLlmService(chatClientBuilder, chatHistoryProvider, vectorStore, promptLoader,
                 new SimpleMeterRegistry());
     }
 
@@ -106,7 +111,7 @@ class OpenAiLlmServiceTest {
         when(chatClientBuilder.build()).thenReturn(chatClient);
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<Message>> sent = ArgumentCaptor.forClass(List.class);
-        when(chatClient.prompt().messages(sent.capture()).stream().content()).thenReturn(Flux.just("토큰"));
+        when(chatClient.prompt().messages(sent.capture()).stream().chatResponse()).thenReturn(Flux.just(chunk("토큰", "")));
 
         StepVerifier.create(service.chatStream("1", "현재 질문", 7L)).expectNext("토큰").verifyComplete();
 
@@ -117,5 +122,53 @@ class OpenAiLlmServiceTest {
         assertInstanceOf(SystemMessage.class, messages.get(0));
         assertInstanceOf(UserMessage.class, messages.get(3));
         verify(chatHistoryProvider).getHistoryBefore("1", 7L);
+    }
+
+    // 거절 응답은 텍스트 없이 stop_reason=refusal 로 끝난다 -> 빈 답변이 정상 완료로 보이면 사용자는 빈 말풍선만 본다
+    @Test
+    @DisplayName("stop_reason 이 refusal 이면 이미 나온 토큰 뒤에 LLM 응답 실패 에러로 끝난다")
+    void chatStream_refusal_LLM실패에러() {
+        stubStream(Flux.just(chunk("일부", ""), chunk("", "refusal")));
+
+        StepVerifier.create(service.chatStream("1", "질문", 7L))
+                .expectNext("일부")
+                .expectErrorSatisfies(e -> assertEquals(ErrorCode.LLM_RESPONSE_FAIL, ((BusinessException) e).getErrorCode()))
+                .verify(TIMEOUT);
+    }
+
+    @Test
+    @DisplayName("텍스트가 한 조각도 없이 끝나면 빈 완료 대신 LLM 응답 실패 에러다")
+    void chatStream_텍스트없음_LLM실패에러() {
+        stubStream(Flux.just(chunk("", "end_turn")));
+
+        StepVerifier.create(service.chatStream("1", "질문", 7L))
+                .expectErrorSatisfies(e -> assertEquals(ErrorCode.LLM_RESPONSE_FAIL, ((BusinessException) e).getErrorCode()))
+                .verify(TIMEOUT);
+    }
+
+    @Test
+    @DisplayName("stop_reason 이 대문자 REFUSAL 로 와도 거절로 본다")
+    void chatStream_REFUSAL대문자_LLM실패에러() {
+        stubStream(Flux.just(chunk("답", ""), chunk("", "REFUSAL")));
+
+        StepVerifier.create(service.chatStream("1", "질문", 7L))
+                .expectNext("답")
+                .expectError(BusinessException.class)
+                .verify(TIMEOUT);
+    }
+
+    private void stubStream(Flux<ChatResponse> responses) {
+        when(chatHistoryProvider.getHistoryBefore("1", 7L)).thenReturn(List.of());
+        when(vectorStore.similaritySearch(any(org.springframework.ai.vectorstore.SearchRequest.class)))
+                .thenReturn(List.of(new Document("근거 문서")));
+        when(promptLoader.buildChatRagSystemPromptWithRule("근거 문서")).thenReturn("시스템 규칙");
+        ChatClient chatClient = mock(ChatClient.class, RETURNS_DEEP_STUBS);
+        when(chatClientBuilder.build()).thenReturn(chatClient);
+        when(chatClient.prompt().messages(any(List.class)).stream().chatResponse()).thenReturn(responses);
+    }
+
+    private static ChatResponse chunk(String text, String finishReason) {
+        return new ChatResponse(List.of(new Generation(new AssistantMessage(text),
+                ChatGenerationMetadata.builder().finishReason(finishReason).build())));
     }
 }
