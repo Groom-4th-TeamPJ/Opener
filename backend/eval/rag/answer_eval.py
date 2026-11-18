@@ -10,6 +10,7 @@
 import argparse
 import concurrent.futures
 import json
+import math
 import os
 import sys
 import threading
@@ -106,7 +107,17 @@ def main():
     arms = {arm: [r for r in results if r["arm"] == arm] for arm in ("rag_on", "rag_off")}
     leak_ids = {i for i, v in ret.items() if v["top5_had_leak"]}
     with_ctx = {i for i, v in ret.items() if v["chunks"]}
+    paired = {}
+    for r in results:
+        paired.setdefault(r["id"], {})[r["arm"]] = r["correct"]
+    on_only = sum(1 for v in paired.values() if v["rag_on"] and not v["rag_off"])
+    off_only = sum(1 for v in paired.values() if v["rag_off"] and not v["rag_on"])
+    disc, k = on_only + off_only, min(on_only, off_only)
+    mcnemar_p = min(1.0, 2 * sum(math.comb(disc, i) for i in range(k + 1)) / 2 ** disc) if disc else 1.0  # 일치하지 않는 쌍만 보는 정확 이항 검정(양측)
     out = {
+        "paired": {"both_right": sum(1 for v in paired.values() if v["rag_on"] and v["rag_off"]), "only_rag_on_right": on_only,
+                   "only_rag_off_right": off_only, "both_wrong": sum(1 for v in paired.values() if not v["rag_on"] and not v["rag_off"]),
+                   "discordant_pairs": disc, "mcnemar_exact_two_sided_p": round(mcnemar_p, 4)},
         "n": len(items), "model": MODEL, "effort": EFFORT, "max_tokens": MAX_TOKENS, "retrieval_model": model, "threshold": threshold,
         "accuracy": {arm: acc(rs) for arm, rs in arms.items()},
         "correct": {arm: sum(1 for r in rs if r["correct"]) for arm, rs in arms.items()},
