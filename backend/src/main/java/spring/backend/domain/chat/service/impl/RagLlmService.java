@@ -4,6 +4,7 @@ import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PostConstruct;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -25,7 +26,7 @@ import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
 import spring.backend.domain.chat.util.ChatPromptAssembler;
 
-// @ConditionalOnProperty -> RAG 켜질 때만 이 구현 활성, 꺼지면 OpenAiLlmServiceWithoutRag 가 대신 주입
+// @ConditionalOnProperty -> RAG 켜질 때만 이 구현 활성, 꺼지면 PlainLlmService 가 대신 주입
 // 같은 LlmService 인터페이스를 RAG 유무로 갈아끼움 -> 호출부(ChatServiceImpl) 코드는 변경 불필요
 @Slf4j
 @Service
@@ -36,7 +37,7 @@ import spring.backend.domain.chat.util.ChatPromptAssembler;
         havingValue = "true",
         matchIfMissing = false
 )
-public class OpenAiLlmService implements LlmService {
+public class RagLlmService implements LlmService {
 
     private final ChatClient.Builder chatClientBuilder;
     // 대화 이력 조회 -> 프롬프트용 최근 메시지(getHistoryBefore)만 읽는다
@@ -46,39 +47,43 @@ public class OpenAiLlmService implements LlmService {
     // 벡터 검색 계측 -> 오프너 경로에만 Timer 가 있어 호출량이 더 많은 일반 채팅의 비용을 못 재던 공백을 메움
     private final MeterRegistry meterRegistry;
 
+    // 토큰 사이 간격 상한 -> 멈춘 스트림이 SSE sink 를 spring.ai.anthropic.timeout(180초)까지 붙잡지 않게 한다
+    @Value("${app.llm.response-timeout:20s}")
+    private Duration tokenGap = Duration.ofSeconds(20);
+
     @Value("${app.rag.top-k:5}")
     private int topK;
 
     @Value("${app.rag.similarity-threshold:0.2}")
     private double similarityThreshold;
 
-    @Value("${spring.ai.openai.api-key:}")
-    private String openaiApiKey;
+    private static final String KEY_PREFIX = "sk-ant-";
+
+    @Value("${spring.ai.anthropic.api-key:}")
+    private String anthropicApiKey;
 
     // @PostConstruct -> 빈 생성 직후 API 키 바인딩 검증, 첫 요청 때 실패하지 않고 기동 시점에 조기 발견
     @PostConstruct
     public void validateApiKeyBinding() {
-        log.info("[LLM+RAG] ========== OpenAI API 키 바인딩 검증 ==========");
+        log.info("[LLM+RAG] ========== Anthropic API 키 바인딩 검증 ==========");
 
-        if (openaiApiKey == null || openaiApiKey.isEmpty()) {
-            log.error("[LLM+RAG] ❌ OPENAI_API_KEY가 설정되지 않았습니다!");
-            log.error("[LLM+RAG] 환경변수 또는 application.yml의 spring.ai.openai.api-key를 확인하세요.");
-        } else if (openaiApiKey.equals("${OPENAI_API_KEY}")) {
-            log.error("[LLM+RAG] ❌ OPENAI_API_KEY 환경변수가 바인딩되지 않았습니다!");
+        if (anthropicApiKey == null || anthropicApiKey.isEmpty()) {
+            log.error("[LLM+RAG] ❌ ANTHROPIC_API_KEY가 설정되지 않았습니다!");
+            log.error("[LLM+RAG] 환경변수 또는 application.yml의 spring.ai.anthropic.api-key를 확인하세요.");
+        } else if (anthropicApiKey.equals("${ANTHROPIC_API_KEY}")) {
+            log.error("[LLM+RAG] ❌ ANTHROPIC_API_KEY 환경변수가 바인딩되지 않았습니다!");
             log.error("[LLM+RAG] .env 파일이 올바르게 로드되었는지 확인하세요.");
-        } else if (!openaiApiKey.startsWith("sk-")) {
-            log.warn("[LLM+RAG] ⚠️ API 키 형식이 일반적인 OpenAI 키와 다릅니다 (sk-로 시작하지 않음)");
-            log.info("[LLM+RAG] API 키 앞 10자: {}...", openaiApiKey.substring(0, Math.min(10, openaiApiKey.length())));
+        } else if (!anthropicApiKey.startsWith(KEY_PREFIX)) {
+            log.warn("[LLM+RAG] ⚠️ API 키 형식이 Anthropic 키와 다릅니다 ({}로 시작하지 않음)", KEY_PREFIX);
         } else {
-            log.info("[LLM+RAG] ✅ OpenAI API 키가 정상적으로 바인딩되었습니다.");
-            log.info("[LLM+RAG] API 키 앞 10자: {}...", openaiApiKey.substring(0, Math.min(10, openaiApiKey.length())));
+            log.info("[LLM+RAG] ✅ Anthropic API 키가 정상적으로 바인딩되었습니다.");
         }
 
         log.info("[LLM+RAG] RAG 설정 - topK: {}, similarityThreshold: {}", topK, similarityThreshold);
         log.info("[LLM+RAG] ================================================");
     }
 
-    // @CircuitBreaker -> OpenAI 장애 누적 시 호출 차단, 느린 외부 API 가 SSE 스레드를 잡아 전체 지연되는 것 방지
+    // @CircuitBreaker -> Claude 장애 누적 시 호출 차단, 느린 외부 API 가 SSE 스레드를 잡아 전체 지연되는 것 방지
     @Override
     @CircuitBreaker(name = "llm-chat", fallbackMethod = "chatStreamFallback")
     public Flux<String> chatStream(String sessionId, String userMessage, long writtenLength) {
@@ -152,8 +157,8 @@ public class OpenAiLlmService implements LlmService {
                 .prompt()
                 .messages(messagesWithRag)
                 .stream()
-                .content()
-                .filter(chunk -> chunk != null && !chunk.isEmpty())
+                .chatResponse()
+                .transform(responses -> ClaudeStreams.text(responses, tokenGap))
                 .doOnError(error ->
                         log.error("[LLM+RAG] 스트리밍 중 에러 발생 - sessionId: {}", sessionId, error))
                 .doOnComplete(() ->
@@ -226,6 +231,12 @@ public class OpenAiLlmService implements LlmService {
 
             log.info("[LLM+RAG] 대화 요약 완료 - 요약 길이: {}", summary != null ? summary.length() : 0);
 
+            // 거절(stop_reason refusal)은 텍스트가 없다 -> 빈 요약이 저장되지 않게 null 로 돌려 소비자가 재시도·DLQ 로 보낸다
+            if (summary == null || summary.isBlank()) {
+                log.warn("[LLM+RAG] 요약 응답에 텍스트가 없음");
+                return null;
+            }
+
             return summary;
 
         } catch (Exception e) {
@@ -246,7 +257,7 @@ public class OpenAiLlmService implements LlmService {
                             errorMessage.contains("Unauthorized") ||
                             errorMessage.contains("401") ||
                             errorMessage.contains("authentication"))) {
-                log.error("[LLM+RAG] ⚠️ API 키 문제 의심 - OPENAI_API_KEY 환경변수를 확인하세요!");
+                log.error("[LLM+RAG] ⚠️ API 키 문제 의심 - ANTHROPIC_API_KEY 환경변수를 확인하세요!");
             }
 
             // 도메인 거절은 그대로 올리고 호출 실패만 전용 타입으로 던진다

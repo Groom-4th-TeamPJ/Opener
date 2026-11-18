@@ -3,6 +3,7 @@ package spring.backend.domain.chat.service.impl;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.micrometer.core.instrument.MeterRegistry;
+import java.time.Duration;
 import java.util.List;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +40,10 @@ public class RagServiceImpl implements RagService {
     private final MeterRegistry meterRegistry;
 
     // @Value 외부화 -> 검색 개수/임계값을 코드 수정·재배포 없이 yml 로 튜닝
+    // 토큰 사이 간격 상한 -> 멈춘 스트림이 SSE sink 를 spring.ai.anthropic.timeout(180초)까지 붙잡지 않게 한다
+    @Value("${app.llm.response-timeout:20s}")
+    private Duration tokenGap = Duration.ofSeconds(20);
+
     @Value("${app.rag.top-k:5}")
     private int topK;
 
@@ -46,7 +51,7 @@ public class RagServiceImpl implements RagService {
     @Value("${app.rag.similarity-threshold:0.2}")
     private double similarityThreshold;
 
-    // @CircuitBreaker -> OpenAI 장애·지연이 길어지면 즉시 실패시켜, SSE 스레드가 응답 대기에 묶이는 연쇄 지연 차단
+    // @CircuitBreaker -> Claude 장애·지연이 길어지면 즉시 실패시켜, SSE 스레드가 응답 대기에 묶이는 연쇄 지연 차단
     @Override
     @CircuitBreaker(name = "llm-rag", fallbackMethod = "generateSimilarProblemStreamFallback")
     public Flux<String> generateSimilarProblemStream(String problemContext) {
@@ -96,8 +101,8 @@ public class RagServiceImpl implements RagService {
                 .prompt()
                 .user(prompt)
                 .stream()
-                .content()
-                .filter(chunk -> chunk != null && !chunk.isEmpty())
+                .chatResponse()
+                .transform(responses -> ClaudeStreams.text(responses, tokenGap))
                 .doOnError(error -> log.error("[RAG] 스트리밍 중 에러 발생", error))
                 .doOnComplete(() -> log.info("[RAG] 스트리밍 완료"));
     }

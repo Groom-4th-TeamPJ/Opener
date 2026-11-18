@@ -14,7 +14,7 @@ import spring.backend.shared.response.exception.BusinessException;
  * <p>RagServiceImpl 이 havingValue="true" 로 막혀 있어 플래그를 끄면 RagService 빈이 사라진다.
  * ChatServiceImpl 은 이를 필수 생성자 인자로 받으므로 짝이 되는 구현체가 없으면
  * ApplicationContext 기동 자체가 실패한다 — 오프너 분석만 못 쓰는 것이 아니라 채팅 도메인 전체가 죽는다.
- * LlmService 가 OpenAiLlmService / OpenAiLlmServiceWithoutRag 짝으로 어떤 설정에서도
+ * LlmService 가 RagLlmService / PlainLlmService 짝으로 어떤 설정에서도
  * 빈이 하나는 생기는 것과 같은 구조를 RagService 에도 맞춘 것이다.
  *
  * <p>VectorStore·ChatClient 를 주입받지 않으므로 벡터 저장소가 없는 환경에서도 뜬다.

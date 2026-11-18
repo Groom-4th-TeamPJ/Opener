@@ -22,6 +22,7 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.Resource;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Service;
 import spring.backend.domain.chat.service.spec.DocumentService;
@@ -47,8 +48,12 @@ public class DocumentServiceImpl implements DocumentService {
     // 블록을 지우고 남은 빈 줄이 3줄 이상이면 2줄로 접는다
     private static final Pattern BLANK_RUN = Pattern.compile("\\n{3,}");
 
+    // 한 번에 add 하는 조각 수 -> 슬라이스마다 행이 저장되므로 429 포기 같은 중간 실패에도 끝낸 슬라이스가 남는다
+    private static final int INDEX_SLICE_SIZE = 500;
+
     private final VectorStore vectorStore;
     private final TokenTextSplitter textSplitter;
+    private final JdbcTemplate jdbcTemplate;
     private final AtomicBoolean initialized = new AtomicBoolean(false);
 
     @Value("${app.documents.directory:classpath:documents/}")
@@ -58,6 +63,9 @@ public class DocumentServiceImpl implements DocumentService {
     @Value("${app.rag.index.exclude-files:ko_math-500.jsonl}")
     private List<String> excludeFiles = List.of();
 
+    // 색인 여부는 "저장소 행 수 vs 이번에 만든 조각 수" 로 정한다
+    // 같으면 건너뛰고, 0 < 행 < 조각이면 중간에 멈춘 색인이므로 지우고 다시 하고, 행이 더 많으면 건드리지 않는다
+    // 검색으로 존재만 확인하던 이전 방식은 임베딩 호출을 한 번 쓰고, 절반만 찬 저장소를 완료로 오판했다
     @Override
     public void loadAndIndexDocuments() {
         if (initialized.get()) {
@@ -65,33 +73,13 @@ public class DocumentServiceImpl implements DocumentService {
             return;
         }
 
-        // DB에 기존 문서가 있는지 확인 (간단한 검색으로 체크)
-        try {
-            SearchRequest checkRequest = SearchRequest.builder()
-                    .query("math")  // 더미 쿼리
-                    .topK(1)
-                    .similarityThreshold(0.0)  // 임계값 0으로 모든 문서 검색
-                    .build();
-            List<Document> existingDocs = vectorStore.similaritySearch(checkRequest);
-
-            if (!existingDocs.isEmpty()) {
-                log.info("Vector store already contains {} document(s). Skipping re-indexing.", existingDocs.size());
-                initialized.set(true);
-                return;
-            }
-        } catch (Exception e) {
-            log.warn("Failed to check existing documents: {}. Proceeding with indexing.", e.getMessage());
-        }
-
-        // PDF 문서 로드
+        long startedAt = System.nanoTime();
         List<Document> pdfDocuments = loadPdfDocuments(documentsDirectory);
         log.info("Loaded {} PDF documents", pdfDocuments.size());
 
-        // JSONL 문서 로드
         List<Document> jsonlDocuments = loadJsonlDocuments(documentsDirectory);
         log.info("Loaded {} JSONL documents", jsonlDocuments.size());
 
-        // 모든 문서 병합
         List<Document> allDocuments = new ArrayList<>();
         allDocuments.addAll(pdfDocuments);
         allDocuments.addAll(jsonlDocuments);
@@ -101,10 +89,48 @@ public class DocumentServiceImpl implements DocumentService {
             return;
         }
 
-        indexDocuments(allDocuments);
+        List<Document> chunks = chunk(allDocuments);
+        long expected = chunks.size();
+        Long rows = jdbcTemplate.queryForObject("SELECT count(*) FROM vector_store", Long.class);
+        long existing = rows == null ? 0 : rows;
+
+        if (existing == expected) {
+            log.info("Vector store already holds {} rows = expected chunks. Skipping indexing.", existing);
+            initialized.set(true);
+            return;
+        }
+        if (existing > expected) {
+            log.warn("Vector store holds {} rows, more than the {} chunks just built. Skipping without changes.",
+                    existing, expected);
+            initialized.set(true);
+            return;
+        }
+        if (existing > 0) {
+            log.warn("Vector store holds {} of {} expected rows (indexing stopped midway). Deleting all rows and indexing again.",
+                    existing, expected);
+            jdbcTemplate.update("DELETE FROM vector_store");
+        }
+
+        log.info("Indexing started - {} chunks in slices of {}", expected, INDEX_SLICE_SIZE);
+        for (int from = 0; from < chunks.size(); from += INDEX_SLICE_SIZE) {
+            vectorStore.add(chunks.subList(from, Math.min(from + INDEX_SLICE_SIZE, chunks.size())));
+        }
         initialized.set(true);
-        log.info("Vector store initialized successfully with {} documents (PDF: {}, JSONL: {})",
-                allDocuments.size(), pdfDocuments.size(), jsonlDocuments.size());
+        log.info("Vector store initialized successfully - {} chunks (PDF docs: {}, JSONL docs: {}), elapsed {} s",
+                expected, pdfDocuments.size(), jsonlDocuments.size(),
+                (System.nanoTime() - startedAt) / 1_000_000_000L);
+    }
+
+    private List<Document> chunk(List<Document> documents) {
+        log.info("Starting chunking - Input documents: {}", documents.size());
+        List<Document> chunks = textSplitter.apply(documents);
+        log.info("Chunking completed - Input: {} documents → Output: {} chunks", documents.size(), chunks.size());
+        if (chunks.size() == documents.size()) {
+            log.warn("⚠️ Chunking may not have worked properly! "
+                    + "Input and output document count are the same ({} each). "
+                    + "Check if PDF content is too short or has special characters.", documents.size());
+        }
+        return chunks;
     }
 
     @Override
@@ -274,30 +300,10 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     public void indexDocuments(List<Document> documents) {
         log.info("Starting document indexing - Input documents: {}", documents.size());
-
-        // 청킹 전 문서 정보 로깅
-        for (Document doc : documents) {
-            log.debug("Before chunking - Source: {}, Content length: {} chars",
-                    doc.getMetadata().get("source"),
-                    doc.getText().length());
+        List<Document> chunks = chunk(documents);
+        for (int from = 0; from < chunks.size(); from += INDEX_SLICE_SIZE) {
+            vectorStore.add(chunks.subList(from, Math.min(from + INDEX_SLICE_SIZE, chunks.size())));
         }
-
-        // 청킹
-        List<Document> chunks = textSplitter.apply(documents);
-
-        log.info("Chunking completed - Input: {} documents → Output: {} chunks", documents.size(), chunks.size());
-
-        // 청킹 결과 상세 로깅
-        if (chunks.size() == documents.size()) {
-            log.warn("⚠️ Chunking may not have worked properly! " +
-                    "Input and output document count are the same ({} each). " +
-                    "Check if PDF content is too short or has special characters.",
-                    documents.size());
-        }
-
-        // 벡터 스토어에 저장 (자동으로 임베딩 생성)
-        vectorStore.add(chunks);
-
         log.info("✅ Indexing completed - {} chunks stored in vector store", chunks.size());
     }
 

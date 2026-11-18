@@ -20,6 +20,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.yaml.snakeyaml.Yaml;
 
@@ -34,7 +35,7 @@ class DocumentLoaderTest {
     Path dir;
 
     private final DocumentServiceImpl service =
-            new DocumentServiceImpl(mock(VectorStore.class), new TokenTextSplitter());
+            new DocumentServiceImpl(mock(VectorStore.class), new TokenTextSplitter(), mock(JdbcTemplate.class));
 
     @Test
     @DisplayName("problem_ko 키와 problem 키 레코드가 둘 다 본문이 있는 문서가 된다")
