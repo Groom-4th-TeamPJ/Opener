@@ -29,6 +29,8 @@ RAG_TEMPLATE = ("다음은 사용자의 질문과 관련된 참고 자료입니�
                 "참고 자료에 관련 내용이 있으면 활용하되, 없다면 일반 지식으로 답변하세요.")  # prompts/chat-rag-system.txt
 SOLVER = "수학 문제를 푼다. 풀이를 간단히 쓰고, 마지막에 최종 답만 \\boxed{} 안에 적는다."
 LEAK_COVERAGE = 0.6
+APP_THRESHOLD = 0.2  # 전환한 앱의 유사도 임계값 (application-dev.yml app.rag.similarity-threshold, R129-17: 쉬운 평가 집합에서 나온 0.55 는 앱 값이 아니다)
+EASY_SET_THRESHOLD = 0.55  # EV-2 가 기록한 값 - 같은 문제들에서 검색 0건이 되는 수를 비교용으로만 센다
 
 
 def retrieve(items, model, threshold, cache):
@@ -42,10 +44,13 @@ def retrieve(items, model, threshold, cache):
             rows = ragio.json_rows(SCRATCH, "SELECT json_build_object('id', id, 'content', content, 'sim', 1 - (embedding <=> '%s'::vector)) FROM %s "
                                             "ORDER BY embedding <=> '%s'::vector LIMIT 8" % (lit, table, lit))
             flagged = [r for r in rows if evalkit.leaks(it["problem"], r["content"], LEAK_COVERAGE)]
-            kept = [r for r in rows if r not in flagged and r["sim"] >= threshold][:5]
+            clean = [r for r in rows if r not in flagged]
+            kept = [r for r in clean if r["sim"] >= threshold][:5]
             out[it["id"]] = {"chunks": [r["content"] for r in kept], "sims": [round(r["sim"], 4) for r in kept],
                              "removed": len(flagged), "top5_had_leak": any(r in flagged for r in rows[:5]),
-                             "removed_ids": [r["id"] for r in flagged]}
+                             "removed_ids": [r["id"] for r in flagged],
+                             "chunks_at_app_threshold": len([r for r in clean if r["sim"] >= APP_THRESHOLD][:5]),
+                             "chunks_at_easy_set_threshold": len([r for r in clean if r["sim"] >= EASY_SET_THRESHOLD][:5])}
     finally:
         ragio.drop_db(SCRATCH)
     return out
@@ -70,7 +75,7 @@ def main():
     ap.add_argument("--seed", type=int, default=129)
     a = ap.parse_args()
     models = json.load(open(os.path.join(ragio.OUT_DIR, "models.json")))
-    model, threshold = models["chosen"]["model"], models["chosen"]["threshold"]
+    model, threshold = models["chosen"]["model"], APP_THRESHOLD
     recs = [json.loads(l) for l in open(DOCS, encoding="utf-8") if l.strip()]
     for r in recs:
         r["type"], r["level"] = r["subject"], str(r["level"])  # 층화 키
@@ -107,7 +112,8 @@ def main():
         "correct": {arm: sum(1 for r in rs if r["correct"]) for arm, rs in arms.items()},
         "no_boxed": {arm: sum(1 for r in rs if r["boxed"] is None) for arm, rs in arms.items()},
         "truncated": {arm: sum(1 for r in rs if r["stop"] == "max_tokens") for arm, rs in arms.items()},
-        "retrieval": {"problems_with_context": len(with_ctx), "problems_with_same_problem_chunk_removed": len(leak_ids),
+        "retrieval": {"problems_with_context": len(with_ctx), "zero_chunks_at_0_2": sum(1 for v in ret.values() if v["chunks_at_app_threshold"] == 0),
+                      "zero_chunks_at_0_55": sum(1 for v in ret.values() if v["chunks_at_easy_set_threshold"] == 0), "problems_with_same_problem_chunk_removed": len(leak_ids),
                       "chunks_removed": sum(v["removed"] for v in ret.values()), "leak_coverage_threshold": LEAK_COVERAGE},
         "accuracy_when_context_found": {arm: acc([r for r in rs if r["id"] in with_ctx]) for arm, rs in arms.items()},
         "accuracy_when_leak_was_removed": {arm: acc([r for r in rs if r["id"] in leak_ids]) for arm, rs in arms.items()},
