@@ -379,7 +379,7 @@ def threads_block(samples, turns, hold):
     """플랫폼 스레드 수(jvm_threads_live_threads 는 가상 스레드를 세지 않는다)와 동시 스트림 수
     samples 는 측정 구간의 5초 표본, tomcat_busy 는 tomcat_threads_busy_threads (지표가 없으면 null)"""
     live = [r["jvm_threads_live"] for r in samples if r.get("jvm_threads_live") is not None]
-    busy = [r["tomcat_busy"] for r in samples if r.get("tomcat_busy") is not None]
+    busy = [r["tomcat_busy"] for r in samples if r.get("tomcat_busy") is not None and r["tomcat_busy"] >= 0]  # 가상 스레드는 -1
     return {"platform_live_max": int(max(live)) if live else None,
             "platform_live_median": _int_or_float(statistics.median(live)) if live else None,
             "tomcat_busy_max": int(max(busy)) if busy else None,
