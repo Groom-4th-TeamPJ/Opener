@@ -1,5 +1,6 @@
 package spring.backend.domain.chat.service.impl;
 
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
@@ -14,11 +15,15 @@ final class ClaudeStreams {
 
     private ClaudeStreams() {}
 
-    static Flux<String> text(Flux<ChatResponse> responses) {
+    // tokenGap -> 첫 조각을 포함해 이 시간 동안 아무 조각도 안 오면 TimeoutException (총 시간 상한이 아니라 읽기 사이 간격)
+    // Anthropic SDK 의 읽기 제한은 spring.ai.anthropic.timeout 하나로 전체 호출 상한과 같은 값이라 간격만 따로 걸 수 없다 -> Reactor timeout 을 쓴다
+    // TimeoutException 은 BusinessException 이 아니므로 llm-chat 서킷이 전환 전처럼 실패로 센다
+    static Flux<String> text(Flux<ChatResponse> responses, Duration tokenGap) {
         return Flux.defer(() -> {
             AtomicBoolean refused = new AtomicBoolean();
             AtomicBoolean emitted = new AtomicBoolean();
             return responses
+                    .timeout(tokenGap)
                     .concatMap(response -> {
                         if (isRefusal(response)) {
                             refused.set(true);

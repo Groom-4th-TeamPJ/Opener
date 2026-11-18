@@ -4,6 +4,7 @@ import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PostConstruct;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -45,6 +46,10 @@ public class RagLlmService implements LlmService {
     private final spring.backend.domain.chat.util.PromptLoader promptLoader;
     // 벡터 검색 계측 -> 오프너 경로에만 Timer 가 있어 호출량이 더 많은 일반 채팅의 비용을 못 재던 공백을 메움
     private final MeterRegistry meterRegistry;
+
+    // 토큰 사이 간격 상한 -> 멈춘 스트림이 SSE sink 를 spring.ai.anthropic.timeout(180초)까지 붙잡지 않게 한다
+    @Value("${app.llm.response-timeout:20s}")
+    private Duration tokenGap = Duration.ofSeconds(20);
 
     @Value("${app.rag.top-k:5}")
     private int topK;
@@ -153,7 +158,7 @@ public class RagLlmService implements LlmService {
                 .messages(messagesWithRag)
                 .stream()
                 .chatResponse()
-                .transform(ClaudeStreams::text)
+                .transform(responses -> ClaudeStreams.text(responses, tokenGap))
                 .doOnError(error ->
                         log.error("[LLM+RAG] 스트리밍 중 에러 발생 - sessionId: {}", sessionId, error))
                 .doOnComplete(() ->

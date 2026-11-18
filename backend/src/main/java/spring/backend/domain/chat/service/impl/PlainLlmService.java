@@ -1,6 +1,7 @@
 package spring.backend.domain.chat.service.impl;
 
 import jakarta.annotation.PostConstruct;
+import java.time.Duration;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +38,10 @@ public class PlainLlmService implements LlmService {
     private final PromptLoader promptLoader;
 
     private static final String KEY_PREFIX = "sk-ant-";
+
+    // 토큰 사이 간격 상한 -> 멈춘 스트림이 SSE sink 를 spring.ai.anthropic.timeout(180초)까지 붙잡지 않게 한다
+    @Value("${app.llm.response-timeout:20s}")
+    private Duration tokenGap = Duration.ofSeconds(20);
 
     @Value("${spring.ai.anthropic.api-key:}")
     private String anthropicApiKey;
@@ -88,7 +93,7 @@ public class PlainLlmService implements LlmService {
                 .messages(ChatPromptAssembler.withCurrentQuestion(chatHistory, userMessage))
                 .stream()
                 .chatResponse()
-                .transform(ClaudeStreams::text)
+                .transform(responses -> ClaudeStreams.text(responses, tokenGap))
                 .doOnError(error ->
                         log.error("[LLM-NoRAG] 스트리밍 중 에러 발생 - sessionId: {}", sessionId, error))
                 .doOnComplete(() ->
