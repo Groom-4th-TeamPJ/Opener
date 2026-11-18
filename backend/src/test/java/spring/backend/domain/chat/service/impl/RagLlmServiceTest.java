@@ -5,6 +5,7 @@ import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.github.resilience4j.reactor.circuitbreaker.operator.CircuitBreakerOperator;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
+import java.util.concurrent.TimeoutException;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -154,6 +155,51 @@ class RagLlmServiceTest {
         StepVerifier.create(service.chatStream("1", "질문", 7L))
                 .expectNext("답")
                 .expectError(BusinessException.class)
+                .verify(TIMEOUT);
+    }
+
+    @Test
+    @DisplayName("첫 조각 뒤 20초 동안 아무것도 안 오면 타임아웃 에러로 끝난다")
+    void chatStream_조각뒤20초무응답_타임아웃() {
+        stubStream(Flux.just(chunk("첫", "")).concatWith(Flux.never()));
+
+        StepVerifier.withVirtualTime(() -> service.chatStream("1", "질문", 7L))
+                .expectNext("첫")
+                .expectNoEvent(Duration.ofSeconds(19))
+                .thenAwait(Duration.ofSeconds(1))
+                .expectError(TimeoutException.class)
+                .verify(TIMEOUT);
+    }
+
+    // 타임아웃은 BusinessException 이 아니므로 llm-chat 서킷이 실패로 센다 (전환 전과 같은 집계)
+    @Test
+    @DisplayName("멈춘 스트림의 타임아웃을 서킷이 실패로 집계한다")
+    void chatStream_타임아웃_서킷이집계한다() {
+        stubStream(Flux.never());
+        CircuitBreaker breaker = CircuitBreaker.of("llm-chat-gap-test", CircuitBreakerConfig.custom()
+                .slidingWindowSize(2)
+                .minimumNumberOfCalls(1)
+                .build());
+
+        StepVerifier.withVirtualTime(() -> service.chatStream("1", "질문", 7L)
+                        .transformDeferred(CircuitBreakerOperator.of(breaker)))
+                .thenAwait(Duration.ofSeconds(20))
+                .expectError(TimeoutException.class)
+                .verify(TIMEOUT);
+
+        assertEquals(1, breaker.getMetrics().getNumberOfFailedCalls());
+    }
+
+    @Test
+    @DisplayName("조각 사이가 19초씩 벌어져도 끝까지 완료된다")
+    void chatStream_19초간격_완료() {
+        stubStream(Flux.defer(() -> Flux.just(chunk("가", ""), chunk("", "end_turn"))
+                .delayElements(Duration.ofSeconds(19))));
+
+        StepVerifier.withVirtualTime(() -> service.chatStream("1", "질문", 7L))
+                .thenAwait(Duration.ofSeconds(60))
+                .expectNext("가")
+                .expectComplete()
                 .verify(TIMEOUT);
     }
 
