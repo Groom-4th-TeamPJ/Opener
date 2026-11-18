@@ -45,7 +45,9 @@ def main():
             runs_by_model[model] = runs
             models[model] = {
                 "recall_at_5": evalkit.recall_at_k(runs, 5, 0.0), "mrr_at_10": evalkit.mrr_at_k(runs, 10, 0.0),
-                "tokens": g["tokens"], "index_wall_seconds": g["wall_seconds"], "index_requests": g["requests"], "index_n429": g["n429"],
+                # 색인 루프가 429 포기·호스트 포트 고갈로 다시 시작됐다 -> gold.json 의 *_total 이 모든 구간의 합 (없으면 마지막 구간 값)
+                "tokens": g.get("tokens_total_all_segments", g["tokens"]), "index_wall_seconds": g.get("wall_seconds_total", g["wall_seconds"]),
+                "index_segments": g.get("segments", 1), "index_requests_last_segment": g["requests"], "index_n429_last_segment": g["n429"],
                 "query_tokens_new_this_run": qtokens, "queries": len(items),
                 "best_similarity_median": sorted(max(s for _, s in r["ranked"]) for r in runs)[len(runs) // 2],
             }
