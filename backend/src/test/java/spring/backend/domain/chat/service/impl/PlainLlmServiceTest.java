@@ -1,6 +1,7 @@
 package spring.backend.domain.chat.service.impl;
 
 import java.time.Duration;
+import java.util.concurrent.TimeoutException;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -117,6 +118,47 @@ class PlainLlmServiceTest {
 
         StepVerifier.create(service.chatStream("1", "질문", 3L))
                 .expectError(BusinessException.class)
+                .verify(TIMEOUT);
+    }
+
+    // 토큰 사이 간격 상한(app.llm.response-timeout 20초) -> 멈춘 스트림이 SSE sink 를 180초 전체 상한까지 붙잡지 않는다
+    @Test
+    @DisplayName("첫 조각 뒤 20초 동안 아무것도 안 오면 타임아웃 에러로 끝난다")
+    void chatStream_조각뒤20초무응답_타임아웃() {
+        when(chatHistoryProvider.getHistoryBefore("1", 3L)).thenReturn(List.of());
+        responses = Flux.just(chunk("첫", "")).concatWith(Flux.never());
+
+        StepVerifier.withVirtualTime(() -> service.chatStream("1", "질문", 3L))
+                .expectNext("첫")
+                .expectNoEvent(Duration.ofSeconds(19))
+                .thenAwait(Duration.ofSeconds(1))
+                .expectError(TimeoutException.class)
+                .verify(TIMEOUT);
+    }
+
+    @Test
+    @DisplayName("첫 조각도 20초 안에 오지 않으면 타임아웃 에러로 끝난다")
+    void chatStream_첫조각20초무응답_타임아웃() {
+        when(chatHistoryProvider.getHistoryBefore("1", 3L)).thenReturn(List.of());
+        responses = Flux.never();
+
+        StepVerifier.withVirtualTime(() -> service.chatStream("1", "질문", 3L))
+                .thenAwait(Duration.ofSeconds(20))
+                .expectError(TimeoutException.class)
+                .verify(TIMEOUT);
+    }
+
+    @Test
+    @DisplayName("조각 사이가 19초씩 벌어져도 간격 상한 안이므로 끝까지 완료된다")
+    void chatStream_19초간격_완료() {
+        when(chatHistoryProvider.getHistoryBefore("1", 3L)).thenReturn(List.of());
+        responses = Flux.defer(() -> Flux.just(chunk("가", ""), chunk("나", ""), chunk("", "end_turn"))
+                .delayElements(Duration.ofSeconds(19)));
+
+        StepVerifier.withVirtualTime(() -> service.chatStream("1", "질문", 3L))
+                .thenAwait(Duration.ofSeconds(60))
+                .expectNext("가", "나")
+                .expectComplete()
                 .verify(TIMEOUT);
     }
 
