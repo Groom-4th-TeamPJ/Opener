@@ -1,5 +1,5 @@
 #!/bin/bash
-# 사용: [S1_APP_ENV="K=V K2=V2"] [S1_APP_COMMIT=<해시>] [S1_FAULT=1 [S1_FAULT_KIND=mock|master-stop|cluster-pause]] run.sh <code: base|new|A|AB> <체크아웃 경로> <결과 폴더> [tiny]
+# 사용: [S1_REFUSE=N] [S1_APP_ENV="K=V K2=V2"] [S1_APP_COMMIT=<해시>] [S1_FAULT=1 [S1_FAULT_KIND=mock|master-stop|cluster-pause]] run.sh <code: base|new|A|AB> <체크아웃 경로> <결과 폴더> [tiny]
 # 한 회차: 스택 reset -> bootJar -> 모의 서버·앱 기동 -> 생성기·수집기 -> 큐 드레인 표집(최대 300초)·DB 행 읽기 -> 앱 정지(PID 만) -> summary.json
 # 측정 회차는 cpu-lock.sh 로 감싸서 부른다 (tiny 는 잠금 없이)
 set -u
@@ -32,6 +32,8 @@ rm -f "$OUT/summary.json" "$OUT"/turns-*.jsonl "$OUT"/sessions-*.jsonl "$OUT"/er
 rm -f "$OUT/idle.json"
 python3 "$LOADTEST_DIR/collect_s1.py" idle --out "$OUT" --seconds 20 || echo "[run] idle baseline failed" >&2
 curl -s -X POST "http://localhost:$MOCK_PORT/stats/reset" >/dev/null
+# S1_REFUSE=N: 모의 서버가 다음 N 건의 스트림을 본문 2조각 뒤 stop_reason refusal 로 끝낸다 (tiny 에서 앱이 이를 LLM 오류 이벤트로 바꾸는지 끝에서 끝까지 본다, 본문은 turns-*.jsonl 의 error_detail)
+[ -n "${S1_REFUSE:-}" ] && curl -s -X POST "http://localhost:$MOCK_PORT/refuse" -d "{\"next\": $S1_REFUSE, \"text_chunks\": 2}" >/dev/null
 
 ulimit -n 65536 2>/dev/null || ulimit -n "$(ulimit -Hn)"
 python3 "$LOADTEST_DIR/s1_load.py" --users "$OUT/users.json" --out "$OUT" $TINY_FLAG > "$OUT/loadgen.log" 2>&1 &
