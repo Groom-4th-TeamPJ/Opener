@@ -39,7 +39,7 @@ GEN=$!
 python3 "$LOADTEST_DIR/collect_s1.py" watch --out "$OUT" > "$OUT/collector.log" 2>&1 &
 COL=$!
 # S1_FAULT=1 이면 hold 시작 120초 뒤 60초간 장애를 걸고 차단기를 1초마다 표집한다 (tiny 는 10초 뒤 10초간)
-# S1_FAULT_KIND: mock(기본) 모의 서버가 OpenAI 경로를 500 으로 답함 / master-stop 채팅 클러스터 마스터 하나 docker stop -> start / cluster-pause 여섯 노드 docker pause -> unpause
+# S1_FAULT_KIND: mock(기본) 모의 서버가 Claude·Voyage 경로를 500 으로 답함 / master-stop 채팅 클러스터 마스터 하나 docker stop -> start / cluster-pause 여섯 노드 docker pause -> unpause
 FAULT_PID=""
 if [ -n "${S1_FAULT:-}" ]; then
   python3 "$LOADTEST_DIR/collect_s1.py" fault --out "$OUT" $TINY_FLAG --kind "${S1_FAULT_KIND:-mock}" > "$OUT/fault.log" 2>&1 &

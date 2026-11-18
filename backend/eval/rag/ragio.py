@@ -12,6 +12,8 @@ ENV_FILE = "/Users/mskim/Desktop/PJ/Opener/backend/.env"
 ROUND_DIR = "/Users/mskim/Desktop/PJ/Opener/.cascade/r129"
 OUT_DIR = os.path.join(ROUND_DIR, "measure", "rag-eval")
 DB_CONTAINER = "r125s1-db"
+# 청크 id·본문·메타데이터의 고정 출처 - S1 DB(opener_s1)는 회차마다 템플릿에서 다시 만들어져 id 가 바뀌므로, OpenAI 시절 색인 복사본을 한 번 떠 두고 평가 질문의 gold id 와 원본 벡터 DB 가 이것만 본다
+SRC_DB = "opener_chunks_src"
 VOYAGE_URL = "https://api.voyageai.com/v1/embeddings"
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 DIM = 1024

@@ -4,7 +4,7 @@
 watch      : window.json 이 가리키는 hold 구간 동안 5초마다 CPU 를 표집하고 시작·끝 스냅샷을 collector.json 에 쓴다
 drain      : 생성기가 끝난 뒤 저장·요약 큐를 5초마다 최대 300초 표집하고 chat_messages 행을 읽어 drain.json 에 쓴다
 fault      : 장애 구간을 걸고 차단기 상태를 1초마다 표집해 circuit.json 에 쓴다 (run.sh 가 S1_FAULT 일 때만 부른다)
-             --kind mock(기본, 모의 서버가 OpenAI 경로를 500 으로 답함) | master-stop(채팅 클러스터 마스터 하나를 docker stop 했다가 start)
+             --kind mock(기본, 모의 서버가 Claude·Voyage 경로를 500 으로 답함) | master-stop(채팅 클러스터 마스터 하나를 docker stop 했다가 start)
              | cluster-pause(채팅 클러스터 여섯 노드를 모두 docker pause 했다가 unpause)
 summarize  : 생성기 원자료(turns-*.jsonl 등) + collector.json + drain.json -> summary.json
 사용: collect_s1.py watch --out DIR | collect_s1.py fault --out DIR [--tiny] [--kind mock|master-stop|cluster-pause] | collect_s1.py drain --out DIR | collect_s1.py summarize --out DIR --code base|new|A|AB --commit HASH [--app-env "K=V ..."]
@@ -204,7 +204,7 @@ EMBED_TIMER = "gen_ai_client_operation_seconds"
 
 
 def embedding_block(p0, p1, samples):
-    """앱이 모의 서버(운영에서는 OpenAI)에 보낸 임베딩 호출 한 번의 시간 - Spring AI 클라이언트 타이머(gen_ai_operation_name=embedding)
+    """앱이 모의 서버(운영에서는 OpenAI)에 보낸 임베딩 호출 한 번의 시간 - Spring AI 클라이언트 타이머(gen_ai_operation_name=embedding), r129 전환 뒤의 Voyage 임베딩은 이 타이머가 없어 null (호출 수는 모의 서버 /stats 의 embeddings_by_input_type)
     RAG 검색 시간(rag.vector.search)은 이 호출 + pgvector 질의라서, 검색이 느려졌을 때 어느 쪽인지 가르는 값
     평균 = 구간 시작·끝 스냅샷의 합·개수 증가분, 최댓값 = 5초 표본의 _max 게이지 중 가장 큰 값, 오류 호출은 개수만 센다"""
     ok = {"gen_ai_operation_name": "embedding", "error": "none"}

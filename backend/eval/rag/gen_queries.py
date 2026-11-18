@@ -2,7 +2,7 @@
 """검색 평가 질문 생성 (r129 EV-1) - 색인된 MATH 문제를 type x level 로 층화 추출해, 문제마다 Claude Sonnet 5.5 가
 학생 말투 한국어 질문 한 건을 쓴다 (문제를 베끼지 않고 그 문제의 도움을 구하는 질문). 정답 = 그 문제의 청크 id 전부
 사용: gen_queries.py [--n 150] [--seed 129]   (cpu-lock 안에서 실행, 키는 backend/.env, 이미 쓴 항목은 건너뛴다)
-입력: r125s1-db 의 opener_s1.vector_store (청크 id·본문·메타데이터만 읽는다, 벡터는 쓰지 않는다)
+입력: r125s1-db 의 ragio.SRC_DB 의 vector_store (청크 id·본문·메타데이터만 읽는다, 벡터는 쓰지 않는다)
 출력: backend/eval/rag/retrieval_eval.jsonl · R/measure/rag-eval/queries-cost.json
 """
 import argparse
@@ -35,7 +35,7 @@ def candidates():
            "'ids', json_agg(id ORDER BY (metadata->>'chunk_index')::int), 'text', string_agg(content, E'\\n' ORDER BY (metadata->>'chunk_index')::int)) "
            "FROM vector_store WHERE metadata->>'source'='MATH-ko-test.jsonl' AND metadata->>'type' IS NOT NULL "
            "GROUP BY 1, 2, 3")
-    rows = [r for r in ragio.json_rows("opener_s1", sql) if r["type"] in TYPES]
+    rows = [r for r in ragio.json_rows(ragio.SRC_DB, sql) if r["type"] in TYPES]
     for r in rows:
         r["id"] = r["parent"]
     return rows

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """원본 벡터 DB 만들기 (r129 EV-2, Ruling R129-9) - 말뭉치 5,152청크를 모델마다 한 번만 임베딩해 opener_vec_gold 의 vector_store_<모델> 에 적는다
- - 청크 id·본문·메타데이터는 S1 DB(opener_s1.vector_store)에서 그대로 가져온다 (검색 평가 질문의 gold id 와 같은 id)
+ - 청크 id·본문·메타데이터는 고정 출처 DB(ragio.SRC_DB)에서 그대로 가져온다 (검색 평가 질문의 gold id 와 같은 id)
  - 앱 V20 모양: (id uuid, content text, metadata jsonb, embedding vector(1024)), 임베딩은 input_type=document, output_dimension 1024
  - 중간에 끊겨도 이어 한다 (이미 적힌 id 는 건너뜀). 다 채운 뒤에는 이 스크립트가 그 테이블에 쓰지 않는다: 행 수가 같으면 바로 끝낸다
  - 끝나면 R/measure/rag-eval/gold.json 에 모델별 행 수·id 체크섬·토큰·소요 초를 적는다
@@ -64,7 +64,7 @@ def main():
     ap.add_argument("--min-interval", type=float, default=0.0, help="요청 시작 사이 최소 초 - 분당 요청 한도(무료 3회)면 20")
     a = ap.parse_args()
     table = TABLES[a.model]
-    src = ragio.json_rows("opener_s1", "SELECT json_build_object('id', id, 'content', content, 'metadata', metadata) FROM vector_store ORDER BY id")
+    src = ragio.json_rows(ragio.SRC_DB, "SELECT json_build_object('id', id, 'content', content, 'metadata', metadata) FROM vector_store ORDER BY id")
     ensure_gold(table)
     have = {l.strip() for l in ragio.psql(GOLD_DB, "SELECT id FROM %s" % table).splitlines() if l.strip()}
     todo = [r for r in src if r["id"] not in have]
@@ -84,7 +84,7 @@ def main():
     seconds = time.time() - t0
     chk = ragio.psql(GOLD_DB, "SELECT count(*) || ' ' || md5(string_agg(id::text, ',' ORDER BY id)) FROM %s" % table).split()
     rows_now, checksum = int(chk[0]), chk[1]
-    src_checksum = ragio.psql("opener_s1", "SELECT md5(string_agg(id::text, ',' ORDER BY id)) FROM vector_store").strip()
+    src_checksum = ragio.psql(ragio.SRC_DB, "SELECT md5(string_agg(id::text, ',' ORDER BY id)) FROM vector_store").strip()
     ok = rows_now == len(src) and checksum == src_checksum
     previous = json.load(open(GOLD_JSON))["tables"].get(a.model, {}) if os.path.exists(GOLD_JSON) else {}
     update_gold_json(a.model, {

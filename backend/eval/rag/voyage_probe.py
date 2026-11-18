@@ -22,9 +22,9 @@ def main():
     ap.add_argument("--out", default=os.path.join(ragio.OUT_DIR, "voyage-limit.json"))
     a = ap.parse_args()
     key = ragio.load_key("VOYAGE_API_KEY")
-    rows = ragio.json_rows("opener_s1", "SELECT json_build_object('id',id,'chars',length(content),'content',content) FROM vector_store "
+    rows = ragio.json_rows(ragio.SRC_DB, "SELECT json_build_object('id',id,'chars',length(content),'content',content) FROM vector_store "
                                         "WHERE metadata->>'source'='MATH-ko-test.jsonl' ORDER BY md5(id::text) LIMIT 600")
-    total_chars = int(ragio.psql("opener_s1", "SELECT sum(length(content)) FROM vector_store").strip())
+    total_chars = int(ragio.psql(ragio.SRC_DB, "SELECT sum(length(content)) FROM vector_store").strip())
     ledger, sent, used, size, stopped = [], 0, 0, 1, "cap"
     t_start = time.time()
     while used < a.cap and sent < len(rows):
