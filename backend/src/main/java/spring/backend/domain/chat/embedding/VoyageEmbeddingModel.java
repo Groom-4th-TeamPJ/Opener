@@ -36,6 +36,9 @@ public class VoyageEmbeddingModel implements EmbeddingModel {
     static final int MAX_INPUTS_PER_REQUEST = 1_000;
     private static final long MAX_WAIT_MILLIS = 60_000;
     private static final long FIRST_WAIT_MILLIS = 1_000;
+    // 검색어는 채팅 요청 스레드에서 돈다 -> 속도 제한 키여도 최대 2회 시도, 대기 합계 2초 이하로 포기한다 (문서 색인은 설정값 그대로)
+    private static final int QUERY_MAX_ATTEMPTS = 2;
+    private static final long QUERY_MAX_WAIT_MILLIS = 2_000;
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final RestClient restClient;
@@ -146,14 +149,20 @@ public class VoyageEmbeddingModel implements EmbeddingModel {
     }
 
     private List<float[]> requestWithRetry(List<String> batch, String inputType) {
+        boolean query = "query".equals(inputType);
+        int attempts = query ? Math.min(maxAttempts, QUERY_MAX_ATTEMPTS) : maxAttempts;
+        long waited = 0;
         for (int attempt = 1; ; attempt++) {
             Raw raw = send(batch, inputType);
             if (raw.status() == 200) {
                 return parse(raw.body(), batch.size());
             }
-            if (raw.status() == 429 && attempt < maxAttempts) {
+            // 검색어의 대기가 2초 예산을 넘기면 기다려도 같은 429 라서 바로 포기한다
+            if (raw.status() == 429 && attempt < attempts
+                    && (!query || waited + waitMillis(raw.retryAfter(), attempt) <= QUERY_MAX_WAIT_MILLIS)) {
                 long wait = waitMillis(raw.retryAfter(), attempt);
-                log.warn("[Voyage] 429 - {}ms 뒤 재시도 ({}/{})", wait, attempt, maxAttempts);
+                waited += wait;
+                log.warn("[Voyage] 429 - {}ms 뒤 재시도 ({}/{})", wait, attempt, attempts);
                 sleeper.accept(wait);
                 continue;
             }
