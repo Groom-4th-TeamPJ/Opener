@@ -31,10 +31,11 @@ RETRY_NOTE = "\n(이전 시도는 문제 문장을 너무 많이 베꼈다. 이�
 
 def candidates():
     """문제(parent_document_id)당 한 행: 청크 id 목록(순서대로)과 본문 합본, 첫 청크의 문제 본문"""
-    sql = ("SELECT json_build_object('parent', metadata->>'parent_document_id', 'type', metadata->>'type', 'level', metadata->>'level', "
-           "'ids', json_agg(id ORDER BY (metadata->>'chunk_index')::int), 'text', string_agg(content, E'\\n' ORDER BY (metadata->>'chunk_index')::int)) "
+    sql = ("SELECT json_build_object('parent', parent, 'type', type, 'level', level, 'ids', ids, 'text', text) FROM ("
+           "SELECT metadata->>'parent_document_id' AS parent, metadata->>'type' AS type, metadata->>'level' AS level, "
+           "json_agg(id ORDER BY (metadata->>'chunk_index')::int) AS ids, string_agg(content, E'\\n' ORDER BY (metadata->>'chunk_index')::int) AS text "
            "FROM vector_store WHERE metadata->>'source'='MATH-ko-test.jsonl' AND metadata->>'type' IS NOT NULL "
-           "GROUP BY 1, 2, 3")
+           "GROUP BY 1, 2, 3) g")
     rows = [r for r in ragio.json_rows(ragio.SRC_DB, sql) if r["type"] in TYPES]
     for r in rows:
         r["id"] = r["parent"]
