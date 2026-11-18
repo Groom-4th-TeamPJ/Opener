@@ -18,6 +18,7 @@ import re
 import statistics
 import subprocess
 import sys
+import time
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -104,12 +105,14 @@ def arm_result(per_q, app_threshold):
 class Embedder:
     """Voyage 호출 수를 입력 수와 요청 수(429 재시도 포함)로 따로 센다 - 상한을 넘기 전에 멈춘다"""
 
-    def __init__(self, key, model, request_tokens):
+    def __init__(self, key, model, request_tokens, min_interval=0.0):
         self.key, self.model, self.request_tokens, self.inputs, self.ledger = key, model, request_tokens, 0, []
+        self.min_interval, self.last_start = min_interval, 0.0
 
     @property
     def requests(self):
-        return len(self.ledger)
+        """성공한 요청 수 - 429 로 거절된 시도는 토큰을 쓰지 않아 상한(요청 100)에 넣지 않고 embedding_attempts 로 따로 적는다"""
+        return sum(1 for r in self.ledger if r["status"] == 200)
 
     def check(self, n_inputs):
         if self.inputs + n_inputs > MAX_INPUTS or self.requests + 1 > MAX_REQUESTS:
@@ -119,6 +122,8 @@ class Embedder:
         out = [None] * len(texts)
         for group in evalkit.batches([len(t) for t in texts], BATCH, self.request_tokens):
             self.check(len(group))
+            time.sleep(max(0.0, self.min_interval - (time.time() - self.last_start)))  # 무료 한도(분당 1만 토큰)에 맞춘 간격
+            self.last_start = time.time()
             vecs, _ = ragio.voyage_embed_retry(self.key, self.model, [texts[i] for i in group], input_type, self.ledger)
             self.inputs += len(group)
             for i, v in zip(group, vecs):
@@ -225,13 +230,14 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True)
     ap.add_argument("--request-tokens", type=int, default=80_000, help="Voyage 한 요청의 토큰 상한(글자 수로 어림), 무료 한도가 낮으면 voyage-limit.json 을 보고 낮춘다")
+    ap.add_argument("--min-interval", type=float, default=0.0, help="Voyage 요청 시작 사이 최소 초 - 무료 한도에서는 요청 토큰/1만*60 초 이상")
     args = ap.parse_args()
     os.makedirs(args.out, exist_ok=True)
     threshold = app_threshold()
     questions = load_questions()
     recs, unclosed = asy_records()
     model = json.load(open(os.path.join(ragio.OUT_DIR, "models.json")))["chosen"]["model"]
-    embedder = Embedder(ragio.load_key("VOYAGE_API_KEY"), model, args.request_tokens)
+    embedder = Embedder(ragio.load_key("VOYAGE_API_KEY"), model, args.request_tokens, args.min_interval)
     ragio.clone_db("opener_vec_gold", SCRATCH_DB)
     try:
         # 원본 테이블 vector_store_<모델> 만 남기고 앱 이름(vector_store)으로 바꾼다 - id 기본값은 앱 테이블처럼 gen_random_uuid()
@@ -261,7 +267,7 @@ def main():
             "corpus_rows": {"stripped": corpus_before, "with_asy": corpus_after},
             "asy_rows": {"stripped": asy_before, "with_asy": asy_rows},
             "validation": validation,
-            "embedding_inputs": embedder.inputs, "embedding_requests": embedder.requests, "embedding_calls": embedder.inputs, "embedding_429": sum(1 for r in embedder.ledger if r["status"] == 429),
+            "embedding_inputs": embedder.inputs, "embedding_requests": embedder.requests, "embedding_calls": embedder.inputs, "embedding_429": sum(1 for r in embedder.ledger if r["status"] == 429), "embedding_attempts_incl_429": len(embedder.ledger),
             **arms,
             "hit_flips": [{"q": a["q"], "want": a["want"], "stripped": [hit_at_5(a["rows"], a["want"], t) for t in (0.0, threshold)],
                            "with_asy": [hit_at_5(b["rows"], b["want"], t) for t in (0.0, threshold)]}

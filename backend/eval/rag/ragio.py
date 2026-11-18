@@ -120,15 +120,23 @@ SEED_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file_
 GOLD_TABLES = {"voyage-4": "vector_store_voyage_4", "voyage-4-lite": "vector_store_voyage_4_lite", "voyage-4-large": "vector_store_voyage_4_large"}
 
 
+LOCK_SH = "/Users/mskim/Desktop/PJ/Opener/.cascade/r129/cpu-lock.sh"
+
+
+def _locked(cmd):
+    """R129_DB_LOCK=1 이면 DB 복사·삭제 호출을 CPU 잠금 안에서 돌린다 - API 를 기다리는 긴 루프는 잠금 밖에 두고(R129-11) DB 단계만 짧게 잠근다"""
+    return ["bash", LOCK_SH, "t2"] + cmd if os.environ.get("R129_DB_LOCK") else cmd
+
+
 def clone_db(template, target):
-    p = subprocess.run(["bash", os.path.join(SEED_DIR, "clone_db.sh"), DB_CONTAINER, template, target], capture_output=True, text=True)
+    p = subprocess.run(_locked(["bash", os.path.join(SEED_DIR, "clone_db.sh"), DB_CONTAINER, template, target]), capture_output=True, text=True)
     if p.returncode != 0:
         raise RuntimeError("clone_db: " + p.stderr.strip()[:300])
     return p.stdout
 
 
 def drop_db(target):
-    p = subprocess.run(["bash", os.path.join(SEED_DIR, "drop_db.sh"), DB_CONTAINER, target], capture_output=True, text=True)
+    p = subprocess.run(_locked(["bash", os.path.join(SEED_DIR, "drop_db.sh"), DB_CONTAINER, target]), capture_output=True, text=True)
     if p.returncode != 0:
         raise RuntimeError("drop_db: " + p.stderr.strip()[:300])
 
