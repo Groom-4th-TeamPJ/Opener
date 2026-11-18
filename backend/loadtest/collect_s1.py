@@ -3,20 +3,26 @@
 
 watch      : window.json 이 가리키는 hold 구간 동안 5초마다 CPU 를 표집하고 시작·끝 스냅샷을 collector.json 에 쓴다
 drain      : 생성기가 끝난 뒤 저장·요약 큐를 5초마다 최대 300초 표집하고 chat_messages 행을 읽어 drain.json 에 쓴다
-fault      : 모의 서버에 장애 구간을 걸고 차단기 상태를 1초마다 표집해 circuit.json 에 쓴다 (run.sh 가 S1_FAULT 일 때만 부른다)
+fault      : 장애 구간을 걸고 차단기 상태를 1초마다 표집해 circuit.json 에 쓴다 (run.sh 가 S1_FAULT 일 때만 부른다)
+             --kind mock(기본, 모의 서버가 OpenAI 경로를 500 으로 답함) | master-stop(채팅 클러스터 마스터 하나를 docker stop 했다가 start)
+             | cluster-pause(채팅 클러스터 여섯 노드를 모두 docker pause 했다가 unpause)
 summarize  : 생성기 원자료(turns-*.jsonl 등) + collector.json + drain.json -> summary.json
-사용: collect_s1.py watch --out DIR | collect_s1.py fault --out DIR [--tiny] | collect_s1.py drain --out DIR | collect_s1.py summarize --out DIR --code base|new|A|AB --commit HASH [--app-env "K=V ..."]
+사용: collect_s1.py watch --out DIR | collect_s1.py fault --out DIR [--tiny] [--kind mock|master-stop|cluster-pause] | collect_s1.py drain --out DIR | collect_s1.py summarize --out DIR --code base|new|A|AB --commit HASH [--app-env "K=V ..."]
 """
 import argparse
 import base64
+import collections
 import glob
 import json
+import math
 import os
 import platform
 import re
 import socket
+import statistics
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
 
@@ -255,7 +261,7 @@ def activity_block(samples):
     return block
 
 
-BREAKERS = ("llm-chat", "llm-rag", "llm-summary")
+BREAKERS = ("llm-chat", "llm-rag", "llm-summary", "redis-chat")
 FAULT_TURN_TAIL_S = 60
 CIRCUIT_BEFORE_S, CIRCUIT_AFTER_S = 10, 120
 # 장애 구간 (hold 시작에서 시작까지 초, 길이 초) - 시험 실행은 짧게
@@ -263,7 +269,7 @@ FAULT_FULL, FAULT_TINY = (120, 60), (10, 10)
 
 
 def circuit_sample(prom, t):
-    """프로메테우스 표본 하나 -> 차단기 셋의 상태·허용 안 된 호출·실패 호출 (누적 값), 본문이 비었으면 None
+    """프로메테우스 표본 하나 -> 차단기 넷(llm 셋 + redis-chat)의 상태·허용 안 된 호출·실패 호출 (누적 값), 본문이 비었으면 None
     /actuator/circuitbreakers 는 로그인이 필요해(401) 같은 값을 열려 있는 prometheus 에서 읽는다"""
     if not prom:
         return None
@@ -324,10 +330,114 @@ def fault_turns(turns, start_ms, end_ms):
             "ok_ttft_p95_ms": percentile([t["ttft_ms"] for t in ok if t["ttft_ms"] is not None], 95)}
 
 
+def mock_delta(a, b):
+    """장애 구간 시작·끝의 모의 서버 누적 요청 수 -> 구간 안 증가분, 한쪽을 못 읽었으면 None"""
+    if not a or not b:
+        return None
+    return {k: b.get(k, 0) - a.get(k, 0) for k in ("chat_streams", "chat_nonstream", "embeddings")}
+
+
+FAULT_KINDS = ("mock", "master-stop", "cluster-pause")
+
+
 def fault_block(fault, mock_stats, turns):
+    """kind: mock = 모의 서버 500, master-stop = 마스터 하나 docker stop, cluster-pause = 여섯 노드 docker pause
+    paused_ms · stopped_ms: 기록한 값이 있으면 그 값(실제 걸린 시간), 없으면 끝 - 시작"""
     failed = ((mock_stats or {}).get("fault") or {}).get("failed_by_route")
-    return {"start_ms": fault["start_ms"], "end_ms": fault["end_ms"], "failed_by_route": failed,
-            "turns": fault_turns(turns, fault["start_ms"], fault["end_ms"])}
+    kind = fault.get("kind", "mock")
+    block = {"kind": kind, "start_ms": fault["start_ms"], "end_ms": fault["end_ms"], "failed_by_route": failed,
+             "turns": fault_turns(turns, fault["start_ms"], fault["end_ms"])}
+    span = fault["end_ms"] - fault["start_ms"]
+    if kind == "cluster-pause":
+        block["paused_ms"] = fault.get("paused_ms", span)
+    if kind == "master-stop":
+        block["stopped_ms"] = fault.get("stopped_ms", span)
+        block["stopped_node"] = fault.get("stopped_node")
+    if "mock_at_start" in fault:
+        block["mock_delta"] = mock_delta(fault["mock_at_start"], fault.get("mock_at_end"))
+    return block
+
+
+def _int_or_float(v):
+    return int(v) if v == int(v) else v
+
+
+def streams_concurrent_max(turns, hold):
+    """측정 구간(hold, 초) 안에서 같은 1초 칸에 스트림 중이던 턴 수의 최댓값
+    스트림 구간 = 턴 시작 + 첫 토큰 시간 -> 턴 끝 (첫 토큰이 없는 턴은 스트림이 없다), 칸 s 는 구간이 [s, s+1) 과 겹칠 때 센다"""
+    per = collections.Counter()
+    for t in turns:
+        if t.get("ttft_ms") is None:
+            continue
+        a, b = t["t_start"] + t["ttft_ms"] / 1000, t["t_end"]
+        for sec in range(max(math.floor(hold[0]), math.floor(a)), min(math.ceil(hold[1]), math.ceil(b))):
+            per[sec] += 1
+    return max(per.values(), default=0)
+
+
+def threads_block(samples, turns, hold):
+    """플랫폼 스레드 수(jvm_threads_live_threads 는 가상 스레드를 세지 않는다)와 동시 스트림 수
+    samples 는 측정 구간의 5초 표본, tomcat_busy 는 tomcat_threads_busy_threads (지표가 없으면 null)"""
+    live = [r["jvm_threads_live"] for r in samples if r.get("jvm_threads_live") is not None]
+    busy = [r["tomcat_busy"] for r in samples if r.get("tomcat_busy") is not None]
+    return {"platform_live_max": int(max(live)) if live else None,
+            "platform_live_median": _int_or_float(statistics.median(live)) if live else None,
+            "tomcat_busy_max": int(max(busy)) if busy else None,
+            "streams_concurrent_max": streams_concurrent_max(turns, hold)}
+
+
+def parse_cluster_nodes(text):
+    """CLUSTER NODES 본문 -> 노드별 {id, name(호스트명, 없으면 ip:port), flags(집합), master_id(없으면 None), slots([[시작, 끝]])}"""
+    nodes = []
+    for line in text.splitlines():
+        parts = line.split()
+        if len(parts) < 8:
+            continue
+        addr = parts[1].split("@", 1)
+        host = parts[1].split(",")
+        slots = []
+        for tok in parts[8:]:
+            if tok.startswith("["):
+                continue
+            a, _, b = tok.partition("-")
+            slots.append([int(a), int(b or a)])
+        nodes.append({"id": parts[0], "name": host[1] if len(host) > 1 else addr[0], "flags": set(parts[2].split(",")),
+                      "master_id": None if parts[3] == "-" else parts[3], "slots": slots})
+    return nodes
+
+
+def _owns(node, slot):
+    return any(a <= slot <= b for a, b in node["slots"])
+
+
+def failover_block(fault, samples):
+    """멈춘 마스터의 슬롯이 복제본으로 넘어간 시간과 돌아온 뒤의 역할 (samples: {t, nodes} 1초 표본)
+    promoted_after_s: 장애 시작 이후 처음, 멈춘 노드가 아닌 마스터(fail 표시 없음)가 멈춘 노드의 첫 슬롯을 가진 표본까지 초 (안 넘어가면 null)
+    rejoined_as_replica: 장애 끝(docker start) 이후 멈춘 노드가 승격한 노드의 복제본(slave, fail 표시 없음)으로 보인 표본이 있는가"""
+    start_s, end_s, name = fault["start_ms"] / 1000, fault["end_ms"] / 1000, fault.get("stopped_node")
+    out = {"stopped_node": name, "promoted_after_s": None, "promoted_node": None, "rejoined_as_replica": False, "rejoined_after_s": None}
+    before = [x for x in samples if x["t"] < start_s]
+    stopped = next((n for n in before[-1]["nodes"] if n["name"] == name), None) if before else None
+    if not stopped or not stopped["slots"]:
+        return out
+    probe = stopped["slots"][0][0]
+    failing = {"fail", "fail?"}
+    promoted = None
+    for x in samples:
+        if x["t"] < start_s:
+            continue
+        if promoted is None:
+            promoted = next((n for n in x["nodes"] if n["id"] != stopped["id"] and "master" in n["flags"]
+                             and not n["flags"] & failing and _owns(n, probe)), None)
+            if promoted:
+                out["promoted_after_s"], out["promoted_node"] = x["t"] - start_s, promoted["name"]
+            continue
+        if x["t"] >= end_s:
+            me = next((n for n in x["nodes"] if n["id"] == stopped["id"]), None)
+            if me and "slave" in me["flags"] and not me["flags"] & failing and me["master_id"] == promoted["id"]:
+                out["rejoined_as_replica"], out["rejoined_after_s"] = True, x["t"] - end_s
+                break
+    return out
 
 
 SAVE_Q, SUMMARY_Q = "chat.message.save.queue", "chat.message.summary.queue"
@@ -572,28 +682,106 @@ def post_json(url, obj, timeout=10):
         return json.loads(r.read())
 
 
-def fault_run(out, sc, tiny):
-    """장애 구간(hold 시작 기준 FAULT_FULL, 시험 실행은 FAULT_TINY)을 모의 서버에 걸고, 시작 10초 전부터 끝 120초 뒤까지 1초마다 차단기를 표집한다"""
+CHAT_CONTAINER = "r125s1-redis-chat-{}"
+
+
+def docker_run(*args):
+    return subprocess.run(["docker", *args], capture_output=True, text=True)
+
+
+def cluster_nodes_now(ports, skip_name=None):
+    """CLUSTER NODES 를 첫 번째로 답하는 노드에서 읽는다 - skip_name 노드(멈춘 노드)는 건너뛴다, 아무도 못 답하면 None"""
+    for i, port in enumerate(ports):
+        if skip_name and CHAT_CONTAINER.format(i + 1).endswith(skip_name):
+            continue
+        try:
+            return parse_cluster_nodes(redis_cmd(port, "CLUSTER", "NODES"))
+        except (OSError, RuntimeError, ValueError):
+            continue
+    return None
+
+
+def heal_chat_cluster():
+    """멈추거나 일시정지한 채팅 노드를 되돌린다 - 이미 돌고 있는 노드에는 무해하다"""
+    names = [CHAT_CONTAINER.format(i) for i in range(1, 7)]
+    docker_run("unpause", *names)
+    docker_run("start", *names)
+
+
+def redis_fault_thread(kind, sc, start_s, length, record):
+    """장애 시작 시각까지 기다렸다가 docker stop(마스터 하나)·pause(여섯 노드)를 걸고 length 초 뒤 되돌린다
+    record 에 실제 시작·끝(에포크 ms)과 모의 서버 누적 요청 수를 적는다, 끝 시각은 되돌리는 명령을 내리기 직전"""
+    ports, mock = sc["ports"]["redis_chat"], f"http://{HOST}:{sc['ports']['mock']}"
+    time.sleep(max(0.0, start_s - time.time()))
+    record["mock_at_start"] = http_json(mock + "/stats")
+    names = [CHAT_CONTAINER.format(i) for i in range(1, 7)]
+    if kind == "master-stop":
+        nodes = cluster_nodes_now(ports) or []
+        masters = sorted(n["name"] for n in nodes if "master" in n["flags"] and "fail" not in n["flags"])
+        if not masters:
+            record["error"] = "CLUSTER NODES 에서 마스터를 못 찾았다"
+            return
+        record["stopped_node"] = masters[0]
+        targets = [CHAT_CONTAINER.format(masters[0].rsplit("-", 1)[1])]
+        down, up = ["stop"], ["start"]
+    else:
+        targets = names
+        down, up = ["pause"], ["unpause"]
+    t0 = time.time()
+    res = docker_run(*down, *targets)
+    record["down_rc"], record["down_done_ms"] = res.returncode, round(time.time() * 1000)
+    time.sleep(max(0.0, t0 + length - time.time()))
+    t1 = time.time()
+    res = docker_run(*up, *targets)
+    record["up_rc"], record["up_done_ms"] = res.returncode, round(time.time() * 1000)
+    record["start_ms"], record["end_ms"] = round(t0 * 1000), round(t1 * 1000)
+    record["mock_at_end"] = http_json(mock + "/stats")
+    key = "stopped_ms" if kind == "master-stop" else "paused_ms"
+    record[key] = record["end_ms"] - record["start_ms"]
+
+
+def fault_run(out, sc, tiny, kind="mock"):
+    """장애 구간(hold 시작 기준 FAULT_FULL, 시험 실행은 FAULT_TINY)을 걸고, 시작 10초 전부터 끝 120초 뒤까지 1초마다 차단기를 표집한다
+    mock: 모의 서버에 구간을 건다 / master-stop · cluster-pause: 채팅 클러스터 컨테이너를 멈추거나 일시정지하고 CLUSTER NODES 도 1초마다 표집한다"""
     w = wait_window(out)
     delay, length = FAULT_TINY if tiny else FAULT_FULL
     start_s = w["hold_start"] + delay
-    fault = {"start_ms": round(start_s * 1000), "end_ms": round((start_s + length) * 1000)}
     mock = f"http://{HOST}:{sc['ports']['mock']}"
-    post_json(mock + "/fault", fault)
-    armed = (http_json(mock + "/stats") or {}).get("fault") or {}
-    if armed.get("start_ms") != fault["start_ms"] or armed.get("end_ms") != fault["end_ms"]:
-        raise RuntimeError(f"장애 구간이 모의 서버에 안 걸렸다: {armed}")
+    record, thread = {"kind": kind}, None
+    if kind == "mock":
+        record.update({"start_ms": round(start_s * 1000), "end_ms": round((start_s + length) * 1000)})
+        post_json(mock + "/fault", {"start_ms": record["start_ms"], "end_ms": record["end_ms"]})
+        armed = (http_json(mock + "/stats") or {}).get("fault") or {}
+        if armed.get("start_ms") != record["start_ms"] or armed.get("end_ms") != record["end_ms"]:
+            raise RuntimeError(f"장애 구간이 모의 서버에 안 걸렸다: {armed}")
+    else:
+        thread = threading.Thread(target=redis_fault_thread, args=(kind, sc, start_s, length, record), daemon=True)
+        thread.start()
     stop = start_s + length + CIRCUIT_AFTER_S
     time.sleep(max(0.0, start_s - CIRCUIT_BEFORE_S - time.time()))
-    samples, nxt = [], time.time()
-    while time.time() < stop:
-        now = time.time()
-        row = circuit_sample(prom_from_snapshot(prom_snapshot(sc["ports"]["app"])), now)
-        if row:
-            samples.append(row)
-        nxt += 1
-        time.sleep(max(0.0, nxt - time.time()))
-    dump_json(os.path.join(out, "circuit.json"), {"fault": fault, "samples": samples, "tiny": tiny})
+    samples, cluster, nxt = [], [], time.time()
+    try:
+        while time.time() < stop:
+            now = time.time()
+            row = circuit_sample(prom_from_snapshot(prom_snapshot(sc["ports"]["app"])), now)
+            if row:
+                samples.append(row)
+            if kind == "master-stop":
+                nodes = cluster_nodes_now(sc["ports"]["redis_chat"], record.get("stopped_node"))
+                if nodes:
+                    cluster.append({"t": now, "nodes": [{**n, "flags": sorted(n["flags"])} for n in nodes]})
+            nxt += 1
+            time.sleep(max(0.0, nxt - time.time()))
+        if thread:
+            thread.join(timeout=30)
+    finally:
+        if kind != "mock":
+            heal_chat_cluster()
+    if kind != "mock" and "error" not in record and not {"start_ms", "end_ms"} <= set(record):
+        raise RuntimeError(f"Redis 장애를 걸지 못했다: {record}")
+    if "error" in record:
+        raise RuntimeError(record["error"])
+    dump_json(os.path.join(out, "circuit.json"), {"fault": record, "samples": samples, "cluster_samples": cluster, "tiny": tiny})
 
 
 def watch(out, sc):
@@ -618,6 +806,7 @@ def watch(out, sc):
         last = {pid: (v, now) for pid, v in cpu.items()}
         prom = prom_from_snapshot(prom_snapshot(sc["ports"]["app"]))
         row["jvm_threads_live"] = prom_value(prom, "jvm_threads_live_threads")
+        row["tomcat_busy"] = prom_max(prom, "tomcat_threads_busy_threads")
         row["process_cpu_usage"] = prom_value(prom, "process_cpu_usage")
         row["sse_active"] = prom_value(prom, "chat_sse_active_connections")
         row["hikari_active"] = prom_value(prom, "hikaricp_connections_active")
@@ -800,11 +989,14 @@ def summarize(out, code, commit, sc, app_env=None):
         depth_end = s1["depths_at_hold_end"]
     final_rabbit = http_json(f"http://{HOST}:{sc['ports']['rabbit_mgmt']}/api/queues", "guest:guest") or []
     final_mock = http_json(f"http://{HOST}:{sc['ports']['mock']}/stats")
-    fault = circuit = None
+    fault = circuit = failover = None
     circ_path = os.path.join(out, "circuit.json")
     if os.path.exists(circ_path):
         circ = load_json(circ_path)
         fault, circuit = fault_block(circ["fault"], final_mock, turns), circuit_block(circ["fault"], circ["samples"])
+        if circ["fault"].get("kind") == "master-stop":
+            cluster_samples = [{"t": x["t"], "nodes": [{**n, "flags": set(n["flags"])} for n in x["nodes"]]} for x in circ.get("cluster_samples", [])]
+            failover = failover_block(circ["fault"], cluster_samples)
     sess_done = [s for s in sessions if s.get("ok") and s.get("t_end") and window[0] <= s["t_end"] <= window[1]]
     summary = {
         "code": code, "commit": commit,
@@ -854,7 +1046,8 @@ def summarize(out, code, commit, sc, app_env=None):
         },
         "app_embedding_call_ms": embedding_block(p0, p1, samples),
         "db": {"hikari": hikari_block(p0, p1, samples), "activity": activity_block([r.get("activity") for r in samples])},
-        "fault": fault, "circuit": circuit,
+        "fault": fault, "circuit": circuit, "failover": failover,
+        "threads": threads_block(samples, turns, window),
         "save": save_block,
         "summary": summary_block,
         "app_env": app_env,
@@ -887,12 +1080,13 @@ def main():
     ap.add_argument("--commit")
     ap.add_argument("--app-env", default="")
     ap.add_argument("--tiny", action="store_true")
+    ap.add_argument("--kind", choices=FAULT_KINDS, default="mock")
     args = ap.parse_args()
     sc = load_json(args.scenario)
     if args.mode == "watch":
         watch(args.out, sc)
     elif args.mode == "fault":
-        fault_run(args.out, sc, args.tiny)
+        fault_run(args.out, sc, args.tiny, args.kind)
     elif args.mode == "resummarize":
         resummarize(args.out)
     elif args.mode == "drain":
