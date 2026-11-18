@@ -40,6 +40,8 @@ python3 "$LOADTEST_DIR/s1_load.py" --scenario "$SCENARIO" --users "$OUT/users.js
 GEN=$!
 python3 "$LOADTEST_DIR/collect_s1.py" watch --scenario "$SCENARIO" --out "$OUT" > "$OUT/collector.log" 2>&1 &
 COL=$!
+# S1_PS_SAMPLE=<간격 초>: 호스트 프로세스별 CPU 상위 12개를 그 간격으로 $OUT/ps-top.txt 에 적는다 (진단용)
+[ -n "${S1_PS_SAMPLE:-}" ] && bash "$S1_DIR/pssample.sh" "$OUT/ps-top.txt" "$S1_PS_SAMPLE" "$GEN" > /dev/null 2>&1 &
 # S1_THREAD_DUMP=<간격 초>: 생성기가 도는 동안 앱 스레드 덤프를 그 간격으로 뜬다 (진단용, 시작 120초 뒤부터)
 TD_PID=""
 if [ -n "${S1_THREAD_DUMP:-}" ]; then
