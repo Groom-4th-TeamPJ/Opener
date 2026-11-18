@@ -637,6 +637,11 @@ class ThreadsBlockR129Test(unittest.TestCase):
         self.assertEqual(7, self.block([self.sample(100, 90, 3), self.sample(101, 90, 7)])["tomcat_busy_max"])
         self.assertIsNone(self.block([self.sample(100, 90, None)])["tomcat_busy_max"])
 
+    def test_r129_톰캣_지표가_음수면_지표_없음으로_보고_null(self):
+        # 가상 스레드에서는 톰캣 풀 지표가 -1 로 나온다 (tiny 실측)
+        self.assertIsNone(self.block([self.sample(100, 90, -1), self.sample(101, 90, -1)])["tomcat_busy_max"])
+        self.assertEqual(4, self.block([self.sample(100, 90, -1), self.sample(101, 90, 4)])["tomcat_busy_max"])
+
     def test_r129_동시_스트림은_첫_토큰부터_끝까지를_초_단위로_겹쳐_센다(self):
         # 스트림 구간 = t_start + ttft -> t_end: A 110~118, B 112~120, C 115.5~116.5 -> 115초 칸에 셋
         turns = [self.turn(108.0, 2000, 10000), self.turn(110.0, 2000, 10000), self.turn(114.0, 1500, 2500)]
