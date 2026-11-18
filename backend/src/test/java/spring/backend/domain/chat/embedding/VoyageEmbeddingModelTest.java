@@ -160,11 +160,11 @@ class VoyageEmbeddingModelTest {
                 ? new Reply(429, Map.of("Retry-After", "3"), "{\"detail\":\"rate limit\"}")
                 : echoReversed(request);
 
-        float[] vector = model(100_000, 5).embed("t2");
+        List<float[]> vectors = model(100_000, 5).embed(List.of(new Document("t2")), null, new TokenCountBatchingStrategy());
 
         assertEquals(2, requests.size());
         assertEquals(List.of(3_000L), sleeps);
-        assertArrayEquals(new float[] {2, 2, 2, 2}, vector);
+        assertArrayEquals(new float[] {2, 2, 2, 2}, vectors.get(0));
     }
 
     @Test
@@ -175,7 +175,7 @@ class VoyageEmbeddingModelTest {
                 ? new Reply(429, Map.of(), "{\"detail\":\"rate limit\"}")
                 : echoReversed(request);
 
-        model(100_000, 10).embed("t1");
+        model(100_000, 10).embed(docs(1), null, new TokenCountBatchingStrategy());
 
         assertEquals(List.of(1_000L, 2_000L, 4_000L, 8_000L, 16_000L, 32_000L, 60_000L, 60_000L), sleeps);
     }
@@ -185,7 +185,8 @@ class VoyageEmbeddingModelTest {
     void embed_429계속_횟수소진후오류() {
         handler = request -> new Reply(429, Map.of(), "{\"detail\":\"rate limit\"}");
 
-        VoyageEmbeddingException error = assertThrows(VoyageEmbeddingException.class, () -> model(100_000, 5).embed("t1"));
+        VoyageEmbeddingException error = assertThrows(VoyageEmbeddingException.class,
+                () -> model(100_000, 5).embed(docs(1), null, new TokenCountBatchingStrategy()));
 
         assertEquals(5, requests.size());
         assertEquals(4, sleeps.size());
@@ -228,5 +229,58 @@ class VoyageEmbeddingModelTest {
     void dimensions_설정값_호출없음() {
         assertEquals(DIM, model(100_000, 3).dimensions());
         assertTrue(requests.isEmpty());
+    }
+
+    // 검색어 임베딩은 채팅 요청 스레드에서 돈다 -> 키가 속도 제한이어도 최대 2회, 대기 합계 2초 이하로 포기한다
+    @Test
+    @DisplayName("검색어는 429 가 두 번 이어지면 요청 2회, 대기 2초 이하로 오류를 던진다")
+    void embedQuery_429두번_2회시도후오류() {
+        handler = request -> new Reply(429, Map.of("Retry-After", "1"), "{\"detail\":\"rate limit\"}");
+
+        VoyageEmbeddingException error = assertThrows(VoyageEmbeddingException.class, () -> model(100_000, 6).embed("t1"));
+
+        assertEquals(2, requests.size());
+        assertTrue(sleeps.stream().mapToLong(Long::longValue).sum() <= 2_000, "대기 합계: " + sleeps);
+        assertTrue(error.getMessage().contains("429"), error.getMessage());
+    }
+
+    @Test
+    @DisplayName("검색어의 Retry-After 가 2초를 넘으면 기다리지 않고 바로 오류를 던진다")
+    void embedQuery_RetryAfter길다_대기없이오류() {
+        handler = request -> new Reply(429, Map.of("Retry-After", "30"), "{\"detail\":\"rate limit\"}");
+
+        assertThrows(VoyageEmbeddingException.class, () -> model(100_000, 6).embed("t1"));
+
+        assertEquals(1, requests.size());
+        assertTrue(sleeps.isEmpty(), "대기: " + sleeps);
+    }
+
+    @Test
+    @DisplayName("검색어도 429 한 번 뒤에는 성공하면 결과를 돌려준다")
+    void embedQuery_429한번_재시도성공() {
+        int[] calls = {0};
+        handler = request -> calls[0]++ == 0
+                ? new Reply(429, Map.of(), "{\"detail\":\"rate limit\"}")
+                : echoReversed(request);
+
+        assertArrayEquals(new float[] {3, 3, 3, 3}, model(100_000, 6).embed("t3"));
+
+        assertEquals(2, requests.size());
+        assertEquals(List.of(1_000L), sleeps);
+    }
+
+    // 문서 색인은 사람이 기다리지 않는다 -> 시도 횟수는 설정값 그대로
+    @Test
+    @DisplayName("문서 임베딩은 429 가 세 번 이어져도 설정한 횟수 안에서 계속 재시도한다")
+    void embedDocuments_429세번_재시도유지() {
+        int[] calls = {0};
+        handler = request -> calls[0]++ < 3
+                ? new Reply(429, Map.of(), "{\"detail\":\"rate limit\"}")
+                : echoReversed(request);
+
+        model(100_000, 6).embed(docs(1), null, new TokenCountBatchingStrategy());
+
+        assertEquals(4, requests.size());
+        assertEquals(List.of(1_000L, 2_000L, 4_000L), sleeps);
     }
 }
