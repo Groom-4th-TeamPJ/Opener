@@ -8,7 +8,12 @@ mkdir -p "$OUT"
 sleep "$DELAY"
 n=0
 while kill -0 "$WATCH" 2>/dev/null; do
-  "$JAVA_HOME_21/bin/jcmd" "$APP" Thread.print > "$OUT/td-$(printf %03d $n).txt" 2>&1
+  if [ "${S1_THREAD_DUMP_KIND:-platform}" = "virtual" ]; then
+    # 가상 스레드까지 포함한 텍스트 덤프 (JVM 이 파일을 직접 쓴다, 경로는 절대 경로)
+    "$JAVA_HOME_21/bin/jcmd" "$APP" Thread.dump_to_file -format=text "$(cd "$OUT" && pwd)/tv-$(printf %03d $n).txt" > /dev/null 2>&1
+  else
+    "$JAVA_HOME_21/bin/jcmd" "$APP" Thread.print > "$OUT/td-$(printf %03d $n).txt" 2>&1
+  fi
   n=$((n + 1))
   sleep "$EVERY"
 done
