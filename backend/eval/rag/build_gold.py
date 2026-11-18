@@ -8,6 +8,7 @@
 """
 import argparse
 import csv
+import fcntl
 import io
 import json
 import os
@@ -46,9 +47,13 @@ def copy_rows(table, rows, vecs):
 
 
 def update_gold_json(model, entry):
-    cur = json.load(open(GOLD_JSON)) if os.path.exists(GOLD_JSON) else {"db": GOLD_DB, "tables": {}}
-    cur["tables"][model] = entry
-    ragio.write_json(GOLD_JSON, cur)
+    """세 모델 프로세스가 동시에 끝날 수 있어 잠금 파일로 읽기-고치기-쓰기를 직렬화한다"""
+    os.makedirs(ragio.OUT_DIR, exist_ok=True)
+    with open(GOLD_JSON + ".lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        cur = json.load(open(GOLD_JSON)) if os.path.exists(GOLD_JSON) else {"db": GOLD_DB, "tables": {}}
+        cur["tables"][model] = entry
+        ragio.write_json(GOLD_JSON, cur)
 
 
 def main():
@@ -56,6 +61,7 @@ def main():
     ap.add_argument("--model", required=True, choices=sorted(TABLES))
     ap.add_argument("--request-tokens", type=int, default=80_000, help="한 요청의 토큰 상한(글자 수로 어림, 1글자=1토큰)")
     ap.add_argument("--max-inputs", type=int, default=128)
+    ap.add_argument("--min-interval", type=float, default=0.0, help="요청 시작 사이 최소 초 - 분당 요청 한도(무료 3회)면 20")
     a = ap.parse_args()
     table = TABLES[a.model]
     src = ragio.json_rows("opener_s1", "SELECT json_build_object('id', id, 'content', content, 'metadata', metadata) FROM vector_store ORDER BY id")
@@ -64,9 +70,12 @@ def main():
     todo = [r for r in src if r["id"] not in have]
     key = ragio.load_key("VOYAGE_API_KEY")
     ledger, tokens, done, t0 = [], 0, 0, time.time()
+    last_start = 0.0
     sizes = [len(r["content"]) for r in todo]
     for group in evalkit.batches(sizes, a.max_inputs, a.request_tokens):
         rows = [todo[i] for i in group]
+        time.sleep(max(0.0, a.min_interval - (time.time() - last_start)))
+        last_start = time.time()
         vecs, used = ragio.voyage_embed_retry(key, a.model, [r["content"] for r in rows], "document", ledger)
         copy_rows(table, rows, vecs)
         tokens += used
