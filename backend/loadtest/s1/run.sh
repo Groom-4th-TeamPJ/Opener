@@ -1,5 +1,5 @@
 #!/bin/bash
-# 사용: [S1_REFUSE=N] [S1_APP_ENV="K=V K2=V2"] [S1_APP_COMMIT=<해시>] [S1_FAULT=1 [S1_FAULT_KIND=mock|master-stop|cluster-pause]] run.sh <code: base|new|A|AB> <체크아웃 경로> <결과 폴더> [tiny]
+# 사용: [S1_THREAD_DUMP=초] [S1_REFUSE=N] [S1_APP_ENV="K=V K2=V2"] [S1_APP_COMMIT=<해시>] [S1_FAULT=1 [S1_FAULT_KIND=mock|master-stop|cluster-pause]] run.sh <code: base|new|A|AB> <체크아웃 경로> <결과 폴더> [tiny]
 # 한 회차: 스택 reset -> bootJar -> 모의 서버·앱 기동 -> 생성기·수집기 -> 큐 드레인 표집(최대 300초)·DB 행 읽기 -> 앱 정지(PID 만) -> summary.json
 # 측정 회차는 cpu-lock.sh 로 감싸서 부른다 (tiny 는 잠금 없이)
 set -u
@@ -40,6 +40,12 @@ python3 "$LOADTEST_DIR/s1_load.py" --users "$OUT/users.json" --out "$OUT" $TINY_
 GEN=$!
 python3 "$LOADTEST_DIR/collect_s1.py" watch --out "$OUT" > "$OUT/collector.log" 2>&1 &
 COL=$!
+# S1_THREAD_DUMP=<간격 초>: 생성기가 도는 동안 앱 스레드 덤프를 그 간격으로 뜬다 (진단용, 시작 120초 뒤부터)
+TD_PID=""
+if [ -n "${S1_THREAD_DUMP:-}" ]; then
+  bash "$S1_DIR/threaddump.sh" "$OUT/app.pid" "$OUT/threads" "$S1_THREAD_DUMP" "$GEN" 120 > "$OUT/threaddump.log" 2>&1 &
+  TD_PID=$!
+fi
 # S1_FAULT=1 이면 hold 시작 120초 뒤 60초간 장애를 걸고 차단기를 1초마다 표집한다 (tiny 는 10초 뒤 10초간)
 # S1_FAULT_KIND: mock(기본) 모의 서버가 Claude·Voyage 경로를 500 으로 답함 / master-stop 채팅 클러스터 마스터 하나 docker stop -> start / cluster-pause 여섯 노드 docker pause -> unpause
 FAULT_PID=""
