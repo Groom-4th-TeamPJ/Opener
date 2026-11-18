@@ -74,6 +74,14 @@ wait_health() {
   return 0
 }
 
+# 채팅 클러스터 노드를 되돌린다 (일시정지 해제 + 시작) - 이미 돌고 있는 노드에는 무해
+heal_chat_cluster() {
+  local names=(r125s1-redis-chat-1 r125s1-redis-chat-2 r125s1-redis-chat-3 r125s1-redis-chat-4 r125s1-redis-chat-5 r125s1-redis-chat-6)
+  docker unpause "${names[@]}" >/dev/null 2>&1
+  docker start "${names[@]}" >/dev/null 2>&1
+  return 0
+}
+
 # PID 파일의 프로세스만 종료
 stop_pid() {
   local f="$1" pid
