@@ -160,9 +160,10 @@ class TurnState:
         self.done = asyncio.Event()
         self.want = None  # 첫 토큰이 담아야 할 답변 표식
         self.t_first = self.t_end = self.error = None
+        self.error_detail = None  # SSE error 이벤트의 본문 앞부분 - 사용자가 받는 오류 문구를 남긴다
 
     def begin(self, want):
-        self.want, self.t_first, self.t_end, self.error = want, None, None, None
+        self.want, self.t_first, self.t_end, self.error, self.error_detail = want, None, None, None, None
         self.done = asyncio.Event()
 
 
@@ -185,7 +186,7 @@ async def pump(reader, st):
                         st.done.set()
                 elif event == "error":
                     if st.want is not None and st.t_end is None:
-                        st.t_end, st.error = time.monotonic(), "sse_error_event"
+                        st.t_end, st.error, st.error_detail = time.monotonic(), "sse_error_event", data[:300]
                         st.done.set()
                 elif event == "connected":
                     st.connected.set()
@@ -227,7 +228,7 @@ async def run_turn(spec, rec, st, cookie, sess, turn, rng):
     rec.turns.append({
         "vu": spec["vu"], "session": sid, "turn": turn, "t_start": t_start, "t_end": t_start + turn_ms / 1000,
         "ttft_ms": (st.t_first - m0) * 1000 if st.t_first is not None else None,
-        "turn_ms": turn_ms, "ok": err is None, "error": err,
+        "turn_ms": turn_ms, "ok": err is None, "error": err, "error_detail": st.error_detail if err == "sse_error_event" else None,
         "in_window": in_window(t_start, t_start + turn_ms / 1000, spec["window"]),
     })
     if err:

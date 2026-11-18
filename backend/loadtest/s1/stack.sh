@@ -2,6 +2,7 @@
 # 사용: stack.sh up|reset|down
 #  up    - r125-s1 스택 기동, 클러스터 형성까지 대기
 #  reset - 측정 DB 를 시드 템플릿에서 다시 만들고, 채팅 마스터 FLUSHALL, RabbitMQ 큐 비움
+#  check - 채팅 노드 여섯이 돌고 있고(일시정지 아님) 클러스터가 ok 인지 확인, 아니면 종료 코드 1
 #  down  - 스택 정지 (-v 는 쓰지 않는다 - 시드 템플릿 DB 가 볼륨에 있다)
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 load_ports
@@ -44,8 +45,16 @@ case "$1" in
     done
     echo "reset done (chat masters DBSIZE 0, queues 0)"
     ;;
+  check)
+    for n in 1 2 3 4 5 6; do
+      st=$(docker inspect -f '{{.State.Status}} paused={{.State.Paused}}' "r125s1-redis-chat-$n" 2>&1)
+      [ "$st" = "running paused=false" ] || { echo "check FAILED: r125s1-redis-chat-$n -> $st" >&2; exit 1; }
+    done
+    wait_cluster || exit 1
+    echo "check ok (chat nodes 6 running, cluster_state:ok)"
+    ;;
   down)
     dc down
     ;;
-  *) echo "usage: stack.sh up|reset|down" >&2; exit 2 ;;
+  *) echo "usage: stack.sh up|reset|check|down" >&2; exit 2 ;;
 esac

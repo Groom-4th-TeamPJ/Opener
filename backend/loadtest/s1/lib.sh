@@ -4,7 +4,8 @@
 S1_APP_ENV="${S1_APP_ENV:-}"
 S1_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOADTEST_DIR="$(dirname "$S1_DIR")"
-SCENARIO="$S1_DIR/scenario.json"
+# S1_SCENARIO: 진단 실행에서 부하 인원 같은 값만 바꾼 시나리오 사본을 쓴다 (원본 scenario.json 은 건드리지 않는다)
+SCENARIO="${S1_SCENARIO:-$S1_DIR/scenario.json}"
 COMPOSE_FILE="$LOADTEST_DIR/compose/s1-stack.yml"
 COMPOSE_PROJECT=r125-s1
 JAVA_HOME_21=/Users/mskim/Library/Java/JavaVirtualMachines/temurin-21.0.13/Contents/Home
@@ -37,8 +38,9 @@ export_app_env() {
   export REDIS_HOST=localhost REDIS_PORT=$AUTH_PORT
   for n in 1 2 3 4 5 6; do eval "export REDIS_CLUSTER_NODE_$((n-1))=redis-chat-$n:\$CHAT_PORT_$n"; done
   export RABBITMQ_HOST=localhost RABBITMQ_PORT=$RABBIT_PORT RABBITMQ_USERNAME=guest RABBITMQ_PASSWORD=guest
-  export OPENAI_API_KEY=sk-mock-r125
-  export SPRING_AI_OPENAI_BASE_URL="http://localhost:$MOCK_PORT" SPRING_AI_OPENAI_CHAT_BASE_URL="http://localhost:$MOCK_PORT"
+  # r129 전환 이후: Claude(채팅·요약)와 Voyage(임베딩)를 모의 서버로 돌린다 (키 접두사는 앱의 기동 점검용 - sk-ant- / 비어 있지 않은 Voyage 키)
+  export ANTHROPIC_API_KEY=sk-ant-mock-r129 ANTHROPIC_BASE_URL="http://localhost:$MOCK_PORT"
+  export VOYAGE_API_KEY=pa-mock-r129 VOYAGE_BASE_URL="http://localhost:$MOCK_PORT"
   export SERVER_PORT=$APP_PORT REST_API_KEY=r125-dummy CLIENT_SECRET_KEY=r125-dummy
 }
 
@@ -74,6 +76,14 @@ wait_health() {
   return 0
 }
 
+# 채팅 클러스터 노드를 되돌린다 (일시정지 해제 + 시작) - 이미 돌고 있는 노드에는 무해
+heal_chat_cluster() {
+  local names=(r125s1-redis-chat-1 r125s1-redis-chat-2 r125s1-redis-chat-3 r125s1-redis-chat-4 r125s1-redis-chat-5 r125s1-redis-chat-6)
+  docker unpause "${names[@]}" >/dev/null 2>&1
+  docker start "${names[@]}" >/dev/null 2>&1
+  return 0
+}
+
 # PID 파일의 프로세스만 종료
 stop_pid() {
   local f="$1" pid
@@ -89,7 +99,10 @@ start_mock() {
   local dir="$1"
   port_free "$MOCK_PORT" || { echo "mock port $MOCK_PORT busy" >&2; return 1; }
   mkdir -p "$dir"
-  python3 "$LOADTEST_DIR/mock_openai.py" --scenario "$SCENARIO" > "$dir/mock.log" 2>&1 &
+  # S1_QUERY_POOL: 저장된 청크 벡터 목록(export_query_pool.py)이 있으면 질문 임베딩이 그 근처 벡터가 돼 RAG 검색이 결과를 찾는다
+  local pool="${S1_QUERY_POOL:-/Users/mskim/Desktop/PJ/Opener/.cascade/r129/measure/s1/query-pool.json}" pool_arg=""
+  [ -f "$pool" ] && pool_arg="--query-pool $pool"
+  python3 "$LOADTEST_DIR/mock_claude.py" --scenario "$SCENARIO" $pool_arg > "$dir/mock.log" 2>&1 &
   echo $! > "$dir/mock.pid"
   for _ in $(seq 1 20); do curl -sf "http://localhost:$MOCK_PORT/stats" >/dev/null && return 0; sleep 0.5; done
   return 1

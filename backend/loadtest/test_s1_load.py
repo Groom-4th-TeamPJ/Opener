@@ -244,6 +244,12 @@ class VuFlowTest(unittest.TestCase):
         self.assertFalse(rec.turns[0]["ok"])
         self.assertEqual("sse_error_event", rec.turns[0]["error"])
 
+    def test_r129_SSE_error_이벤트의_본문을_턴_기록에_남긴다(self):
+        _, rec = self.with_app("error_event", turns_per_session=1)
+        self.assertIn("L_001", rec.turns[0]["error_detail"])
+        _, ok = self.with_app("ok", turns_per_session=1)
+        self.assertIsNone(ok.turns[0]["error_detail"])
+
     def test_HTTP_5xx_는_오류_1건으로_센다(self):
         _, rec = self.with_app("http500", turns_per_session=1)
         self.assertEqual(1, rec.errors["http_5xx"])

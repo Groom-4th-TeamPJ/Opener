@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""모의 OpenAI 서버 - S1 부하 시나리오의 외부 LLM 대역 (표준 라이브러리만 사용)
+"""모의 Claude·Voyage 서버 - S1 부하 시나리오의 외부 LLM·임베딩 대역 (표준 라이브러리만 사용, r129 전환 이후)
 
-POST /v1/chat/completions (스트림·비스트림), POST /v1/embeddings, GET /stats, POST /stats/reset
-POST /fault {"start_ms": 에포크 ms, "end_ms": 에포크 ms} - 그 구간에 도착한 위 세 경로 요청을 HTTP 500 으로 답한다 (null 이면 해제)
+POST /v1/messages (Anthropic Messages: stream true 면 SSE message_start → content_block_start → content_block_delta(text_delta) →
+  content_block_stop → message_delta → message_stop, 아니면 Message JSON 한 번), POST /v1/embeddings (Voyage: data[].index 순서, 1,024개 실수)
+GET /stats, POST /stats/reset
+POST /fault {"start_ms": 에포크 ms, "end_ms": 에포크 ms} - 그 구간에 도착한 위 세 경로(스트림·비스트림·임베딩) 요청을 HTTP 500 으로 답한다 (null 이면 해제)
+POST /refuse {"next": N, "text_chunks": K} - 다음 N 건의 스트림을 본문 K 조각 뒤 stop_reason "refusal" 로 끝낸다 (앱이 LLM 오류 이벤트로 바꾸는지 끝에서 끝까지 보는 용도)
 지연·토큰 속도는 s1/scenario.json 의 llm 값을 따른다
+질문 임베딩(input_type query)은 --query-pool 파일(저장된 실제 청크 벡터 목록)이 있으면 그중 하나 근처 벡터를 돌려줘 RAG 검색이 결과를 찾게 한다
 """
 import argparse
 import asyncio
@@ -18,12 +22,12 @@ import struct
 import threading
 import time
 
-log = logging.getLogger("mock_openai")
+log = logging.getLogger("mock_claude")
 
-EMBED_DIM = 1536
-# 모든 벡터에 공통 성분을 섞어 서로 무관한 글끼리도 코사인 유사도가 약 0.3 이 되게 한다
-# 실제 임베딩도 무관한 글끼리 0.2~0.4 라서, 0 에 가까우면 RAG 검색(임계값 0.2)이 0건이 되어 운영 경로와 달라진다
+EMBED_DIM = 1024
+# 풀이 없을 때의 대체 벡터: 공통 성분을 섞어 서로 무관한 글끼리도 코사인 유사도가 약 0.3 이 되게 한다 (문서 임베딩에도 쓴다)
 COMMON_WEIGHT = math.sqrt(0.3)
+POOL_WEIGHT = 0.95  # 질문 벡터 = 풀 벡터 0.95 + 글 해시 벡터 0.05 -> 그 풀 벡터와 코사인 약 0.99
 WORD = re.compile(r"\w+", re.UNICODE)
 # 한글 음절 2자 = 토큰 1개 (본문 바이트 약 6)
 SYLLABLES = "가나다라마바사아자차카타파하거너더러머버서어저처커터퍼허고노도로모보소오조초코토포호"
@@ -50,7 +54,17 @@ def embedding_for(text):
             bow[idx] += 1.0 if digest[6 + k] & 1 else -1.0
     bow = _unit(bow)
     w = math.sqrt(1.0 - COMMON_WEIGHT ** 2)
-    return [COMMON_WEIGHT * c + w * b for c, b in zip(_COMMON, bow)]
+    return _unit([COMMON_WEIGHT * c + w * b for c, b in zip(_COMMON, bow)])  # Voyage 벡터도 길이 1
+
+
+def query_vector(text, pool):
+    """질문(input_type query)의 벡터 - 풀(저장된 실제 청크 벡터 목록)이 있으면 글 해시로 풀에서 하나를 골라 그 근처 벡터를, 없으면 글 해시 벡터를 돌려준다
+    저장 벡터와 가까워 임계값 위 결과가 반드시 나온다 (운영에서도 질문은 같은 주제의 청크와 가깝다, 무관 질문은 예외)"""
+    own = embedding_for(text)
+    if not pool:
+        return own
+    idx = int.from_bytes(hashlib.sha256(text.encode("utf-8")).digest()[:8], "big") % len(pool)
+    return _unit([POOL_WEIGHT * p + (1 - POOL_WEIGHT) * o for p, o in zip(pool[idx], own)])
 
 
 def _text_of(content):
@@ -97,7 +111,8 @@ def check_prompt(messages):
 
 
 FAULT_ROUTES = ("chat_stream", "chat_nonstream", "embeddings")
-FAULT_BODY = {"error": {"message": "mock fault", "type": "server_error", "param": None, "code": None}}
+FAULT_BODY_MESSAGES = {"type": "error", "error": {"type": "api_error", "message": "mock fault"}}
+FAULT_BODY_VOYAGE = {"detail": "mock fault"}
 
 
 class Stats:
@@ -110,6 +125,8 @@ class Stats:
         self.chat_streams = 0
         self.chat_nonstream = 0
         self.embeddings = 0
+        self.embeddings_by_type = {}
+        self.refusals_served = 0
         self.prompt_checked = 0
         self.prompt_missing = 0
         self.by_reason = {}
@@ -124,6 +141,9 @@ class Stats:
             "chat_streams": self.chat_streams,
             "chat_nonstream": self.chat_nonstream,
             "embeddings": self.embeddings,
+            "routes": {"messages_stream": self.chat_streams, "messages": self.chat_nonstream, "embeddings": self.embeddings},
+            "embeddings_by_input_type": dict(self.embeddings_by_type),
+            "refusals_served": self.refusals_served,
             "prompt_checked": self.prompt_checked,
             "prompt_missing": self.prompt_missing,
             "prompt_missing_by_reason": dict(self.by_reason),
@@ -133,17 +153,12 @@ class Stats:
         }
 
 
-def _chunk_json(model, cid, delta, finish=None):
-    return json.dumps({
-        "id": cid, "object": "chat.completion.chunk", "created": int(time.time()), "model": model,
-        "choices": [{"index": 0, "delta": delta, "finish_reason": finish}],
-    }, ensure_ascii=False)
-
-
 class MockServer:
     # shortcut: 단일 이벤트 루프 한 개라 초당 청크 약 5만 개가 상한, 넘으면 SO_REUSEPORT 로 프로세스를 늘린다
-    def __init__(self, scenario, host="127.0.0.1", port=18090):
+    def __init__(self, scenario, host="127.0.0.1", port=18090, query_pool=None):
         self.llm = scenario["llm"]
+        self.query_pool = query_pool
+        self.refuse_next, self.refuse_text_chunks = 0, 0
         self.host, self.port = host, port
         self.stats = Stats()
         self._loop = None
@@ -222,13 +237,16 @@ class MockServer:
         if method == "POST" and path == "/fault":
             self.stats.fault_start_ms, self.stats.fault_end_ms = payload.get("start_ms"), payload.get("end_ms")
             return self._json(writer, 200, {"ok": True})
+        if method == "POST" and path == "/refuse":
+            self.refuse_next, self.refuse_text_chunks = int(payload.get("next", 0)), int(payload.get("text_chunks", 0))
+            return self._json(writer, 200, {"ok": True})
         route = self._fault_route(method, path, payload)
         if route and self._in_fault():
             self.stats.fault_failed[route] += 1
-            return self._json(writer, 500, FAULT_BODY)
+            return self._json(writer, 500, FAULT_BODY_VOYAGE if route == "embeddings" else FAULT_BODY_MESSAGES)
         if method == "POST" and path == "/v1/embeddings":
             return await self._embeddings(writer, payload)
-        if method == "POST" and path == "/v1/chat/completions":
+        if method == "POST" and path == "/v1/messages":
             if payload.get("stream"):
                 return await self._chat_stream(writer, payload)
             return await self._chat_once(writer, payload)
@@ -240,7 +258,7 @@ class MockServer:
             return None
         if path == "/v1/embeddings":
             return "embeddings"
-        if path == "/v1/chat/completions":
+        if path == "/v1/messages":
             return "chat_stream" if payload.get("stream") else "chat_nonstream"
         return None
 
@@ -254,16 +272,19 @@ class MockServer:
         writer.write(f"HTTP/1.1 {status} X\r\nContent-Type: application/json\r\nContent-Length: {len(data)}\r\n\r\n"
                      .encode("latin-1") + data)
 
-    # ---- 임베딩 ----
+    # ---- 임베딩 (Voyage) ----
     async def _embeddings(self, writer, payload):
         self.stats.embeddings += 1
+        kind = payload.get("input_type") or "none"
+        self.stats.embeddings_by_type[kind] = self.stats.embeddings_by_type.get(kind, 0) + 1
         await asyncio.sleep(self.llm["embedding_ms"] / 1000)
         inputs = payload.get("input", "")
         inputs = [inputs] if isinstance(inputs, str) else inputs
-        data = [{"object": "embedding", "index": i, "embedding": embedding_for(t if isinstance(t, str) else str(t))}
-                for i, t in enumerate(inputs)]
+        texts = [t if isinstance(t, str) else str(t) for t in inputs]
+        vec = (lambda t: query_vector(t, self.query_pool)) if kind == "query" else embedding_for
+        data = [{"object": "embedding", "index": i, "embedding": vec(t)} for i, t in enumerate(texts)]
         self._json(writer, 200, {"object": "list", "data": data, "model": payload.get("model", "mock"),
-                                 "usage": {"prompt_tokens": 8 * len(inputs), "total_tokens": 8 * len(inputs)}})
+                                 "usage": {"total_tokens": sum(max(1, len(t)) for t in texts)}})
 
     # ---- 채팅 ----
     def _check(self, messages):
@@ -299,35 +320,46 @@ class MockServer:
         try:
             messages = payload.get("messages", [])
             self._check(messages)
-            model, cid = payload.get("model", "mock"), f"chatcmpl-{random.getrandbits(48):x}"
+            model, mid = payload.get("model", "mock"), f"msg_{random.getrandbits(48):x}"
             lo, hi = self.llm["first_token_ms"]
             toks = self._tokens(self.llm["answer_tokens"], self._answer_head(messages))
+            refuse = self.refuse_next > 0
+            if refuse:
+                self.refuse_next -= 1
+                st.refusals_served += 1
+                toks = toks[:self.refuse_text_chunks]
             writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\n"
                          b"Transfer-Encoding: chunked\r\n\r\n")
             await asyncio.sleep(random.uniform(lo, hi) / 1000)
             interval = 1.0 / self.llm["tokens_per_s"]
+            self._send(writer, "message_start", {"type": "message_start", "message": {
+                "id": mid, "type": "message", "role": "assistant", "model": model, "content": [],
+                "stop_reason": None, "stop_sequence": None, "usage": {"input_tokens": 100 + len(messages), "output_tokens": 1}}})
+            self._send(writer, "content_block_start", {"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}})
             t0 = time.monotonic()
-            self._send(writer, _chunk_json(model, cid, {"role": "assistant", "content": ""}))
             for i, tok in enumerate(toks):
                 # 누적 오차를 막으려고 시작 시각 기준 절대 시각에 맞춘다
                 wait = t0 + i * interval - time.monotonic()
                 if wait > 0:
                     await asyncio.sleep(wait)
-                self._send(writer, _chunk_json(model, cid, {"content": tok}))
+                self._send(writer, "content_block_delta", {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": tok}})
                 if writer.transport.is_closing():
                     return
                 if i % 8 == 7:
                     await writer.drain()
-            self._send(writer, _chunk_json(model, cid, {}, "stop"))
-            self._send(writer, "[DONE]")
+            self._send(writer, "content_block_stop", {"type": "content_block_stop", "index": 0})
+            stop = "refusal" if refuse else "end_turn"
+            self._send(writer, "message_delta", {"type": "message_delta", "delta": {"stop_reason": stop, "stop_sequence": None},
+                                                 "usage": {"output_tokens": len(toks)}})
+            self._send(writer, "message_stop", {"type": "message_stop"})
             writer.write(b"0\r\n\r\n")
             await writer.drain()
         finally:
             st.active_streams -= 1
 
     @staticmethod
-    def _send(writer, data):
-        frame = f"data: {data}\n\n".encode("utf-8")
+    def _send(writer, event, data):
+        frame = f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n".encode("utf-8")
         writer.write(b"%x\r\n" % len(frame) + frame + b"\r\n")
 
     async def _chat_once(self, writer, payload):
@@ -343,11 +375,9 @@ class MockServer:
         messages = payload.get("messages", [])
         text = "".join(self._tokens(llm["nonstream_tokens"], ""))
         self._json(writer, 200, {
-            "id": f"chatcmpl-{random.getrandbits(48):x}", "object": "chat.completion", "created": int(time.time()),
-            "model": payload.get("model", "mock"),
-            "choices": [{"index": 0, "message": {"role": "assistant", "content": text}, "finish_reason": "stop"}],
-            "usage": {"prompt_tokens": 100 + len(messages), "completion_tokens": llm["nonstream_tokens"],
-                      "total_tokens": 100 + len(messages) + llm["nonstream_tokens"]},
+            "id": f"msg_{random.getrandbits(48):x}", "type": "message", "role": "assistant", "model": payload.get("model", "mock"),
+            "content": [{"type": "text", "text": text}], "stop_reason": "end_turn", "stop_sequence": None,
+            "usage": {"input_tokens": 100 + len(messages), "output_tokens": llm["nonstream_tokens"]},
         })
 
 
@@ -356,12 +386,17 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--scenario", default=os.path.join(here, "s1", "scenario.json"))
     ap.add_argument("--port", type=int)
+    ap.add_argument("--query-pool", help="저장된 청크 벡터 목록 JSON ({\"vectors\": [[...], ...]}) - 있으면 질문 임베딩이 그 근처 벡터가 된다")
     args = ap.parse_args()
     with open(args.scenario, encoding="utf-8") as f:
         sc = json.load(f)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    srv = MockServer(sc, host=None, port=args.port or sc["ports"]["mock"])  # 전 인터페이스 - localhost 가 ::1 로 풀려도 받는다
-    log.info("모의 OpenAI 기동 port=%s", srv.port)
+    pool = None
+    if args.query_pool:
+        with open(args.query_pool, encoding="utf-8") as f:
+            pool = json.load(f)["vectors"]
+    srv = MockServer(sc, host=None, port=args.port or sc["ports"]["mock"], query_pool=pool)  # 전 인터페이스 - localhost 가 ::1 로 풀려도 받는다
+    log.info("모의 Claude·Voyage 기동 port=%s 질문 벡터 풀=%s", srv.port, len(pool) if pool else "없음")
     srv.serve_forever()
 
 
