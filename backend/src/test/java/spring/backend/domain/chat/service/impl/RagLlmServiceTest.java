@@ -32,17 +32,18 @@ import spring.backend.shared.response.codes.ErrorCode;
 import spring.backend.shared.response.exception.BusinessException;
 import spring.backend.domain.chat.util.PromptLoader;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-// 서킷은 구독 시점 오류만 센다 -> 검색·조립이 메서드 본문에서 동기로 던지면 집계 자체가 불가능하다
-// 실패 주입 측정에서 이 경로가 실제로 드러났다(2026-08-08): 임베딩 I/O 오류가 500 으로 새고 세션이 갇혔다
+// 서킷은 구독 시점 오류만 센다 -> 히스토리 조회 같은 본문 동기 예외는 defer 안에 둬야 집계된다
+// 벡터 검색(임베딩 API·DB) 실패는 이와 별개다 -> 오류로 내보내면 llm-chat 이 Claude 가 멀쩡한데도 열려 전원이 실패한다
+// 그래서 검색 실패는 근거 없음으로 보고 규칙 프롬프트만으로 답한다 (2026-11-20 R130-2)
 @ExtendWith(MockitoExtension.class)
 class RagLlmServiceTest {
 
@@ -53,49 +54,111 @@ class RagLlmServiceTest {
     @Mock private VectorStore vectorStore;
     @Mock private PromptLoader promptLoader;
 
+    private final SimpleMeterRegistry registry = new SimpleMeterRegistry();
     private RagLlmService service;
 
     @BeforeEach
     void setUp() {
         // 실제 SimpleMeterRegistry 를 넣는다 -> 목이면 timer(...).record(Supplier) 가 null 을 돌려줘 검색 결과가 사라진다
         service = new RagLlmService(chatClientBuilder, chatHistoryProvider, vectorStore, promptLoader,
-                new SimpleMeterRegistry());
+                registry);
     }
 
     @Test
-    @DisplayName("벡터 검색이 실패해도 던지지 않고 에러 시그널로 내보낸다")
-    void chatStream_벡터검색실패_예외대신에러시그널() {
+    @DisplayName("벡터검색실패: 에러 없이 규칙 프롬프트만으로 답하고 검색은 한 번만 부른다")
+    void chatStream_벡터검색실패_규칙프롬프트로답한다() {
         when(chatHistoryProvider.getHistoryBefore("1", 7L)).thenReturn(List.of());
-        when(vectorStore.similaritySearch(any(org.springframework.ai.vectorstore.SearchRequest.class)))
+        when(vectorStore.similaritySearch(any(SearchRequest.class)))
                 .thenThrow(new IllegalStateException("임베딩 API 장애"));
+        when(promptLoader.loadChatRulePrompt()).thenReturn("규칙만");
+        ChatClient chatClient = mock(ChatClient.class, RETURNS_DEEP_STUBS);
+        when(chatClientBuilder.build()).thenReturn(chatClient);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Message>> sent = ArgumentCaptor.forClass(List.class);
+        when(chatClient.prompt().messages(sent.capture()).stream().chatResponse()).thenReturn(Flux.just(chunk("토큰", "")));
 
-        // 던지면 호출자의 doOnError 가 돌지 않아 세션이 PROCESSING 에 갇힌다
-        var stream = assertDoesNotThrow(() -> service.chatStream("1", "질문", 7L));
+        StepVerifier.create(service.chatStream("1", "질문", 7L)).expectNext("토큰").verifyComplete();
 
-        StepVerifier.create(stream)
-                .expectError(IllegalStateException.class)
-                .verify(TIMEOUT);
+        assertEquals(List.of("규칙만", "질문"), sent.getValue().stream().map(Message::getText).toList());
+        // 실패한 의존성을 디버그 재검색으로 한 번 더 부르면 임베딩 호출이 두 배로 실패한다
+        verify(vectorStore, times(1)).similaritySearch(any(SearchRequest.class));
+        assertEquals(1.0, registry.counter("rag.vector.search.fallback", "path", "chat").count());
     }
 
     @Test
-    @DisplayName("벡터 검색 실패를 서킷이 실패로 집계한다")
-    void chatStream_벡터검색실패_서킷이집계한다() {
+    @DisplayName("벡터검색실패: 서킷이 실패로 세지 않고 성공 1건으로 센다")
+    void chatStream_벡터검색실패_서킷이세지않는다() {
         when(chatHistoryProvider.getHistoryBefore("1", 7L)).thenReturn(List.of());
-        when(vectorStore.similaritySearch(any(org.springframework.ai.vectorstore.SearchRequest.class)))
+        when(vectorStore.similaritySearch(any(SearchRequest.class)))
                 .thenThrow(new IllegalStateException("임베딩 API 장애"));
+        when(promptLoader.loadChatRulePrompt()).thenReturn("규칙만");
+        ChatClient chatClient = mock(ChatClient.class, RETURNS_DEEP_STUBS);
+        when(chatClientBuilder.build()).thenReturn(chatClient);
+        when(chatClient.prompt().messages(any(List.class)).stream().chatResponse()).thenReturn(Flux.just(chunk("토큰", "")));
 
         CircuitBreaker breaker = CircuitBreaker.of("llm-chat-test", CircuitBreakerConfig.custom()
                 .slidingWindowSize(2)
                 .minimumNumberOfCalls(1)
                 .build());
 
-        // 어스펙트가 하는 일과 같은 조립 - 조립 시점에 던지면 이 연산자는 실패를 볼 기회조차 없다
+        // 어스펙트가 하는 일과 같은 조립
         StepVerifier.create(service.chatStream("1", "질문", 7L)
                         .transformDeferred(CircuitBreakerOperator.of(breaker)))
-                .expectError(IllegalStateException.class)
-                .verify(TIMEOUT);
+                .expectNext("토큰")
+                .verifyComplete();
 
-        assertEquals(1, breaker.getMetrics().getNumberOfFailedCalls());
+        assertEquals(0, breaker.getMetrics().getNumberOfFailedCalls());
+        assertEquals(1, breaker.getMetrics().getNumberOfSuccessfulCalls());
+    }
+
+    // 첫 검색이 0건으로 성공한 뒤 디버그 재검색만 실패해도 답은 이어진다 -> 진단용 호출이라 실패를 서킷에 넘길 이유가 없다
+    // 첫 검색 실패와 달리 이미 근거 없음 경로였으므로 폴백 카운터는 오르지 않는다 (2026-11-20 R130-7, s1-embfault 에서 4턴이 이 구멍으로 실패)
+    @Test
+    @DisplayName("디버그검색실패: 첫 검색이 0건이고 디버그 재검색이 던져도 규칙 프롬프트로 답하고 서킷은 실패를 세지 않으며 폴백 카운터는 0이다")
+    void chatStream_디버그검색실패_답은_이어진다() {
+        when(chatHistoryProvider.getHistoryBefore("1", 7L)).thenReturn(List.of());
+        when(vectorStore.similaritySearch(any(SearchRequest.class)))
+                .thenReturn(List.of())
+                .thenThrow(new IllegalStateException("임베딩 API 장애"));
+        when(promptLoader.loadChatRulePrompt()).thenReturn("규칙만");
+        ChatClient chatClient = mock(ChatClient.class, RETURNS_DEEP_STUBS);
+        when(chatClientBuilder.build()).thenReturn(chatClient);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Message>> sent = ArgumentCaptor.forClass(List.class);
+        when(chatClient.prompt().messages(sent.capture()).stream().chatResponse()).thenReturn(Flux.just(chunk("토큰", "")));
+
+        CircuitBreaker breaker = CircuitBreaker.of("llm-chat-debug-test", CircuitBreakerConfig.custom()
+                .slidingWindowSize(2)
+                .minimumNumberOfCalls(1)
+                .build());
+
+        StepVerifier.create(service.chatStream("1", "질문", 7L)
+                        .transformDeferred(CircuitBreakerOperator.of(breaker)))
+                .expectNext("토큰")
+                .verifyComplete();
+
+        assertEquals(List.of("규칙만", "질문"), sent.getValue().stream().map(Message::getText).toList());
+        verify(vectorStore, times(2)).similaritySearch(any(SearchRequest.class));
+        assertEquals(0, breaker.getMetrics().getNumberOfFailedCalls());
+        assertEquals(1, breaker.getMetrics().getNumberOfSuccessfulCalls());
+        assertEquals(0.0, registry.counter("rag.vector.search.fallback", "path", "chat").count());
+    }
+
+    // 검색이 성공하고 0건인 경우는 전과 같다 -> 임계값 때문에 걸러졌는지 보는 디버그 재검색이 이어진다
+    @Test
+    @DisplayName("검색이 빈 목록을 돌려주면 규칙 프롬프트로 답하고 디버그 재검색을 하며 폴백 카운터는 오르지 않는다")
+    void chatStream_검색결과없음_디버그재검색() {
+        when(chatHistoryProvider.getHistoryBefore("1", 7L)).thenReturn(List.of());
+        when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of());
+        when(promptLoader.loadChatRulePrompt()).thenReturn("규칙만");
+        ChatClient chatClient = mock(ChatClient.class, RETURNS_DEEP_STUBS);
+        when(chatClientBuilder.build()).thenReturn(chatClient);
+        when(chatClient.prompt().messages(any(List.class)).stream().chatResponse()).thenReturn(Flux.just(chunk("토큰", "")));
+
+        StepVerifier.create(service.chatStream("1", "질문", 7L)).expectNext("토큰").verifyComplete();
+
+        verify(vectorStore, times(2)).similaritySearch(any(SearchRequest.class));
+        assertEquals(0.0, registry.counter("rag.vector.search.fallback", "path", "chat").count());
     }
 
     // 히스토리는 질문 직전까지만 오므로 현재 질문은 프롬프트 조립이 한 번만 붙인다

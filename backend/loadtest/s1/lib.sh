@@ -100,7 +100,8 @@ start_mock() {
   port_free "$MOCK_PORT" || { echo "mock port $MOCK_PORT busy" >&2; return 1; }
   mkdir -p "$dir"
   # S1_QUERY_POOL: 저장된 청크 벡터 목록(export_query_pool.py)이 있으면 질문 임베딩이 그 근처 벡터가 돼 RAG 검색이 결과를 찾는다
-  local pool="${S1_QUERY_POOL:-/Users/mskim/Desktop/PJ/Opener/.cascade/r129/measure/s1/query-pool.json}" pool_arg=""
+  # 기본 풀은 opener_tpl 의 현재 벡터에서 내보낸 것이다 - 템플릿의 벡터가 바뀌면 seed/export_query_pool.py 로 다시 내보낸다 (r129 풀은 벡터 복원 전 것이라 검색이 0건이었다, r130 t1 보고서 ①-2)
+  local pool="${S1_QUERY_POOL:-/Users/mskim/Desktop/PJ/Opener/.cascade/r130/measure/query-pool-r130.json}" pool_arg=""
   [ -f "$pool" ] && pool_arg="--query-pool $pool"
   python3 "$LOADTEST_DIR/mock_claude.py" --scenario "$SCENARIO" $pool_arg > "$dir/mock.log" 2>&1 &
   echo $! > "$dir/mock.pid"

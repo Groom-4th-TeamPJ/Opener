@@ -1,7 +1,9 @@
 """수집기 순수 함수 시험 - commandstats 파싱·스크립트 내부 명령 제외·분위수·프로세스 CPU 시간·턴 통계"""
 import json
 import os
+import subprocess
 import sys
+import tempfile
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -791,6 +793,80 @@ class FaultBlockR129Test(unittest.TestCase):
         b = {"chat_streams": 130, "chat_nonstream": 10, "embeddings": 90, "prompt_missing": 0}
         self.assertEqual({"chat_streams": 30, "chat_nonstream": 0, "embeddings": 40}, collect_s1.mock_delta(a, b))
         self.assertIsNone(collect_s1.mock_delta(None, b))
+
+
+class FaultEmbeddingsR130Test(unittest.TestCase):
+    def test_r130_mock_embeddings_종류가_장애_종류에_있다(self):
+        self.assertIn("mock-embeddings", collect_s1.FAULT_KINDS)
+
+    def test_r130_mock_embeddings_는_임베딩_경로만_구간에_건다(self):
+        body = collect_s1.mock_fault_body("mock-embeddings", 100_000, 160_000)
+        self.assertEqual({"start_ms": 100_000, "end_ms": 160_000, "routes": ["embeddings"]}, body)
+
+    def test_r130_mock_은_경로를_안_정해_세_경로가_모두_실패한다(self):
+        self.assertEqual({"start_ms": 100_000, "end_ms": 160_000}, collect_s1.mock_fault_body("mock", 100_000, 160_000))
+
+    def test_r130_fault_블록은_mock_embeddings_종류를_그대로_적는다(self):
+        f = collect_s1.fault_block({"start_ms": 100_000, "end_ms": 160_000, "kind": "mock-embeddings"}, None, [])
+        self.assertEqual("mock-embeddings", f["kind"])
+
+
+class RagFallbackR130Test(unittest.TestCase):
+    def prom(self, chat, opener):
+        rows = {}
+        if chat is not None:
+            rows[("rag_vector_search_fallback_total", (("path", "chat"),))] = chat
+        if opener is not None:
+            rows[("rag_vector_search_fallback_total", (("path", "opener"),))] = opener
+        return rows
+
+    def test_r130_rag_fallback_은_경로별_구간_증가분(self):
+        self.assertEqual({"chat": 40, "opener": 3}, collect_s1.rag_fallback(self.prom(2.0, 1.0), self.prom(42.0, 4.0)))
+
+    def test_r130_카운터가_없으면_한_번도_안_늘어난_0(self):
+        # Micrometer 카운터는 처음 증가할 때 등록된다
+        self.assertEqual({"chat": 0, "opener": 0}, collect_s1.rag_fallback({}, {}))
+
+    def test_r130_한쪽_경로만_있으면_다른_쪽은_0(self):
+        self.assertEqual({"chat": 7, "opener": 0}, collect_s1.rag_fallback({}, self.prom(7.0, None)))
+
+
+class FailedTurnShareR130Test(unittest.TestCase):
+    @staticmethod
+    def turn(ok, in_window=True, **extra):
+        return {"vu": 0, "session": 1, "turn": 1, "t_start": 1.0, "t_end": 2.0, "ttft_ms": 1.0, "turn_ms": 1000.0,
+                "ok": ok, "error": None if ok else "sse_error_event", "in_window": in_window, **extra}
+
+    def test_r130_실패_턴을_측정_구간에_끝난_턴_시도_수로_나눈다(self):
+        turns = [self.turn(True), self.turn(True), self.turn(False), self.turn(False), self.turn(False, in_window=False), self.turn(True, in_window=False)]
+        self.assertEqual({"attempted": 4, "failed": 2, "share": 0.5}, collect_s1.failed_turn_share(turns))
+
+    def test_r130_구간에_끝난_턴이_없으면_share_는_null(self):
+        self.assertEqual({"attempted": 0, "failed": 0, "share": None}, collect_s1.failed_turn_share([self.turn(False, in_window=False)]))
+
+    def test_r130_옛_도구의_줄에_error_detail_이_없어도_같은_함수로_읽는다(self):
+        old = {"vu": 4, "session": 42, "turn": 1, "t_start": 1.0, "t_end": 2.0, "ttft_ms": 5.0, "turn_ms": 9.0, "ok": False,
+               "error": "turn_timeout", "in_window": True}
+        new = self.turn(False, error_detail="오류 본문")
+        self.assertNotIn("error_detail", old)
+        self.assertEqual(2, collect_s1.failed_turn_share([old, new])["failed"])
+
+    def test_r130_폴더_목록을_읽어_폴더_이름별_JSON_한_개를_쓴다(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for name, rows in (("s1-a", [self.turn(True), self.turn(False)]), ("s1-b", [self.turn(True)])):
+                d = os.path.join(tmp, name)
+                os.makedirs(d)
+                with open(os.path.join(d, "turns-0.jsonl"), "w") as f:
+                    f.write("\n".join(json.dumps(r) for r in rows) + "\n")
+                with open(os.path.join(d, "turns-1.jsonl"), "w") as f:
+                    f.write(json.dumps(self.turn(False)) + "\n" if name == "s1-a" else "")
+            out = os.path.join(tmp, "share.json")
+            r = subprocess.run([sys.executable, os.path.join(HERE, "collect_s1.py"), "share", "--share-out", out,
+                                os.path.join(tmp, "s1-a"), os.path.join(tmp, "s1-b")], capture_output=True, text=True)
+            self.assertEqual(0, r.returncode, r.stderr)
+            with open(out) as f:
+                got = json.load(f)
+        self.assertEqual({"s1-a": {"attempted": 3, "failed": 2, "share": 2 / 3}, "s1-b": {"attempted": 1, "failed": 0, "share": 0.0}}, got)
 
 
 if __name__ == "__main__":

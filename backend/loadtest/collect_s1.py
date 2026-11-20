@@ -6,8 +6,10 @@ drain      : 생성기가 끝난 뒤 저장·요약 큐를 5초마다 최대 300
 fault      : 장애 구간을 걸고 차단기 상태를 1초마다 표집해 circuit.json 에 쓴다 (run.sh 가 S1_FAULT 일 때만 부른다)
              --kind mock(기본, 모의 서버가 Claude·Voyage 경로를 500 으로 답함) | master-stop(채팅 클러스터 마스터 하나를 docker stop 했다가 start)
              | cluster-pause(채팅 클러스터 여섯 노드를 모두 docker pause 했다가 unpause)
+             | mock-embeddings(모의 서버가 Voyage 임베딩 경로만 500 으로 답함 - 검색 실패가 답 실패로 번지는지 본다)
+share      : share --share-out FILE 폴더... -> 폴더 이름별 {attempted, failed, share} JSON 한 개 (실패 턴 / 측정 구간에 끝난 턴 시도 수)
 summarize  : 생성기 원자료(turns-*.jsonl 등) + collector.json + drain.json -> summary.json
-사용: collect_s1.py watch --out DIR | collect_s1.py fault --out DIR [--tiny] [--kind mock|master-stop|cluster-pause] | collect_s1.py drain --out DIR | collect_s1.py summarize --out DIR --code base|new|A|AB --commit HASH [--app-env "K=V ..."]
+사용: collect_s1.py watch --out DIR | collect_s1.py fault --out DIR [--tiny] [--kind mock|mock-embeddings|master-stop|cluster-pause] | collect_s1.py drain --out DIR | collect_s1.py summarize --out DIR --code base|new|A|AB --commit HASH [--app-env "K=V ..."]
 """
 import argparse
 import base64
@@ -337,7 +339,35 @@ def mock_delta(a, b):
     return {k: b.get(k, 0) - a.get(k, 0) for k in ("chat_streams", "chat_nonstream", "embeddings")}
 
 
-FAULT_KINDS = ("mock", "master-stop", "cluster-pause")
+FAULT_KINDS = ("mock", "mock-embeddings", "master-stop", "cluster-pause")
+
+
+MOCK_KINDS = ("mock", "mock-embeddings")
+
+
+def mock_fault_body(kind, start_ms, end_ms):
+    """모의 서버 /fault 본문 - mock 은 세 경로 모두, mock-embeddings 는 임베딩 경로만 (r130)"""
+    body = {"start_ms": start_ms, "end_ms": end_ms}
+    if kind == "mock-embeddings":
+        body["routes"] = ["embeddings"]
+    return body
+
+
+def rag_fallback(p0, p1):
+    """벡터 검색이 실패해 근거 없이 답한 횟수(경로별) - Micrometer 카운터는 처음 증가할 때 등록되므로 없으면 0"""
+    return {path: int((prom_sum(p1, "rag_vector_search_fallback_total", path=path) or 0)
+                      - (prom_sum(p0, "rag_vector_search_fallback_total", path=path) or 0)) for path in ("chat", "opener")}
+
+
+def failed_turn_share(turns):
+    """실패 턴 / 측정 구간에 끝난 턴 시도 수 - 옛 도구와 새 도구의 turns 줄이 같은 함수로 읽힌다 (ok·in_window 만 쓴다)"""
+    window = [t for t in turns if t["in_window"]]
+    failed = sum(1 for t in window if not t["ok"])
+    return {"attempted": len(window), "failed": failed, "share": failed / len(window) if window else None}
+
+
+def share_of_folders(folders):
+    return {os.path.basename(os.path.normpath(d)): failed_turn_share(read_jsonl(d, "turns")) for d in folders}
 
 
 def fault_block(fault, mock_stats, turns):
@@ -748,11 +778,13 @@ def fault_run(out, sc, tiny, kind="mock"):
     start_s = w["hold_start"] + delay
     mock = f"http://{HOST}:{sc['ports']['mock']}"
     record, thread = {"kind": kind}, None
-    if kind == "mock":
+    if kind in MOCK_KINDS:
         record.update({"start_ms": round(start_s * 1000), "end_ms": round((start_s + length) * 1000)})
-        post_json(mock + "/fault", {"start_ms": record["start_ms"], "end_ms": record["end_ms"]})
+        body = mock_fault_body(kind, record["start_ms"], record["end_ms"])
+        post_json(mock + "/fault", body)
         armed = (http_json(mock + "/stats") or {}).get("fault") or {}
-        if armed.get("start_ms") != record["start_ms"] or armed.get("end_ms") != record["end_ms"]:
+        if armed.get("start_ms") != record["start_ms"] or armed.get("end_ms") != record["end_ms"] \
+                or ("routes" in body and armed.get("routes") != body["routes"]):
             raise RuntimeError(f"장애 구간이 모의 서버에 안 걸렸다: {armed}")
     else:
         thread = threading.Thread(target=redis_fault_thread, args=(kind, sc, start_s, length, record), daemon=True)
@@ -775,9 +807,9 @@ def fault_run(out, sc, tiny, kind="mock"):
         if thread:
             thread.join(timeout=30)
     finally:
-        if kind != "mock":
+        if kind not in MOCK_KINDS:
             heal_chat_cluster()
-    if kind != "mock" and "error" not in record and not {"start_ms", "end_ms"} <= set(record):
+    if kind not in MOCK_KINDS and "error" not in record and not {"start_ms", "end_ms"} <= set(record):
         raise RuntimeError(f"Redis 장애를 걸지 못했다: {record}")
     if "error" in record:
         raise RuntimeError(record["error"])
@@ -1024,6 +1056,7 @@ def summarize(out, code, commit, sc, app_env=None):
             "redis_read_by_route": routes,
             "sse_ttft_server_ms": timer_delta(p0, p1, "chat_sse_ttft_seconds"),
             "rag_search_ms": timer_delta(p0, p1, "rag_vector_search_seconds", path="chat"),
+            "rag_fallback": rag_fallback(p0, p1),
             "jvm_threads_live_peak": max([r["jvm_threads_live"] for r in samples if r["jvm_threads_live"] is not None] or [None]),
             "process_cpu_mean": sum(cpu_vals) / len(cpu_vals) if cpu_vals else None,
             "circuit_states": cb,
@@ -1072,9 +1105,11 @@ def summarize(out, code, commit, sc, app_env=None):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("mode", choices=["watch", "fault", "drain", "summarize", "resummarize", "idle"])
+    ap.add_argument("mode", choices=["watch", "fault", "drain", "summarize", "resummarize", "idle", "share"])
+    ap.add_argument("folders", nargs="*", help="share: 실행 폴더 목록")
+    ap.add_argument("--share-out", help="share: 폴더 이름별 실패 턴 비율을 쓸 JSON 파일")
     ap.add_argument("--seconds", type=float, default=20)
-    ap.add_argument("--out", required=True)
+    ap.add_argument("--out")
     ap.add_argument("--scenario", default=os.path.join(HERE, "s1", "scenario.json"))
     ap.add_argument("--code")
     ap.add_argument("--commit")
@@ -1082,6 +1117,11 @@ def main():
     ap.add_argument("--tiny", action="store_true")
     ap.add_argument("--kind", choices=FAULT_KINDS, default="mock")
     args = ap.parse_args()
+    if args.mode == "share":
+        dump_json(args.share_out, share_of_folders(args.folders), indent=2)
+        return
+    if not args.out:
+        ap.error("--out 이 필요하다")
     sc = load_json(args.scenario)
     if args.mode == "watch":
         watch(args.out, sc)

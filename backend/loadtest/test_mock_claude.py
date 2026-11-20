@@ -476,6 +476,63 @@ class FaultWindowTest(unittest.TestCase):
         self.set_window(None, None)
         self.assertEqual(200, self.call("POST", *self.EMBED)[0])
 
+    # ---- r130: 장애 구간을 경로로 좁힌다 (임베딩만 실패시켜 검색 실패가 답 실패로 번지는지 본다) ----
+    def set_window_routes(self, routes):
+        now = time.time() * 1000
+        return self.call("POST", "/fault", {"start_ms": now - 60_000, "end_ms": now + 60_000, "routes": routes})
+
+    def stream_status(self):
+        # 스트림 본문은 SSE 라 상태 줄만 읽고 닫는다
+        c = http.client.HTTPConnection("127.0.0.1", self.server.port, timeout=30)
+        c.request("POST", self.STREAM[0], json.dumps(self.STREAM[1]), {"Content-Type": "application/json"})
+        status = c.getresponse().status
+        c.close()
+        return status
+
+    def test_r130_routes_에_embeddings_만_주면_임베딩만_500_이고_채팅_두_경로는_정상(self):
+        self.assertEqual(200, self.set_window_routes(["embeddings"])[0])
+        self.assertEqual(500, self.call("POST", *self.EMBED)[0])
+        self.assertEqual(200, self.call("POST", *self.CHAT)[0])
+        self.assertEqual(200, self.stream_status())
+        f = self.get_stats()["fault"]
+        self.assertEqual({"chat_stream": 0, "chat_nonstream": 0, "embeddings": 1}, f["failed_by_route"])
+
+    def test_r130_routes_에_chat_stream_만_주면_스트림만_500(self):
+        self.set_window_routes(["chat_stream"])
+        self.assertEqual(500, self.stream_status())
+        self.assertEqual(200, self.call("POST", *self.CHAT)[0])
+        self.assertEqual(200, self.call("POST", *self.EMBED)[0])
+
+    def test_r130_routes_가_두_개면_그_둘만_실패(self):
+        self.set_window_routes(["chat_nonstream", "embeddings"])
+        self.assertEqual(500, self.call("POST", *self.CHAT)[0])
+        self.assertEqual(500, self.call("POST", *self.EMBED)[0])
+        self.assertEqual(200, self.stream_status())
+
+    def test_r130_routes_없이_구간을_걸면_세_경로_모두_실패(self):
+        self.window_around_now()
+        self.assertEqual(500, self.call("POST", *self.CHAT)[0])
+        self.assertEqual(500, self.call("POST", *self.EMBED)[0])
+        self.assertEqual(500, self.stream_status())
+
+    def test_r130_stats_가_구간의_routes_를_보고한다(self):
+        self.set_window_routes(["embeddings"])
+        self.assertEqual(["embeddings"], self.get_stats()["fault"]["routes"])
+        self.window_around_now()
+        self.assertEqual(["chat_stream", "chat_nonstream", "embeddings"], self.get_stats()["fault"]["routes"])
+
+    def test_r130_모르는_경로_이름은_400_이고_구간을_바꾸지_않는다(self):
+        self.set_window_routes(["embeddings"])
+        status, _ = self.set_window_routes(["embedings"])
+        self.assertEqual(400, status)
+        self.assertEqual(["embeddings"], self.get_stats()["fault"]["routes"])
+        self.assertEqual(500, self.call("POST", *self.EMBED)[0])
+
+    def test_r130_구간을_null_로_지우면_routes_도_처음_상태로_돌아간다(self):
+        self.set_window_routes(["embeddings"])
+        self.set_window(None, None)
+        self.assertEqual(["chat_stream", "chat_nonstream", "embeddings"], self.get_stats()["fault"]["routes"])
+
 
 if __name__ == "__main__":
     unittest.main()
