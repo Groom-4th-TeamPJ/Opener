@@ -65,13 +65,24 @@ public class RagServiceImpl implements RagService {
 
         // 벡터 검색 소요를 Timer 로 계측 (rag.vector.search) -> 대시보드 p95 패널
         // path 태그는 일반 채팅 경로와 짝 -> 한쪽만 태그를 붙이면 같은 미터에 태그 집합이 갈려 예외
-        List<Document> similarDocuments = meterRegistry.timer("rag.vector.search", "path", "opener")
-                .record(() -> vectorStore.similaritySearch(searchRequest));
+        List<Document> similarDocuments;
+        boolean searchFailed = false;
+        try {
+            similarDocuments = meterRegistry.timer("rag.vector.search", "path", "opener")
+                    .record(() -> vectorStore.similaritySearch(searchRequest));
+        } catch (RuntimeException e) {
+            // 오류로 내보내면 llm-rag 서킷이 Claude 가 멀쩡해도 임베딩·DB 실패를 세어 열린다 -> 근거 없음으로 보고 일반 분석으로 진행
+            log.warn("[RAG] 벡터 검색 실패 - 근거 없이 일반 LLM 응답으로 진행합니다", e);
+            meterRegistry.counter("rag.vector.search.fallback", "path", "opener").increment();
+            similarDocuments = List.of();
+            searchFailed = true;
+        }
 
         log.info("[RAG] 유사 문서 검색 완료 - 검색된 문서 수: {} (threshold: {})",
                 similarDocuments.size(), similarityThreshold);
 
-        if (similarDocuments.isEmpty()) {
+        // 검색이 실패한 경우는 디버그 재검색도 같은 의존성을 또 부르므로 건너뛴다
+        if (similarDocuments.isEmpty() && !searchFailed) {
             logDebugSearchInfo(problemContext);
         }
 

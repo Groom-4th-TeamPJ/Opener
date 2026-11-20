@@ -87,7 +87,7 @@ public class RagLlmService implements LlmService {
     @Override
     @CircuitBreaker(name = "llm-chat", fallbackMethod = "chatStreamFallback")
     public Flux<String> chatStream(String sessionId, String userMessage, long writtenLength) {
-        // defer -> 히스토리 조회와 벡터 검색을 구독 시점으로 미룬다
+        // defer -> 히스토리 조회를 구독 시점으로 미룬다 (벡터 검색 실패는 buildStream 이 흡수하므로 서킷이 세지 않는다)
         // 조립 시점에 던지면 (1) 리액터 서킷은 구독 시점만 세므로 집계되지 않고
         // (2) 호출자의 doOnError 가 돌지 않아 세션이 PROCESSING 에 갇혀 다음 요청이 전부 거부된다
         return Flux.defer(() -> buildStream(sessionId, userMessage, writtenLength));
@@ -113,13 +113,24 @@ public class RagLlmService implements LlmService {
                 .build();
 
         // path 태그로 오프너 경로와 갈라 계측 -> 같은 미터를 태그 없이 쓰면 두 경로가 한 값으로 뭉쳐 구분 불가
-        List<Document> similarDocuments = meterRegistry.timer("rag.vector.search", "path", "chat")
-                .record(() -> vectorStore.similaritySearch(searchRequest));
+        List<Document> similarDocuments;
+        boolean searchFailed = false;
+        try {
+            similarDocuments = meterRegistry.timer("rag.vector.search", "path", "chat")
+                    .record(() -> vectorStore.similaritySearch(searchRequest));
+        } catch (RuntimeException e) {
+            // 오류로 내보내면 llm-chat 서킷이 Claude 가 멀쩡해도 임베딩·DB 실패를 세어 열리고 전원이 실패한다 -> 근거 없음으로 보고 진행
+            log.warn("[LLM+RAG] 벡터 검색 실패 - 근거 없이 규칙 프롬프트만으로 진행합니다 - sessionId: {}", sessionId, e);
+            meterRegistry.counter("rag.vector.search.fallback", "path", "chat").increment();
+            similarDocuments = List.of();
+            searchFailed = true;
+        }
 
         log.info("[LLM+RAG] 유사 문서 검색 완료 - 검색된 문서 수: {} (threshold: {})",
                 similarDocuments.size(), similarityThreshold);
 
-        if (similarDocuments.isEmpty()) {
+        // 검색이 실패한 경우는 디버그 재검색도 같은 의존성을 또 부르므로 건너뛴다
+        if (similarDocuments.isEmpty() && !searchFailed) {
             logDebugSearchInfo(userMessage);
         }
 
