@@ -124,7 +124,14 @@ public class RagServiceImpl implements RagService {
                 .topK(3)
                 .similarityThreshold(0.0)
                 .build();
-        List<Document> debugDocs = vectorStore.similaritySearch(debugRequest);
+        List<Document> debugDocs;
+        try {
+            debugDocs = vectorStore.similaritySearch(debugRequest);
+        } catch (RuntimeException e) {
+            // 진단용 호출이다 -> 던지면 서킷이 임베딩·DB 실패를 세어, 첫 검색이 0건으로 성공한 턴이 장애 구간 시작에 걸려 실패한다
+            log.warn("[RAG] 디버그 재검색 실패 - 진단만 건너뜁니다", e);
+            return;
+        }
         if (!debugDocs.isEmpty()) {
             log.warn("[RAG] 임계값({}) 때문에 문서가 필터링됨. 임계값 없이 검색 시 {}개 문서 발견.",
                     similarityThreshold, debugDocs.size());
