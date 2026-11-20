@@ -98,6 +98,37 @@ class RagServiceImplTest {
         assertEquals(1, breaker.getMetrics().getNumberOfSuccessfulCalls());
     }
 
+    // 첫 검색이 0건으로 성공한 뒤 디버그 재검색만 실패해도 답은 이어진다 (2026-11-20 R130-7, 채팅 경로와 같은 규칙)
+    @Test
+    @DisplayName("디버그검색실패: 첫 검색이 0건이고 디버그 재검색이 던져도 RAG 없는 프롬프트로 답하고 서킷은 실패를 세지 않으며 폴백 카운터는 0이다")
+    void generateSimilarProblemStream_디버그검색실패_답은_이어진다() {
+        when(vectorStore.similaritySearch(any(SearchRequest.class)))
+                .thenReturn(List.of())
+                .thenThrow(new IllegalStateException("임베딩 API 장애"));
+        when(promptLoader.buildNoRagOpenerAnalysisPrompt("문제")).thenReturn("일반 분석");
+        ChatClient chatClient = mock(ChatClient.class, RETURNS_DEEP_STUBS);
+        when(chatClientBuilder.build()).thenReturn(chatClient);
+        ArgumentCaptor<String> sent = ArgumentCaptor.forClass(String.class);
+        when(chatClient.prompt().user(sent.capture()).stream().chatResponse()).thenReturn(Flux.just(chunk("토큰")));
+
+        CircuitBreaker breaker = CircuitBreaker.of("llm-rag-debug-test", CircuitBreakerConfig.custom()
+                .slidingWindowSize(2)
+                .minimumNumberOfCalls(1)
+                .build());
+
+        StepVerifier.create(service.generateSimilarProblemStream("문제")
+                        .transformDeferred(CircuitBreakerOperator.of(breaker)))
+                .expectNext("토큰")
+                .expectComplete()
+                .verify(TIMEOUT);
+
+        assertEquals("일반 분석", sent.getValue());
+        verify(vectorStore, times(2)).similaritySearch(any(SearchRequest.class));
+        assertEquals(0, breaker.getMetrics().getNumberOfFailedCalls());
+        assertEquals(1, breaker.getMetrics().getNumberOfSuccessfulCalls());
+        assertEquals(0.0, registry.counter("rag.vector.search.fallback", "path", "opener").count());
+    }
+
     // 검색이 성공하고 0건인 경우는 전과 같다 -> 디버그 재검색이 이어진다
     @Test
     @DisplayName("검색이 빈 목록을 돌려주면 RAG 없는 프롬프트로 답하고 디버그 재검색을 하며 폴백 카운터는 오르지 않는다")
