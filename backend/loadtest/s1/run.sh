@@ -1,5 +1,5 @@
 #!/bin/bash
-# 사용: [S1_THREAD_DUMP=초] [S1_REFUSE=N] [S1_APP_ENV="K=V K2=V2"] [S1_APP_COMMIT=<해시>] [S1_FAULT=1 [S1_FAULT_KIND=mock|master-stop|cluster-pause]] run.sh <code: base|new|A|AB> <체크아웃 경로> <결과 폴더> [tiny]
+# 사용: [S1_THREAD_DUMP=초] [S1_REFUSE=N] [S1_APP_ENV="K=V K2=V2"] [S1_APP_COMMIT=<해시>] [S1_FAULT=1 [S1_FAULT_KIND=mock|mock-embeddings|master-stop|cluster-pause]] run.sh <code: base|new|A|AB> <체크아웃 경로> <결과 폴더> [tiny]
 # 한 회차: 스택 reset -> bootJar -> 모의 서버·앱 기동 -> 생성기·수집기 -> 큐 드레인 표집(최대 300초)·DB 행 읽기 -> 앱 정지(PID 만) -> summary.json
 # 측정 회차는 cpu-lock.sh 로 감싸서 부른다 (tiny 는 잠금 없이)
 set -u
@@ -49,7 +49,7 @@ if [ -n "${S1_THREAD_DUMP:-}" ]; then
   TD_PID=$!
 fi
 # S1_FAULT=1 이면 hold 시작 120초 뒤 60초간 장애를 걸고 차단기를 1초마다 표집한다 (tiny 는 10초 뒤 10초간)
-# S1_FAULT_KIND: mock(기본) 모의 서버가 Claude·Voyage 경로를 500 으로 답함 / master-stop 채팅 클러스터 마스터 하나 docker stop -> start / cluster-pause 여섯 노드 docker pause -> unpause
+# S1_FAULT_KIND: mock(기본) 모의 서버가 Claude·Voyage 세 경로를 500 으로 답함 / mock-embeddings Voyage 임베딩 경로만 500 / master-stop 채팅 클러스터 마스터 하나 docker stop -> start / cluster-pause 여섯 노드 docker pause -> unpause
 FAULT_PID=""
 if [ -n "${S1_FAULT:-}" ]; then
   python3 "$LOADTEST_DIR/collect_s1.py" fault --scenario "$SCENARIO" --out "$OUT" $TINY_FLAG --kind "${S1_FAULT_KIND:-mock}" > "$OUT/fault.log" 2>&1 &

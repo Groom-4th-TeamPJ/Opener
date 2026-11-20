@@ -4,7 +4,8 @@
 POST /v1/messages (Anthropic Messages: stream true 면 SSE message_start → content_block_start → content_block_delta(text_delta) →
   content_block_stop → message_delta → message_stop, 아니면 Message JSON 한 번), POST /v1/embeddings (Voyage: data[].index 순서, 1,024개 실수)
 GET /stats, POST /stats/reset
-POST /fault {"start_ms": 에포크 ms, "end_ms": 에포크 ms} - 그 구간에 도착한 위 세 경로(스트림·비스트림·임베딩) 요청을 HTTP 500 으로 답한다 (null 이면 해제)
+POST /fault {"start_ms": 에포크 ms, "end_ms": 에포크 ms, "routes": [...]} - 그 구간에 도착한 요청을 HTTP 500 으로 답한다 (null 이면 해제)
+  routes 는 chat_stream·chat_nonstream·embeddings 의 부분집합이고 생략하면 셋 모두다 (r130 - 임베딩만 실패시켜 검색 실패가 답 실패로 번지는지 본다), 모르는 이름은 400
 POST /refuse {"next": N, "text_chunks": K} - 다음 N 건의 스트림을 본문 K 조각 뒤 stop_reason "refusal" 로 끝낸다 (앱이 LLM 오류 이벤트로 바꾸는지 끝에서 끝까지 보는 용도)
 지연·토큰 속도는 s1/scenario.json 의 llm 값을 따른다
 질문 임베딩(input_type query)은 --query-pool 파일(저장된 실제 청크 벡터 목록)이 있으면 그중 하나 근처 벡터를 돌려줘 RAG 검색이 결과를 찾게 한다
@@ -119,6 +120,7 @@ class Stats:
     def __init__(self):
         # 장애 구간은 설정이라 reset 이 지우지 않는다 - 지우는 것은 POST /fault 의 null
         self.fault_start_ms = self.fault_end_ms = None
+        self.fault_routes = list(FAULT_ROUTES)
         self.reset()
 
     def reset(self):
@@ -149,7 +151,8 @@ class Stats:
             "prompt_missing_by_reason": dict(self.by_reason),
             "active_streams_peak": self.active_streams_peak,
             "nonstream_inflight_peak": self.nonstream_inflight_peak,
-            "fault": {"start_ms": self.fault_start_ms, "end_ms": self.fault_end_ms, "failed_by_route": dict(self.fault_failed)},
+            "fault": {"start_ms": self.fault_start_ms, "end_ms": self.fault_end_ms, "routes": list(self.fault_routes),
+                      "failed_by_route": dict(self.fault_failed)},
         }
 
 
@@ -235,13 +238,20 @@ class MockServer:
             return self._json(writer, 200, {"ok": True})
         payload = json.loads(body or b"{}")
         if method == "POST" and path == "/fault":
+            routes = payload.get("routes")
+            if routes is None:
+                routes = list(FAULT_ROUTES)
+            # 오타가 조용히 무시되면 아무 경로도 실패시키지 않는 측정이 정상처럼 끝난다 -> 구간을 바꾸지 않고 400
+            if not isinstance(routes, list) or not routes or any(r not in FAULT_ROUTES for r in routes):
+                return self._json(writer, 400, {"error": {"message": f"routes must be a non-empty subset of {list(FAULT_ROUTES)}"}})
             self.stats.fault_start_ms, self.stats.fault_end_ms = payload.get("start_ms"), payload.get("end_ms")
+            self.stats.fault_routes = [r for r in FAULT_ROUTES if r in routes]
             return self._json(writer, 200, {"ok": True})
         if method == "POST" and path == "/refuse":
             self.refuse_next, self.refuse_text_chunks = int(payload.get("next", 0)), int(payload.get("text_chunks", 0))
             return self._json(writer, 200, {"ok": True})
         route = self._fault_route(method, path, payload)
-        if route and self._in_fault():
+        if route and route in self.stats.fault_routes and self._in_fault():
             self.stats.fault_failed[route] += 1
             return self._json(writer, 500, FAULT_BODY_VOYAGE if route == "embeddings" else FAULT_BODY_MESSAGES)
         if method == "POST" and path == "/v1/embeddings":
